@@ -1,0 +1,30 @@
+Neutral Y prime ends:
+count    7989.0
+mean        0.0
+std         0.0
+min         0.0
+25%         0.0
+50%         0.0
+75%         0.0
+max         0.0
+Name: y_primes_relative_to_ref, dtype: float64
+Positive Y prime ends:
+count    38.000000
+mean      1.394737
+std       0.855490
+min       1.000000
+25%       1.000000
+50%       1.000000
+75%       1.000000
+max       4.000000
+Name: y_primes_relative_to_ref, dtype: float64
+Negative Y prime ends:
+count    272.000000
+mean      -1.224265
+std        1.015234
+min       -7.000000
+25%       -1.000000
+50%       -1.000000
+75%       -1.000000
+max       -1.000000
+Name: y_primes_relative_to_ref, dtype: float64

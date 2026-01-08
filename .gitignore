@@ -1,0 +1,32 @@
+# Data directories - excluded from version control
+dorado_6991_day0_repeat2_PromethION_no_tag_yes_rejection/
+dorado_6991_day0_repeat2_PromethION_no_tag_yes_rejection_2/
+not_needed/
+previous_tests/
+results/
+samples_dorado_basecalled2/
+telomere_figures/
+
+# Output files
+curr_snake_output.txt
+
+# Snakemake working directory
+.snakemake/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
