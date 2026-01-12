@@ -1,8 +1,9 @@
 # config.yaml
-base_name: "dorado_6991_day0_repeat2_PromethION_no_tag_yes_rejection"
+base_name: "dorado_7093_day0_repeat2_PromethION_no_tag_yes_rejection"
 anchor_set: "test_anchors"
 adapter_seq_file: "offical_nanopore_adapter_seq+trunc.txt"
 bam_dir: "../samples_dorado_basecalled2"
+strain: "6991"  # Override strain to use 6991 references for this sample
 
 # Paths to references
 references:

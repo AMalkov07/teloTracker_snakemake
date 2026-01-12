@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 import sys
+from repeatmasker_utils import load_and_aggregate_repeatmasker_results
 
 print("Starting make_x_element_ends_pairs_repeatmasker_tsv.py")
 
@@ -21,72 +22,39 @@ print(f'Reading from directory: {repeatmasker_results_dir}')
 print(f'Strain: {strain}')
 print(f'Y prime probe file: {y_prime_probe_file}')
 
-# Not used in the script but kept for reference
-input_anchor_distances_bed_file = f'{strain}_anchors_and_distances.bed'
 
-repeatmasker_results_dir_list = os.listdir(repeatmasker_results_dir)
+# Chr_end extractor function for X element ends repeatmasker files
+def extract_chr_end_x_element(filename):
+    """Extract chr_end from X element repeatmasker filename."""
+    # File is like: results/BASE/paired_x_element_ends_repeatmasker_results/BASE_chrXY_and_IDZ_x_element_ends_repeatmasker_results.ssv
+    basename = os.path.basename(filename)
+    # Remove suffix and extract chr_end
+    filename_parts = basename.replace('_x_element_ends_repeatmasker_results_corrected.ssv', '')
+    # Split by underscore and get the chr part (e.g., chr7L from BASE_chr7L_and_ID3)
+    parts = filename_parts.split('_')
+    # Find the part that starts with 'chr'
+    chr_end_of_file = None
+    for part in parts:
+        if part.startswith('chr'):
+            chr_end_of_file = part
+            break
 
-# Look for files ending in results.ssv (not just those starting with 'dorado')
-all_results_files = [f'{repeatmasker_results_dir}/{f}' for f in repeatmasker_results_dir_list 
-                     if f.endswith('x_element_ends_repeatmasker_results.ssv')]
+    if chr_end_of_file is None:
+        print(f'Warning: Could not extract chr_end from {basename}')
 
-print(f'Found {len(all_results_files)} x element repeatmasker result files')
+    return chr_end_of_file
 
-df_all_repeatmakser_results = pd.DataFrame()
-for repeatmasker_results_file in all_results_files:
-    
-    # Need to remove lead spaces from the file that come when SW_score < 10,000
-    corrected_repeatmasker_results_file = f"{repeatmasker_results_file.split('results.ssv')[0]}results_corrected.ssv"
-    
-    if os.path.isfile(corrected_repeatmasker_results_file) == 'fix_later':
-        pass
-    else:
-        with open(repeatmasker_results_file, "r") as original_file:
-            corrected_data = []
-            for line_number, line in enumerate(original_file.readlines()):
-                if line_number == 0:
-                    corrected_data.append(line)
-                else:
-                    line = line.strip()
-                    if line[-1] != "*":
-                        line = f'{line} -'
-                    corrected_data.append(line)
-            
-        with open(corrected_repeatmasker_results_file, "w") as corrected_file:
-            for fixed_line in corrected_data:
-                corrected_file.write(f'{fixed_line}\n')
-    
-    try:
-        df_single_repeatmasker_results = pd.read_csv(corrected_repeatmasker_results_file, sep=r"\s+")
-        
-        # Extract chr_end from filename
-        # File is like: results/BASE/paired_x_element_ends_repeatmasker_results/BASE_chrXY_and_IDZ_x_element_ends_repeatmasker_results.ssv
-        filename = os.path.basename(corrected_repeatmasker_results_file)
-        # Remove suffix and extract chr_end
-        filename_parts = filename.replace('_x_element_ends_repeatmasker_results_corrected.ssv', '')
-        # Split by underscore and get the chr part (e.g., chr7L from BASE_chr7L_and_ID3)
-        parts = filename_parts.split('_')
-        # Find the part that starts with 'chr'
-        chr_end_of_file = None
-        for part in parts:
-            if part.startswith('chr'):
-                chr_end_of_file = part
-                break
-        
-        if chr_end_of_file is None:
-            print(f'Warning: Could not extract chr_end from {filename}')
-            continue
-            
-        df_single_repeatmasker_results["original_chr_end_anchor"] = chr_end_of_file
-        df_single_repeatmasker_results = df_single_repeatmasker_results.dropna(axis=1, how='all')
-        df_all_repeatmakser_results = pd.concat([df_all_repeatmakser_results, df_single_repeatmasker_results])
-    except Exception as e:
-        print(f'Error in {corrected_repeatmasker_results_file}: {e}')
-        pass
 
-# Replace the "*" values with True and the "-" with False
-df_all_repeatmakser_results.loc[df_all_repeatmakser_results['sub_match'] == '*', 'sub_match'] = True
-df_all_repeatmakser_results.loc[df_all_repeatmakser_results['sub_match'] == '-', 'sub_match'] = False
+# Load and aggregate all RepeatMasker results using shared utility
+df_all_repeatmakser_results = load_and_aggregate_repeatmasker_results(
+    repeatmasker_results_dir,
+    'x_element_ends_repeatmasker_results.ssv',
+    chr_end_extractor=extract_chr_end_x_element
+)
+
+# Rename the chr_end column to match original script's naming
+if 'chr_end' in df_all_repeatmakser_results.columns:
+    df_all_repeatmakser_results.rename(columns={'chr_end': 'original_chr_end_anchor'}, inplace=True)
 
 df_all_repeatmakser_results.sort_values(by=['original_chr_end_anchor', 'read_id', 'match_start_on_read'], inplace=True)
 

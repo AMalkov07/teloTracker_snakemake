@@ -14,8 +14,8 @@ set -o pipefail  # Exit on pipe failure
 # ============================================================================
 
 # Required inputs
-BASE_NAME="dorado_7093_day0_repeat2_PromethION_no_tag_yes_rejection"
-STRAIN_ID="7093"
+BASE_NAME="dorado_fast5_7575_day0_PromethION_no_tag_yes_rejection"
+STRAIN_ID="7575"
 
 # Paths relative to Snakemake pipeline outputs
 INPUT_TSV="results/${BASE_NAME}/${BASE_NAME}_post_y_prime_probe.tsv"
@@ -37,6 +37,7 @@ ADAPTER_FILE="/Shared/malkova_lab/Ivan/nanopore_sequencing/offical_nanopore_adap
 # Dorado configuration
 DORADO_MODE="docker"  # "docker" or "local"
 DORADO_IMAGE="/Shared/malkova_lab/dorado_files/docker_images_of_dorado/dorado-11-26-2025.sif"
+DORADO_MODEL="dna_r10.4.1_e8.2_400bps_sup@v5.2.0"  # Basecaller model used for original reads
 
 
 # ============================================================================
@@ -88,7 +89,8 @@ mkdir -p "${OUTPUT_DIR}"
 
 # Define output file paths
 SELECTED_READS_TEXT_FILE="${OUTPUT_DIR}/${PREFIX}_selected_read_chr_arm_pairs.txt"
-SELECTED_READS_IDS_ONLY_FILE="${OUTPUT_DIR}/${PREFIX}_selected_read_ids_only.txt"
+# Note: The Python script creates the ids-only file by appending _only before .txt
+SELECTED_READS_IDS_ONLY_FILE="${OUTPUT_DIR}/${PREFIX}_selected_read_chr_arm_pairs_only.txt"
 SELECTED_FASTQ="${OUTPUT_DIR}/${PREFIX}_selected_reads.fastq"
 TRIMMED_FASTQ="${OUTPUT_DIR}/${PREFIX}_trimmed.fastq"
 EXTENDED_REF="${OUTPUT_DIR}/${PREFIX}_extended_to_telomere_reference.fasta"
@@ -192,7 +194,7 @@ echo "========================================================================"
 mkdir -p "${FLYE_DIR}"
 
 flye --polish-target "${EXTENDED_REF}" \
-     --nano-hq "${SELECTED_FASTQ}" \
+     --nano-hq "${TRIMMED_FASTQ}" \
      --out-dir "${FLYE_DIR}" \
      --threads "${THREADS}" \
      -i 3
@@ -242,27 +244,54 @@ echo "========================================================================"
 
 echo "Polishing: ${DORADO_ALIGNMENT}"
 
+# First, we need to add the basecaller model to the BAM header
+# dorado polish requires this information to select the correct polishing model
+DORADO_ALIGNMENT_WITH_MODEL="${OUTPUT_DIR}/${PREFIX}_dorado_aligned_with_model.bam"
+
+echo "Adding basecaller model to BAM header..."
+echo "Model: ${DORADO_MODEL}"
+
+# Extract header, add DS tag with basecaller model, and reheader the BAM
+samtools view -H "${DORADO_ALIGNMENT}" > "${OUTPUT_DIR}/header.sam"
+
+# Check if there's already a @RG line, if not add one with the model info
+if grep -q "^@RG" "${OUTPUT_DIR}/header.sam"; then
+    # Add DS tag to existing @RG line(s)
+    sed -i "s/^@RG\t/@RG\tDS:basecall_model=${DORADO_MODEL}\t/" "${OUTPUT_DIR}/header.sam"
+else
+    # Add a new @RG line with the model info
+    echo -e "@RG\tID:unknown\tDS:basecall_model=${DORADO_MODEL}" >> "${OUTPUT_DIR}/header.sam"
+fi
+
+samtools reheader "${OUTPUT_DIR}/header.sam" "${DORADO_ALIGNMENT}" > "${DORADO_ALIGNMENT_WITH_MODEL}"
+samtools index "${DORADO_ALIGNMENT_WITH_MODEL}"
+rm "${OUTPUT_DIR}/header.sam"
+
+echo "Created BAM with model info: ${DORADO_ALIGNMENT_WITH_MODEL}"
+
+mkdir -p "${DORADO_DIR}"
+
 if [[ "$DORADO_MODE" == "docker" ]]; then
 
     echo "Running dorado via docker..."
 
-    singularity exec --env PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True "${DORADO_IMAGE}" \
-    dorado polish "${DORADO_ALIGNMENT}" "$FLYE_REF" \
-    --threads $THREADS --batchsize 4 --draft-batchsize 500K \
-    --bam-chunk 20000 --bam-subchunk 2000 \
-    --window-len 7000 --window-overlap 3000 \
-    --ignore-read-groups --vcf --min-mapq 20 --min-depth 5 \
+    singularity exec --nv --env PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True "${DORADO_IMAGE}" \
+    dorado polish "${DORADO_ALIGNMENT_WITH_MODEL}" "$FLYE_REF" \
+    --threads $THREADS \
+    --batchsize 4 \
+    --draft-batchsize 50M \
+    --ignore-read-groups \
     --output-dir "${DORADO_DIR}"
 
 elif [[ "$DORADO_MODE" == "local" ]]; then
 
     echo "Running dorado locally..."
 
-    dorado polish "${DORADO_ALIGNMENT}" "$FLYE_REF" \
-    --threads $THREADS --batchsize 4 --draft-batchsize 500K \
-    --bam-chunk 20000 --bam-subchunk 2000 \
-    --window-len 7000 --window-overlap 3000 \
-    --ignore-read-groups --vcf --min-mapq 20 --min-depth 5 \
+    dorado polish "${DORADO_ALIGNMENT_WITH_MODEL}" "$FLYE_REF" \
+    --threads $THREADS \
+    --batchsize 4 \
+    --draft-batchsize 50M \
+    --ignore-read-groups \
     --output-dir "${DORADO_DIR}"
 
 else
@@ -308,4 +337,3 @@ echo "  - Final alignment to ${DORADO_REF}:"
 echo "          ${FINAL_ALIGNMENT}:"
 echo ""
 echo "End time: $(date)"
-

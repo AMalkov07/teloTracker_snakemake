@@ -9,7 +9,8 @@ BASE = config["base_name"]
 ANCHOR = config["anchor_set"]
 BAM_IN = f"{config['bam_dir']}/{BASE}.bam"
 FASTA_IN = f"results/{BASE}/{BASE}.fasta"
-STRAIN = BASE.split('_')[1] if 'dorado_' in BASE else BASE.split('_')[0]
+# Use strain from config if provided, otherwise extract from base name
+STRAIN = config.get("strain", BASE.split('_')[1] if 'dorado_' in BASE else BASE.split('_')[0])
 
 # Define the 16 yeast chromosomes and their two sides (L and R)
 CHROMS = [str(i) for i in range(1, 17)]
@@ -28,9 +29,10 @@ rule all:
         f"results/{BASE}/{BASE}_paired_x_element_ends_repeatmasker.tsv",
         f"results/{BASE}/{BASE}_good_x_element_ends_paired_repeatmasker.tsv",
         f"results/{BASE}/{BASE}_good_gained_y_x_element_ends_paired_repeatmasker.tsv",
-        f"results/{BASE}/{BASE}_paired_spacer_repeatmasker.tsv",
-        f"results/{BASE}/{BASE}_paired_good_spacer_repeatmasker.tsv",
-        f"results/{BASE}/{BASE}_paired_good_gained_spacer_repeatmasker.tsv"
+        # Commented out temporarily - missing BED files
+        # f"results/{BASE}/{BASE}_paired_spacer_repeatmasker.tsv",
+        # f"results/{BASE}/{BASE}_paired_good_spacer_repeatmasker.tsv",
+        # f"results/{BASE}/{BASE}_paired_good_gained_spacer_repeatmasker.tsv"
 
 # --- STEP 0: Automatic Detection ---
 # If the FASTA doesn't exist, we create this rule to generate it from BAM.
@@ -107,13 +109,14 @@ rule split_and_label:
 
 rule aggregate_chromosomes:
     input:
-        # This tells Snakemake to wait until the folder from Step 3 is complete
-        dir = directory(f"results/{BASE}/chr_anchor_included_individual_files/")
+        # This tells Snakemake to wait until all chromosome files from Step 3 are complete
+        reads = expand(f"results/{BASE}/chr_anchor_included_individual_files/{BASE}_blasted_{ANCHOR}_{{cs}}_anchor_reads.fasta",
+                       cs=CHROM_SIDES)
     output:
         merged = f"results/{BASE}/{BASE}_all_chromosome_anchored_reads_pre_trim.fasta"
     shell:
-        # We use a wildcard to grab all .fasta files inside that directory
-        "cat {input.dir}/*.fasta > {output.merged}"
+        # Concatenate all chromosome-specific FASTA files
+        "cat {input.reads} > {output.merged}"
 
 rule porechop_trim:
     input:
@@ -145,7 +148,7 @@ rule sequence_summary:
     shell:
         """
         echo -e "read_id\\tsequence_length_template" > {output.summary}
-        conda run -n find_loop seqkit fx2tab -n -l {input.fasta} >> {output.summary}
+        seqkit fx2tab -n -l -i {input.fasta} >> {output.summary}
         """
 
 # --- STEP 7: Parse Porechop Logs ---
@@ -284,9 +287,6 @@ rule y_prime_analysis:
             --combined-probe-output {output.combined_probe}
         """
 
-# In Snakefile - add after BASE and ANCHOR are defined
-STRAIN = BASE.split('_')[1] if 'dorado_' in BASE else BASE.split('_')[0]
-
 rule repeatmasker_y_primes:
     input:
         query = "results/{base}/chr_anchor_included_individual_files/{base}_blasted_{anchor}_{chrom_side}_anchor_reads.fasta",
@@ -362,7 +362,8 @@ rule get_stats_of_recombination:
 checkpoint make_pairings_from_y_primes_all_ends:
     input:
         good_end_y = f"results/{BASE}/{BASE}_good_end_y_repeatmasker.tsv",
-        chr_reads_dir = directory(f"results/{BASE}/chr_anchor_included_individual_files/")
+        chr_reads = expand(f"results/{BASE}/chr_anchor_included_individual_files/{BASE}_blasted_{ANCHOR}_{{cs}}_anchor_reads.fasta",
+                          cs=CHROM_SIDES)
     output:
         pairings_dir = directory(f"results/{BASE}/paired_by_y_prime_reads/")
     params:
@@ -374,7 +375,7 @@ checkpoint make_pairings_from_y_primes_all_ends:
         mkdir -p {output.pairings_dir}
         python scripts/make_pairings_from_y_primes_all_ends.py \
             {input.good_end_y} \
-            {input.chr_reads_dir} \
+            results/{params.base_name}/chr_anchor_included_individual_files/ \
             {output.pairings_dir} \
             {params.strain} \
             {params.anchor} \

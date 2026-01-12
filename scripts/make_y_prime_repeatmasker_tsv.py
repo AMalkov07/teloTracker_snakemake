@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 import sys
+from repeatmasker_utils import load_and_aggregate_repeatmasker_results
 
 print("Starting make_y_prime_repeatmasker_tsv.py")
 
@@ -20,57 +21,25 @@ print(f'Reading from directory: {repeatmasker_dir}')
 print(f'Y prime probe file: {y_prime_probe_file}')
 print(f'Output files: {output_all_repeatmasker}, {output_good_end}, {output_gained_y}')
 
-# Get all repeatmasker result files
-repeatmasker_results_dir_list = os.listdir(repeatmasker_dir)
-# Look for files ending in results.ssv (not just those starting with 'dorado')
-all_results_files = [f'{repeatmasker_dir}/{f}' for f in repeatmasker_results_dir_list 
-                     if f.endswith('repeatmasker_results.ssv')]
 
-print(f'Found {len(all_results_files)} repeatmasker result files')
+# Chr_end extractor function for Y' repeatmasker files
+def extract_chr_end_y_prime(filename):
+    """Extract chr_end from Y prime repeatmasker filename."""
+    # File is like: results/BASE/read_repeatmasker_results/BASE_ANCHOR_chrXY_repeatmasker_results_corrected.ssv
+    basename = os.path.basename(filename)
+    # Remove the suffix
+    filename_parts = basename.replace('_repeatmasker_results_corrected.ssv', '')
+    # Get the last part which should be chrXY (e.g., chr1L, chr2R)
+    chr_end = filename_parts.split('_')[-1]
+    return chr_end
 
-df_all_repeatmakser_results = pd.DataFrame()
-for repeatmasker_results_file in all_results_files:
-    
-    # Need to remove lead spaces from the file that come when SW_score < 10,000
-    corrected_repeatmasker_results_file = f"{repeatmasker_results_file.split('results.ssv')[0]}results_corrected.ssv"
-    
-    if os.path.isfile(corrected_repeatmasker_results_file) == 'fix_later':
-        pass
-    else:
-        with open(repeatmasker_results_file, "r") as original_file:
-            corrected_data = []
-            for line_number, line in enumerate(original_file.readlines()):
-                if line_number == 0:
-                    corrected_data.append(line)
-                else:
-                    line = line.strip()
-                    if line[-1] != "*":
-                        line = f'{line} -'
-                    corrected_data.append(line)
-            
-        with open(corrected_repeatmasker_results_file, "w") as corrected_file:
-            for fixed_line in corrected_data:
-                corrected_file.write(f'{fixed_line}\n')
-    
-    try:
-        df_single_repeatmasker_results = pd.read_csv(corrected_repeatmasker_results_file, sep=r"\s+")
-        # Extract chr_end from filename
-        # File is like: results/BASE/read_repeatmasker_results/BASE_ANCHOR_chrXY_repeatmasker_results_corrected.ssv
-        filename = os.path.basename(corrected_repeatmasker_results_file)
-        # Remove the suffix
-        filename_parts = filename.replace('_repeatmasker_results_corrected.ssv', '')
-        # Get the last part which should be chrXY (e.g., chr1L, chr2R)
-        chr_end = filename_parts.split('_')[-1]  # Gets the last underscore-separated part
-        
-        df_single_repeatmasker_results["chr_end"] = chr_end
-        df_all_repeatmakser_results = pd.concat([df_all_repeatmakser_results, df_single_repeatmasker_results])
-    except Exception as e:
-        print(f'Error in {corrected_repeatmasker_results_file}: {e}')
-        pass
 
-# Replace the "*" values with True and the "-" with False
-df_all_repeatmakser_results.loc[df_all_repeatmakser_results['sub_match'] == '*', 'sub_match'] = True
-df_all_repeatmakser_results.loc[df_all_repeatmakser_results['sub_match'] == '-', 'sub_match'] = False
+# Load and aggregate all RepeatMasker results using shared utility
+df_all_repeatmakser_results = load_and_aggregate_repeatmasker_results(
+    repeatmasker_dir,
+    'repeatmasker_results.ssv',
+    chr_end_extractor=extract_chr_end_y_prime
+)
 
 print(df_all_repeatmakser_results)
 
@@ -133,5 +102,4 @@ df_gained_y_repeatmakser_results.to_csv(output_gained_y, sep='\t')
 print(f"Finished. Outputs saved to:")
 print(f"  - {output_all_repeatmasker}")
 print(f"  - {output_good_end}")
-print(f"  - {output_gained_y}"
-      )
+print(f"  - {output_gained_y}")
