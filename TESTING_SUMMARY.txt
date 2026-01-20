@@ -1,0 +1,166 @@
+================================================================================
+ANCHOR-ONLY TESTING MODE - QUICK REFERENCE
+================================================================================
+
+WHAT WAS MODIFIED:
+  ✅ Y prime BLAST - COMMENTED OUT
+  ✅ Y prime parsing - COMMENTED OUT
+  ✅ X prime inference - COMMENTED OUT
+  ✅ Output shows "ANCHORS ONLY - TESTING MODE"
+
+WHAT STILL WORKS:
+  ✅ Anchor BLAST search
+  ✅ Strict chromosome matching (synteny enforcement)
+  ✅ Quality warnings (95% identity threshold)
+  ✅ Quality report generation
+  ✅ All output files (GFF3, BED, TSV) - anchors only
+
+================================================================================
+HOW TO RUN TEST
+================================================================================
+
+Quick Method:
+  bash test_anchor_only.sh
+
+Manual Method:
+  python scripts/label_pretelomeric_regions.py \
+      --reference results/dorado_fast5_7575_day0_PromethION_no_tag_yes_rejection/assembly_7575/assembly_7575_dorado_reference.fasta \
+      --anchors references/test_anchors.fasta \
+      --yprimes references/repeatmasker_6991_all_y_primes.fasta \
+      --output-dir test_output \
+      --prefix test_anchors \
+      --threads 8
+
+================================================================================
+EXPECTED OUTPUT
+================================================================================
+
+Console Message:
+  "ANCHORS ONLY - TESTING MODE"
+  "Summary by chromosome end (ANCHORS ONLY - TESTING MODE):"
+
+Expected Anchors:
+  32 total (chr1L, chr1R, chr2L, chr2R, ..., chr16L, chr16R)
+
+Quality Report (Best Case):
+  ✅ No quality issues detected!
+  All anchors found with high identity (≥95%) on expected chromosomes.
+
+Output Files:
+  test_output/
+  ├── test_anchors_7575_anchor_blast.txt    # Raw BLAST (32 hits)
+  ├── test_anchors_7575.tsv                 # 32 rows (anchors only)
+  ├── test_anchors_7575.gff3                # 32 anchor features
+  ├── test_anchors_7575.bed                 # 32 anchor regions
+  └── test_anchors_7575_quality_report.txt  # Quality assessment
+
+================================================================================
+WHAT TO CHECK
+================================================================================
+
+1. Anchor Count:
+   grep -c "anchor" test_output/test_anchors_7575.tsv
+   Expected: 32
+
+2. Identity Values:
+   awk 'NR>1 {print $1, $9}' test_output/test_anchors_7575.tsv
+   Expected: Most ≥95%, some 85-95% OK
+
+3. Chromosome Matching:
+   awk 'NR>1 {print $1, $2}' test_output/test_anchors_7575.tsv
+   Expected: chr1L → chr1_extended, chr1R → chr1_extended, etc.
+
+4. Quality Report:
+   cat test_output/test_anchors_7575_quality_report.txt
+   Expected: No critical issues
+
+5. No Y primes or X primes in output:
+   grep "y_prime\|x_prime" test_output/test_anchors_7575.tsv
+   Expected: Empty (no results)
+
+================================================================================
+INTERPRETING RESULTS
+================================================================================
+
+✅ EXCELLENT (32 anchors, all ≥95%, no warnings):
+   Strains very similar, high-quality assembly
+   → Ready to enable Y prime and X prime
+
+⚠️ GOOD (30-32 anchors, most ≥95%, 1-2 warnings):
+   Minor divergence or assembly gaps
+   → Verify low-quality anchors in IGV
+   → Ready to proceed if manually verified
+
+🔴 CONCERNING (<28 anchors, many <90%, mismatches):
+   Assembly issues or significant rearrangement
+   → Check reference quality
+   → Lower MIN_PIDENT to 70.0
+   → Investigate in IGV before proceeding
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+No anchors found:
+  → Lower MIN_PIDENT=70.0 in test_anchor_only.sh
+  → Check BLAST output: cat test_output/*_anchor_blast.txt
+
+Too many missing:
+  → Check which chr ends: grep "MISSING" test_output/*_quality_report.txt
+  → Verify those regions assembled: grep "^>" reference.fasta
+  → Load in IGV to inspect
+
+Chromosome mismatches:
+  → Review: grep "MISMATCHES" test_output/*_quality_report.txt
+  → Indicates potential rearrangement or assembly error
+  → Verify in IGV
+
+Low identity (<95%):
+  → Expected for some strain divergence
+  → Check coverage and alignment in BLAST output
+  → Manually verify in IGV
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+After successful test:
+
+1. Review all quality metrics
+2. Verify sample of anchors in IGV (visual confirmation)
+3. If satisfied, uncomment Y prime and X prime sections:
+   - Edit scripts/label_pretelomeric_regions.py
+   - Remove ## comment markers from lines 625-631, 638-644, 662-665, 671-674
+4. Run full pipeline: bash label_regions.sh
+
+================================================================================
+FILE LOCATIONS
+================================================================================
+
+Test Script:
+  test_anchor_only.sh
+
+Modified Python Script:
+  scripts/label_pretelomeric_regions.py
+  (Y prime and X prime sections commented out)
+
+Documentation:
+  ANCHOR_TEST_GUIDE.md         # Detailed testing guide
+  SYNTENY_ENFORCEMENT_EXPLANATION.md  # How chromosome matching works
+  TESTING_SUMMARY.txt          # This file
+
+Output Directory:
+  results/dorado_fast5_7575_day0_PromethION_no_tag_yes_rejection/
+    assembly_7575/
+      test_anchor_only/
+
+================================================================================
+CONTACT
+================================================================================
+
+For questions about:
+  - Expected results → See ANCHOR_TEST_GUIDE.md
+  - Chromosome matching → See SYNTENY_ENFORCEMENT_EXPLANATION.md
+  - Full pipeline → See LABELING_PIPELINE_README.md
+
+================================================================================

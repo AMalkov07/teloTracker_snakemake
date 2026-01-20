@@ -1,0 +1,337 @@
+================================================================================
+PRE-TELOMERIC REGION LABELING PIPELINE - SUMMARY
+================================================================================
+
+CREATED: $(date)
+AUTHOR: Claude Code
+PURPOSE: Label anchor, X prime, and Y prime regions in assembled references
+
+================================================================================
+NEW FILES CREATED
+================================================================================
+
+MAIN SCRIPTS:
+-------------
+1. label_regions.sh
+   - Main bash script to run after create_ref.sh
+   - Calls the Python labeling script with appropriate parameters
+   - Configurable BLAST parameters for cross-strain comparison
+
+2. scripts/label_pretelomeric_regions.py
+   - Core Python script that performs BLAST-based region labeling
+   - Identifies anchors, Y primes, and infers X primes
+   - Outputs GFF3, BED, and TSV annotation files
+
+UTILITY SCRIPTS:
+----------------
+3. scripts/visualize_labeled_regions.py
+   - Generates summary statistics from labeled regions
+   - Performs quality checks
+   - Exports simplified summary tables
+
+4. scripts/extract_labeled_sequences.py
+   - Extracts FASTA sequences for labeled regions
+   - Supports filtering by region type and chromosome end
+   - Handles strand orientation (reverse complement for minus strand)
+
+DOCUMENTATION:
+--------------
+5. LABELING_PIPELINE_README.md
+   - Comprehensive documentation
+   - Configuration guide
+   - Output format specifications
+   - Visualization and troubleshooting tips
+
+6. WORKFLOW_EXAMPLE.md
+   - Complete workflow from reads to labeled reference
+   - Downstream analysis examples
+   - Advanced customization guide
+
+7. QUICK_START_LABELING.md
+   - Quick reference for running the pipeline
+   - Common troubleshooting
+   - Expected results
+
+8. LABELING_PIPELINE_SUMMARY.txt
+   - This file - overview of all components
+
+================================================================================
+PIPELINE WORKFLOW
+================================================================================
+
+INPUT (from create_ref.sh):
+  - assembly_${STRAIN_ID}_dorado_reference.fasta
+
+REFERENCE FILES (from strain 6991):
+  - references/test_anchors.fasta (32 anchor sequences)
+  - references/repeatmasker_6991_all_y_primes.fasta (23 Y prime sequences)
+
+PROCESS:
+  1. BLAST anchors against new reference
+  2. BLAST Y primes against new reference
+  3. Filter results by quality (% identity, alignment length)
+  4. Assign regions to chromosome ends
+  5. Infer X prime regions (between anchor and Y prime)
+
+OUTPUT:
+  - pretelomeric_regions_${STRAIN_ID}.gff3    (genome browser format)
+  - pretelomeric_regions_${STRAIN_ID}.bed     (bedtools format)
+  - pretelomeric_regions_${STRAIN_ID}.tsv     (analysis format)
+  - *_anchor_blast.txt                        (raw BLAST results)
+  - *_yprime_blast.txt                        (raw BLAST results)
+
+================================================================================
+REGION TYPES
+================================================================================
+
+ANCHOR:
+  - Closest to centromere
+  - Directly identified via BLAST against test_anchors.fasta
+  - Typically 1-3 kb in length
+  - Expected: 1 per chromosome end (32 total for 16 chromosomes)
+
+Y PRIME:
+  - Middle subtelomeric region
+  - Directly identified via BLAST against repeatmasker_6991_all_y_primes.fasta
+  - Variable length (categorized as Long/Short)
+  - Expected: 0-2 per chromosome end (10-20 total, varies by strain)
+  - May be Solo or Tandem (multiple copies)
+
+X PRIME:
+  - Between anchor and telomere
+  - INFERRED (not directly aligned)
+  - If Y prime present: region between anchor and Y prime
+  - If no Y prime: ~3kb region after anchor
+  - Typically 0.5-5 kb in length
+  - Expected: 1 per chromosome end (32 total)
+
+================================================================================
+USAGE
+================================================================================
+
+BASIC USAGE:
+  bash label_regions.sh
+
+CONFIGURATION:
+  Edit label_regions.sh to match your create_ref.sh settings:
+    BASE_NAME="dorado_fast5_7575_day0_PromethION_no_tag_yes_rejection"
+    STRAIN_ID="7575"
+
+  Adjust BLAST parameters if needed:
+    MIN_PIDENT=75.0     # Minimum percent identity
+    MIN_LENGTH=100      # Minimum alignment length
+    EVALUE=1e-5        # E-value threshold
+
+ADVANCED USAGE:
+  # Direct Python script call with custom parameters
+  python scripts/label_pretelomeric_regions.py \
+      --reference path/to/reference.fasta \
+      --anchors references/test_anchors.fasta \
+      --yprimes references/repeatmasker_6991_all_y_primes.fasta \
+      --output-dir output_directory \
+      --prefix my_prefix \
+      --threads 8 \
+      --min-pident 70.0 \
+      --min-length 50
+
+VISUALIZATION:
+  # Summary statistics
+  python scripts/visualize_labeled_regions.py \
+      --input-tsv pretelomeric_regions_7575.tsv
+
+  # Extract sequences
+  python scripts/extract_labeled_sequences.py \
+      --input-tsv pretelomeric_regions_7575.tsv \
+      --reference assembly_7575_dorado_reference.fasta \
+      --output-dir extracted_sequences \
+      --prefix strain_7575
+
+  # Load in IGV
+  1. Load reference FASTA
+  2. Load GFF3 file
+  3. Navigate to chromosome ends
+
+================================================================================
+INTEGRATION WITH EXISTING PIPELINE
+================================================================================
+
+This pipeline extends your existing TeloTracker workflow:
+
+  Snakefile (y_prime_analysis)
+       ↓
+  create_ref.sh (reference assembly and polishing)
+       ↓
+  label_regions.sh (NEW - this pipeline)
+       ↓
+  [Your downstream analysis]
+
+The labeled regions complement your existing:
+  - Y prime analysis (y_prime_analysis.py)
+  - RepeatMasker utilities (repeatmasker_utils.py)
+  - Recombination analysis (get_stats_of_recombination.py)
+
+You can now map your detected recombination events to specific labeled regions
+to understand where changes occur relative to subtelomeric structure.
+
+================================================================================
+KEY FEATURES
+================================================================================
+
+✓ Automated region identification using BLAST
+✓ Cross-strain comparison (6991 sequences → new strain)
+✓ Multiple output formats (GFF3, BED, TSV)
+✓ Quality filtering based on alignment metrics
+✓ X prime inference when Y primes are absent
+✓ Strand-aware sequence extraction
+✓ Integration with genome browsers
+✓ Compatible with bedtools and other standard tools
+✓ Summary statistics and quality checks
+✓ Extensive documentation and examples
+
+================================================================================
+LIMITATIONS AND CONSIDERATIONS
+================================================================================
+
+1. X prime regions are INFERRED, not directly aligned
+   - Positions may need manual refinement
+   - Length assumptions (default 3kb) may vary by strain
+
+2. Cross-strain BLAST requires relaxed parameters
+   - Default MIN_PIDENT=75% (vs 95% for same strain)
+   - May miss highly diverged regions
+   - May find false positives in repetitive regions
+
+3. Y prime presence varies by strain
+   - Not all chromosome ends have Y primes
+   - This is expected biological variation
+
+4. Depends on quality of create_ref.sh output
+   - Poor assembly quality → poor region identification
+   - Fragmented assemblies may miss some regions
+
+5. Reference sequences from strain 6991
+   - Novel elements in your strain won't be detected
+   - Consider building strain-specific references for future iterations
+
+================================================================================
+PARAMETER TUNING GUIDE
+================================================================================
+
+For CLOSELY RELATED strains (same species, similar background):
+  MIN_PIDENT=85.0
+  MIN_LENGTH=200
+  EVALUE=1e-10
+
+For DISTANTLY RELATED strains (different backgrounds):
+  MIN_PIDENT=70.0
+  MIN_LENGTH=100
+  EVALUE=1e-3
+
+For SAME strain (updating reference):
+  MIN_PIDENT=95.0
+  MIN_LENGTH=200
+  EVALUE=1e-20
+
+Current defaults (cross-strain, moderate):
+  MIN_PIDENT=75.0
+  MIN_LENGTH=100
+  EVALUE=1e-5
+
+================================================================================
+OUTPUT FILE FORMATS
+================================================================================
+
+GFF3 (pretelomeric_regions_${STRAIN_ID}.gff3):
+  - Standard genome annotation format
+  - Column 9 attributes: ID, Name, chr_end, source_seq, pident, bitscore, query_coverage
+  - Can be loaded in IGV, JBrowse, Artemis, etc.
+
+BED (pretelomeric_regions_${STRAIN_ID}.bed):
+  - 6-column BED format: chr, start, end, name, score, strand
+  - Compatible with bedtools suite
+  - Score = bitscore (or 0 for inferred regions)
+
+TSV (pretelomeric_regions_${STRAIN_ID}.tsv):
+  - Tab-separated values
+  - Columns: chr_end, chr, start, end, length, strand, region_type, source, pident, bitscore, query_coverage
+  - Easy to load in pandas, R, Excel
+
+BLAST (*.txt):
+  - Standard BLAST tabular output (outfmt 6)
+  - 14 columns including alignment metrics
+  - Useful for debugging and custom filtering
+
+================================================================================
+EXPECTED RUNTIME
+================================================================================
+
+For typical yeast reference (~12 Mb, 16 chromosomes):
+  - BLAST anchors: 1-2 minutes
+  - BLAST Y primes: 1-2 minutes
+  - Processing and output: <1 minute
+  - Total: 5-10 minutes
+
+For larger genomes or high thread count, time scales roughly linearly.
+
+================================================================================
+TROUBLESHOOTING CHECKLIST
+================================================================================
+
+□ create_ref.sh completed successfully?
+□ Reference FASTA file exists at expected location?
+□ BLAST+ is installed and in PATH?
+□ Python 3 with pandas is available?
+□ Reference files exist in references/ directory?
+□ BASE_NAME and STRAIN_ID match between scripts?
+□ Sufficient disk space for outputs?
+□ Proper permissions on directories?
+
+If issues persist, check:
+  - Raw BLAST output files (*_blast.txt)
+  - Run visualize_labeled_regions.py for quality checks
+  - Lower BLAST stringency parameters
+  - Check reference quality in IGV
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+After running this pipeline:
+
+1. Visualize results in IGV
+2. Generate summary statistics
+3. Extract sequences for specific regions
+4. Compare with other strains
+5. Map recombination breakpoints to labeled regions
+6. Integrate with your existing analysis scripts
+7. Prepare figures for publication
+
+For detailed instructions, see:
+  - QUICK_START_LABELING.md (basic usage)
+  - LABELING_PIPELINE_README.md (comprehensive guide)
+  - WORKFLOW_EXAMPLE.md (examples and downstream analysis)
+
+================================================================================
+QUESTIONS OR ISSUES?
+================================================================================
+
+1. Check documentation files (README, QUICK_START, WORKFLOW_EXAMPLE)
+2. Review troubleshooting sections
+3. Inspect raw BLAST output files
+4. Validate input files (reference FASTA, anchor/Y prime FASTAs)
+5. Try relaxing BLAST parameters
+6. Open an issue in the repository with error messages and config
+
+================================================================================
+VERSION INFORMATION
+================================================================================
+
+Pipeline Version: 1.0
+Created: January 2026
+Python Requirements: Python 3.x, pandas
+External Dependencies: BLAST+ (blastn)
+Compatible With: create_ref.sh pipeline output
+
+================================================================================
+END OF SUMMARY
+================================================================================

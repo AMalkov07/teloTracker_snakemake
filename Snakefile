@@ -19,6 +19,13 @@ SIDES = ["L", "R"]
 # This creates a list like ['chr1L', 'chr1R', 'chr2L', ..., 'chr17R']
 CHROM_SIDES = [f"chr{c}{s}" for c in CHROMS for s in SIDES]
 
+# Paths to label_regions.sh outputs (created by running label_regions.sh before this pipeline)
+# These are located in the assembly directory created by create_ref.sh
+ASSEMBLY_DIR = f"results/{BASE}/assembly_{STRAIN}"
+PRETELOMERIC_LABELS_DIR = f"{ASSEMBLY_DIR}/pretelomeric_labels"
+REPEATMASKER_YPRIMES_FASTA = f"{PRETELOMERIC_LABELS_DIR}/extracted_yprimes_{STRAIN}.fasta"
+FEATURES_BED = f"{PRETELOMERIC_LABELS_DIR}/pretelomeric_regions_{STRAIN}_simp.bed"
+
 rule all:
     input:
         f"results/{BASE}/{BASE}_post_y_prime_probe.tsv",
@@ -26,10 +33,12 @@ rule all:
         f"results/{BASE}/y_prime_blast/all_{BASE}_probe_matches.tsv",
         directory(f"results/{BASE}/figures_for_y_primes"),
         f"results/{BASE}/{BASE}_y_prime_recombination.tsv",
-        f"results/{BASE}/{BASE}_paired_x_element_ends_repeatmasker.tsv",
-        f"results/{BASE}/{BASE}_good_x_element_ends_paired_repeatmasker.tsv",
-        f"results/{BASE}/{BASE}_good_gained_y_x_element_ends_paired_repeatmasker.tsv",
-        # Commented out temporarily - missing BED files
+        # X element and spacer pairing analysis - requires strain-specific reference pairings
+        # Uncomment when pairings_for_x_element_ends/{STRAIN}_pairings directory is created
+        # f"results/{BASE}/{BASE}_paired_x_element_ends_repeatmasker.tsv",
+        # f"results/{BASE}/{BASE}_good_x_element_ends_paired_repeatmasker.tsv",
+        # f"results/{BASE}/{BASE}_good_gained_y_x_element_ends_paired_repeatmasker.tsv",
+        # Spacer analysis - requires strain-specific reference pairings and BED files
         # f"results/{BASE}/{BASE}_paired_spacer_repeatmasker.tsv",
         # f"results/{BASE}/{BASE}_paired_good_spacer_repeatmasker.tsv",
         # f"results/{BASE}/{BASE}_paired_good_gained_spacer_repeatmasker.tsv"
@@ -290,7 +299,7 @@ rule y_prime_analysis:
 rule repeatmasker_y_primes:
     input:
         query = "results/{base}/chr_anchor_included_individual_files/{base}_blasted_{anchor}_{chrom_side}_anchor_reads.fasta",
-        database = f"references/repeatmasker_{STRAIN}_all_y_primes.fasta"
+        database = REPEATMASKER_YPRIMES_FASTA  # From label_regions.sh output
     output:
         out_file = "results/{base}/read_repeatmasker_results/{base}_blasted_{anchor}_{chrom_side}_anchor_reads.fasta.out",
         filtered = "results/{base}/read_repeatmasker_results/{base}_{anchor}_{chrom_side}_filtered.out",
@@ -518,7 +527,7 @@ rule make_spacer_pairs_repeatmasker_tsv:
         pairings_dir = "results/{base}/paired_by_y_prime_reads/",
         y_prime_probe = "results/{base}/{base}_post_y_prime_probe.tsv",
         anchors_bed = f"references/{STRAIN}_anchors_and_distances.bed",
-        features_bed = f"references/{STRAIN}_final_features.bed"
+        features_bed = FEATURES_BED  # From label_regions.sh output (simplified BED)
     output:
         all_tsv = "results/{base}/{base}_paired_spacer_repeatmasker.tsv",
         good_tsv = "results/{base}/{base}_paired_good_spacer_repeatmasker.tsv",

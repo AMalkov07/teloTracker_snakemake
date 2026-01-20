@@ -277,10 +277,10 @@ if [[ "$DORADO_MODE" == "docker" ]]; then
 
     singularity exec --nv --env PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True "${DORADO_IMAGE}" \
     dorado polish "${DORADO_ALIGNMENT_WITH_MODEL}" "$FLYE_REF" \
-    --threads $THREADS \
-    --batchsize 4 \
-    --draft-batchsize 50M \
-    --ignore-read-groups \
+    --threads $THREADS --batchsize 4 --draft-batchsize 500K \
+    --bam-chunk 20000 --bam-subchunk 2000 \
+    --window-len 7000 --window-overlap 3000 \
+    --ignore-read-groups --vcf --min-mapq 20 --min-depth 5 \
     --output-dir "${DORADO_DIR}"
 
 elif [[ "$DORADO_MODE" == "local" ]]; then
@@ -288,10 +288,10 @@ elif [[ "$DORADO_MODE" == "local" ]]; then
     echo "Running dorado locally..."
 
     dorado polish "${DORADO_ALIGNMENT_WITH_MODEL}" "$FLYE_REF" \
-    --threads $THREADS \
-    --batchsize 4 \
-    --draft-batchsize 50M \
-    --ignore-read-groups \
+    --threads $THREADS --batchsize 4 --draft-batchsize 500K \
+    --bam-chunk 20000 --bam-subchunk 2000 \
+    --window-len 7000 --window-overlap 3000 \
+    --ignore-read-groups --vcf --min-mapq 20 --min-depth 5 \
     --output-dir "${DORADO_DIR}"
 
 else
@@ -313,12 +313,26 @@ echo "========================================================================"
 echo "Step 9: Final ALignment"
 echo "========================================================================"
 
-minimap2 -ax map-ont -L -t "${THREADS}" "${DORADO_REF}" "${SELECTED_FASTQ}" \
-    | samtools sort -@ "${THREADS}" -o "${FINAL_ALIGNMENT}"
+if [ "${DORADO_MODE}" == "docker" ]; then
 
-samtools index -@ "${THREADS}" "${FINAL_ALIGNMENT}"
+    echo "Running dorado via docker..."
 
-echo "BAM file created: ${FINAL_ALIGNMENT}"
+    singularity exec "${DORADO_IMAGE}" \
+    dorado aligner "$DORADO_REF" "$TRIMMED_FASTQ" | samtools sort -@ "$THREADS" > \
+    "$FINAL_ALIGNMENT"
+
+else
+
+    echo "Running dorado locally..."
+
+    dorado aligner "$DORADO_REF" "$TRIMMED_FASTQ" | samtools sort -@ "$THREADS" > \
+    "$FINAL_ALIGNMENT"
+
+fi
+
+samtools index -@ "$THREADS" "$FINAL_ALIGNMENT"
+
+echo "Dorado aligned: ${FINAL_ALIGNMENT}"
 
 # ============================================================================
 # Pipeline Complete

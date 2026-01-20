@@ -42,7 +42,11 @@ elif '7172' == strain_id: # mph1
 elif '7302' == strain_id: # mph1
     y_prime_0_ends = ['chr1L', 'chr1R', 'chr2R', 'chr3L', 'chr3R', 'chr4L', 'chr6R',
                 'chr7L','chr9R', 'chr10R', 'chr11L', 'chr11R', 'chr13R', 'chr15L']
-    
+
+elif '7575' == strain_id: # day0
+    y_prime_0_ends = ['chr1L', 'chr1R', 'chr3L', 'chr3R', 'chr4L', 'chr6L', 'chr6R',
+                'chr7L', 'chr9R', 'chr10R', 'chr11L', 'chr11R', 'chr13R']
+
 else:
     raise ValueError(f'Unknown strain_id: {strain_id}')
 

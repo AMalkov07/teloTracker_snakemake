@@ -90,6 +90,28 @@ elif '7302' == strain_id:  # mph1
         'chr16L': 'ID5', 'chr16R': 'ID1'
     }
 
+elif '7575' == strain_id:  # day0 - IDs based on Y prime groupings similar to 6991
+    # Note: 7575 Y prime IDs need to be assigned based on sequence clustering
+    # These mappings assume similar groupings to 6991 - update after proper ID assignment
+    chr_end_first_y_prime_id_dict = {
+        'chr1L': None, 'chr1R': None,
+        'chr2L': 'ID4', 'chr2R': None,
+        'chr3L': None, 'chr3R': None,
+        'chr4L': None, 'chr4R': 'ID2',
+        'chr5L': 'ID6', 'chr5R': 'ID1',
+        'chr6L': None, 'chr6R': None,  # 7575 has no Y prime at chr6L
+        'chr7L': None, 'chr7R': 'ID5',
+        'chr8L': 'ID1', 'chr8R': 'ID1',
+        'chr9L': None, 'chr9R': None,  # 7575 chr9L may be truncated
+        'chr10L': 'ID6', 'chr10R': None,
+        'chr11L': None, 'chr11R': None,
+        'chr12L': 'ID1', 'chr12R': 'ID1',
+        'chr13L': 'ID1', 'chr13R': None,
+        'chr14L': 'ID5', 'chr14R': 'ID6',
+        'chr15L': 'ID6', 'chr15R': 'ID2',
+        'chr16L': 'ID5', 'chr16R': 'ID1'
+    }
+
 else:
     raise ValueError(f'Unknown strain_id: {strain_id}')
 
