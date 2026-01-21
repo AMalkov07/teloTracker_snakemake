@@ -1,0 +1,78 @@
+# config_create_ref.yaml
+# Configuration for reference creation pipeline (Snakefile_create_ref)
+
+# ============================================================================
+# Required Configuration
+# ============================================================================
+
+# Base name for the dataset (used for output naming)
+base_name: "dorado_fast5_7575_day0_PromethION_no_tag_yes_rejection"
+
+# Strain identifier
+strain: "7575"
+
+# Anchor set name (used for BLAST database selection)
+anchor_set: "test_anchors"
+
+# Path to initial reference genome (used as starting point for extension)
+# This is typically the 6991 reference truncated to anchors
+initial_reference: "/Shared/malkova_lab/Ivan/nanopore_sequencing/reference_files/6991_only_to_anchors.fasta"
+
+# ============================================================================
+# Input Data
+# ============================================================================
+
+# Input format: "bam", "fasta", or "fastq"
+# - bam: Will be converted to both FASTA and FASTQ
+# - fastq: Will be copied and converted to FASTA
+# - fasta: Will be copied; FASTQ with dummy quality scores will be generated
+input_format: "bam"
+
+# Path to input reads file (format must match input_format above)
+input_path: "../samples_dorado_basecalled2/dorado_fast5_7575_day0_PromethION_no_tag_yes_rejection.bam"
+
+# Examples for other formats:
+# input_format: "fastq"
+# input_path: "../samples/my_reads.fastq"
+#
+# input_format: "fasta"
+# input_path: "../samples/my_reads.fasta"
+
+# ============================================================================
+# Reference Files
+# ============================================================================
+
+references:
+  # Anchor sequences for chromosome end identification
+  anchors: "references/test_anchors.fasta"
+
+  # Adapter sequences for trimming
+  adapters: "references/offical_nanopore_adapter_seq+trunc.txt"
+
+  # Y prime probe for read analysis
+  probe: "references/probe.fasta"
+
+# ============================================================================
+# Dorado Configuration (Optional GPU Polishing)
+# ============================================================================
+
+# Whether to run Dorado polishing (requires GPU)
+# Set to false to stop after Flye polishing
+run_dorado_polish: true
+
+# Dorado execution mode: "docker" or "local"
+dorado_mode: "docker"
+
+# Path to Dorado singularity image (if dorado_mode is "docker")
+dorado_image: "/Shared/malkova_lab/dorado_files/docker_images_of_dorado/dorado-11-26-2025.sif"
+
+# Basecaller model used for original reads
+# This is required for Dorado polishing to select the correct model
+dorado_model: "dna_r10.4.1_e8.2_400bps_sup@v5.2.0"
+
+# ============================================================================
+# Performance Configuration
+# ============================================================================
+
+# Number of threads to use (will be overridden by -c flag if provided)
+threads: 56

@@ -1,0 +1,84 @@
+# config_label_recombination.yaml
+# Configuration for labeling and recombination detection pipeline (Snakefile_label_recombination)
+
+# ============================================================================
+# Required Configuration
+# ============================================================================
+
+# Base name for the dataset (used for output naming)
+base_name: "dorado_fast5_7575_day0_PromethION_no_tag_yes_rejection"
+
+# Strain identifier for the new reference being analyzed
+strain: "7575"
+
+# Anchor set name (used for BLAST database selection)
+anchor_set: "test_anchors"
+
+# ============================================================================
+# Input Data
+# ============================================================================
+
+# Path to polished reference genome (output from Snakefile_create_ref)
+# This is the reference that will be labeled and analyzed for recombination
+reference_fasta: "results/dorado_fast5_7575_day0_PromethION_no_tag_yes_rejection/assembly_7575/assembly_7575_dorado_reference.fasta"
+
+# Input format for reads: "bam", "fasta", or "fastq"
+# - bam: Will be converted to both FASTA and FASTQ
+# - fastq: Will be copied and converted to FASTA
+# - fasta: Will be copied; FASTQ with dummy quality scores will be generated
+input_format: "bam"
+
+# Path to input reads file (format must match input_format above)
+input_path: "../samples_dorado_basecalled2/dorado_fast5_7575_day0_PromethION_no_tag_yes_rejection.bam"
+
+# Examples for other formats:
+# input_format: "fastq"
+# input_path: "../samples/my_reads.fastq"
+#
+# input_format: "fasta"
+# input_path: "../samples/my_reads.fasta"
+#
+# If you already have converted files from Pipeline 1 (in results/ directory),
+# you can skip conversion by using input_format: "fasta" and pointing to:
+# input_path: "results/dorado_fast5_7575_day0_PromethION_no_tag_yes_rejection/dorado_fast5_7575_day0_PromethION_no_tag_yes_rejection.fasta"
+
+# ============================================================================
+# Reference Files
+# ============================================================================
+
+references:
+  # Anchor sequences for chromosome end identification
+  anchors: "references/test_anchors.fasta"
+
+  # Adapter sequences for trimming
+  adapters: "references/offical_nanopore_adapter_seq+trunc.txt"
+
+  # Y prime probe for read analysis
+  probe: "references/probe.fasta"
+
+  # 6991 reference sequences (used for labeling and recombination detection)
+  # The new reference will be compared against these to identify recombination events
+  yprimes_6991: "references/repeatmasker_6991_all_y_primes.fasta"
+  xprimes_6991: "references/6991_xprimes.fasta"
+
+  # Optional: X element and spacer pairings directories
+  # Uncomment if you have strain-specific pairing files
+  # x_element_pairings_dir: "references/pairings_for_x_element_ends/7575_pairings"
+  # spacer_pairings_dir: "references/pairings_for_spacers/7575_pairings"
+
+# ============================================================================
+# Labeling Parameters
+# ============================================================================
+
+# BLAST parameters for feature detection
+# Lower thresholds are used for cross-strain comparison
+min_pident: 75.0      # Minimum percent identity
+min_length: 100       # Minimum alignment length
+evalue: "1e-5"        # E-value threshold
+
+# ============================================================================
+# Performance Configuration
+# ============================================================================
+
+# Number of threads (will be overridden by -c flag if provided)
+threads: 56
