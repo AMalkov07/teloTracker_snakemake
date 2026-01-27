@@ -1,0 +1,404 @@
+# Snakefile_label
+# Pipeline 2: Reference Labeling
+# Combines label_regions.sh with the remaining Snakemake rules (after y_prime_analysis)
+#
+# Usage: snakemake -s Snakefile_label -c 56
+#
+# Prerequisites:
+#   - Must run Snakefile_create_ref first to generate the polished reference
+#
+# This pipeline:
+# 1. Labels pre-telomeric regions (anchors, Y primes, X primes) on the polished reference
+# 2. Extracts Y prime sequences to FASTA
+# 3. Runs RepeatMasker analysis on reads against extracted Y primes
+# 4. Generates recombination statistics and pairing analysis
+
+import os
+import glob
+
+# Load configuration
+configfile: "config_label.yaml"
+
+# Variables from config
+BASE = config["base_name"]
+ANCHOR = config["anchor_set"]
+STRAIN = config.get("strain", BASE.split('_')[1] if 'dorado_' in BASE else BASE.split('_')[0])
+
+# Define the 16 yeast chromosomes and their two sides (L and R)
+CHROMS = [str(i) for i in range(1, 17)]
+SIDES = ["L", "R"]
+CHROM_SIDES = [f"chr{c}{s}" for c in CHROMS for s in SIDES]
+
+# Input directories (from Pipeline 1)
+ASSEMBLY_DIR = f"results/{BASE}/assembly_{STRAIN}"
+REFERENCE_FASTA = f"{ASSEMBLY_DIR}/assembly_{STRAIN}_dorado_reference.fasta"
+
+# Labeling output directory
+PRETELOMERIC_LABELS_DIR = f"{ASSEMBLY_DIR}/pretelomeric_labels"
+PREFIX = f"pretelomeric_regions_{STRAIN}"
+
+# Output files from labeling
+LABELED_TSV = f"{PRETELOMERIC_LABELS_DIR}/{PREFIX}.tsv"
+REPEATMASKER_YPRIMES_FASTA = f"{PRETELOMERIC_LABELS_DIR}/extracted_yprimes_{STRAIN}.fasta"
+FEATURES_BED = f"{PRETELOMERIC_LABELS_DIR}/{PREFIX}_simp.bed"
+
+# Labeling parameters
+MIN_PIDENT = config.get("min_pident", 75.0)
+MIN_LENGTH = config.get("min_length", 100)
+EVALUE = config.get("evalue", "1e-5")
+ADJUST_BOUNDARIES = config.get("adjust_boundaries", True)
+BOUNDARY_WINDOW = config.get("boundary_window", 50)
+
+rule all:
+    input:
+        # Labeling outputs
+        f"{PRETELOMERIC_LABELS_DIR}/{PREFIX}.gff3",
+        f"{PRETELOMERIC_LABELS_DIR}/{PREFIX}.bed",
+        f"{PRETELOMERIC_LABELS_DIR}/{PREFIX}_simp.bed",
+        f"{PRETELOMERIC_LABELS_DIR}/{PREFIX}.tsv",
+        f"{PRETELOMERIC_LABELS_DIR}/{PREFIX}_structure.txt",
+        REPEATMASKER_YPRIMES_FASTA,
+        # RepeatMasker and recombination analysis outputs
+        f"results/{BASE}/{BASE}_y_prime_recombination.tsv",
+        # Optional X element and spacer analysis (uncomment when pairings are available)
+        # f"results/{BASE}/{BASE}_paired_x_element_ends_repeatmasker.tsv",
+        # f"results/{BASE}/{BASE}_good_x_element_ends_paired_repeatmasker.tsv",
+        # f"results/{BASE}/{BASE}_good_gained_y_x_element_ends_paired_repeatmasker.tsv",
+        # f"results/{BASE}/{BASE}_paired_spacer_repeatmasker.tsv",
+        # f"results/{BASE}/{BASE}_paired_good_spacer_repeatmasker.tsv",
+        # f"results/{BASE}/{BASE}_paired_good_gained_spacer_repeatmasker.tsv"
+
+# =============================================================================
+# PART 1: Pre-telomeric Region Labeling (from label_regions.sh)
+# =============================================================================
+
+rule label_pretelomeric_regions:
+    input:
+        reference = REFERENCE_FASTA,
+        anchors = config["references"]["anchors"],
+        yprimes = config["references"]["repeatmasker_y_primes"],
+        xprimes = config["references"].get("xprimes", ""),
+        probe = config["references"].get("probe", "")
+    output:
+        gff3 = f"{PRETELOMERIC_LABELS_DIR}/{PREFIX}.gff3",
+        bed = f"{PRETELOMERIC_LABELS_DIR}/{PREFIX}.bed",
+        simp_bed = f"{PRETELOMERIC_LABELS_DIR}/{PREFIX}_simp.bed",
+        tsv = f"{PRETELOMERIC_LABELS_DIR}/{PREFIX}.tsv",
+        structure = f"{PRETELOMERIC_LABELS_DIR}/{PREFIX}_structure.txt",
+        anchor_blast = f"{PRETELOMERIC_LABELS_DIR}/{PREFIX}_anchor_blast.txt",
+        yprime_blast = f"{PRETELOMERIC_LABELS_DIR}/{PREFIX}_yprime_blast.txt"
+    params:
+        output_dir = PRETELOMERIC_LABELS_DIR,
+        prefix = PREFIX,
+        min_pident = MIN_PIDENT,
+        min_length = MIN_LENGTH,
+        evalue = EVALUE,
+        adjust_boundaries = ADJUST_BOUNDARIES,
+        boundary_window = BOUNDARY_WINDOW,
+        xprimes = config["references"].get("xprimes", ""),
+        probe = config["references"].get("probe", "")
+    threads: 56
+    shell:
+        """
+        mkdir -p {params.output_dir}
+
+        # Build optional arguments
+        XPRIME_ARG=""
+        if [ -n "{params.xprimes}" ] && [ -f "{params.xprimes}" ]; then
+            XPRIME_ARG="--xprimes {params.xprimes}"
+        fi
+
+        PROBE_ARG=""
+        if [ -n "{params.probe}" ] && [ -f "{params.probe}" ]; then
+            PROBE_ARG="--probe {params.probe}"
+        fi
+
+        BOUNDARY_ARG=""
+        if [ "{params.adjust_boundaries}" = "True" ]; then
+            BOUNDARY_ARG="--adjust-boundaries --boundary-window {params.boundary_window}"
+        fi
+
+        python scripts/label_pretelomeric_regions.py \
+            --reference {input.reference} \
+            --anchors {input.anchors} \
+            --yprimes {input.yprimes} \
+            --output-dir {params.output_dir} \
+            --prefix {params.prefix} \
+            --threads {threads} \
+            --min-pident {params.min_pident} \
+            --min-length {params.min_length} \
+            --evalue {params.evalue} \
+            $XPRIME_ARG \
+            $PROBE_ARG \
+            $BOUNDARY_ARG
+        """
+
+rule extract_yprime_fasta:
+    input:
+        labeled_tsv = f"{PRETELOMERIC_LABELS_DIR}/{PREFIX}.tsv",
+        reference = REFERENCE_FASTA
+    output:
+        fasta = REPEATMASKER_YPRIMES_FASTA
+    params:
+        strain = STRAIN
+    shell:
+        """
+        python scripts/extract_yprime_fasta.py \
+            --labeled-tsv {input.labeled_tsv} \
+            --reference {input.reference} \
+            --output {output.fasta} \
+            --strain {params.strain}
+        """
+
+# =============================================================================
+# PART 2: RepeatMasker and Recombination Analysis (from original Snakefile)
+# =============================================================================
+
+rule repeatmasker_y_primes:
+    input:
+        query = "results/{base}/chr_anchor_included_individual_files/{base}_blasted_{anchor}_{chrom_side}_anchor_reads.fasta",
+        database = REPEATMASKER_YPRIMES_FASTA
+    output:
+        out_file = "results/{base}/read_repeatmasker_results/{base}_blasted_{anchor}_{chrom_side}_anchor_reads.fasta.out",
+        filtered = "results/{base}/read_repeatmasker_results/{base}_{anchor}_{chrom_side}_filtered.out",
+        ssv = "results/{base}/read_repeatmasker_results/{base}_{anchor}_{chrom_side}_repeatmasker_results.ssv"
+    params:
+        outdir = "results/{base}/read_repeatmasker_results/"
+    threads: 12
+    shell:
+        """
+        mkdir -p {params.outdir}
+
+        RepeatMasker {input.query} -lib {input.database} -s -pa {threads} \
+            --cutoff 1000 -no_is -norna -gff -dir {params.outdir}
+
+        # Create header
+        echo -e "SW_score\\tdivergence_percent\\tdeletion_percent\\tinsertion_percent\\tread_id\\tmatch_start_on_read\\tmatch_end_on_read\\tleftover_on_read\\tstrand\\ty_prime_id\\ty_prime_group\\tmatch_start_on_y_prime\\tmatch_end_on_y_prime\\tleftover_on_y_prime\\tmatch_id\\tsub_match" > {output.ssv}
+
+        # Filter for Y_Prime and append
+        grep "Y_Prime" {output.out_file} > {output.filtered} || touch {output.filtered}
+        cat {output.filtered} >> {output.ssv}
+        """
+
+rule aggregate_repeatmasker_y_primes:
+    input:
+        expand("results/{base}/read_repeatmasker_results/{base}_{anchor}_{chrom_side}_repeatmasker_results.ssv",
+               base=BASE, anchor=ANCHOR, chrom_side=CHROM_SIDES)
+    output:
+        marker = touch(f"results/{BASE}/read_repeatmasker_results/.done")
+    shell:
+        "echo 'All RepeatMasker Y prime jobs complete'"
+
+rule make_y_prime_repeatmasker_tsv:
+    input:
+        repeatmasker_done = f"results/{BASE}/read_repeatmasker_results/.done",
+        y_prime_probe = f"results/{BASE}/{BASE}_post_y_prime_probe.tsv"
+    output:
+        all_repeatmasker = f"results/{BASE}/{BASE}_repeatmasker.tsv",
+        good_end = f"results/{BASE}/{BASE}_good_end_y_repeatmasker.tsv",
+        gained_y = f"results/{BASE}/{BASE}_gained_y_repeatmasker.tsv"
+    params:
+        repeatmasker_dir = f"results/{BASE}/read_repeatmasker_results/"
+    shell:
+        """
+        python scripts/make_y_prime_repeatmasker_tsv.py \
+            {params.repeatmasker_dir} \
+            {input.y_prime_probe} \
+            {output.all_repeatmasker} \
+            {output.good_end} \
+            {output.gained_y}
+        """
+
+rule get_stats_of_recombination:
+    input:
+        good_end_y = f"results/{BASE}/{BASE}_good_end_y_repeatmasker.tsv",
+        y_prime_probe = f"results/{BASE}/{BASE}_post_y_prime_probe.tsv"
+    output:
+        recomb = f"results/{BASE}/{BASE}_y_prime_recombination.tsv"
+    params:
+        strain = STRAIN
+    shell:
+        """
+        python scripts/get_stats_of_recombination.py \
+            {input.good_end_y} \
+            {input.y_prime_probe} \
+            {params.strain} \
+            {output.recomb}
+        """
+
+checkpoint make_pairings_from_y_primes_all_ends:
+    input:
+        good_end_y = f"results/{BASE}/{BASE}_good_end_y_repeatmasker.tsv",
+        chr_reads = expand(f"results/{BASE}/chr_anchor_included_individual_files/{BASE}_blasted_{ANCHOR}_{{cs}}_anchor_reads.fasta",
+                          cs=CHROM_SIDES)
+    output:
+        pairings_dir = directory(f"results/{BASE}/paired_by_y_prime_reads/")
+    params:
+        strain = STRAIN,
+        anchor = ANCHOR,
+        base_name = BASE
+    shell:
+        """
+        mkdir -p {output.pairings_dir}
+        python scripts/make_pairings_from_y_primes_all_ends.py \
+            {input.good_end_y} \
+            results/{params.base_name}/chr_anchor_included_individual_files/ \
+            {output.pairings_dir} \
+            {params.strain} \
+            {params.anchor} \
+            {params.base_name}
+        """
+
+def get_pairing_names(wildcards):
+    """Get list of pairing file basenames (without .fasta extension) from checkpoint"""
+    checkpoint_output = checkpoints.make_pairings_from_y_primes_all_ends.get(**wildcards).output.pairings_dir
+    pairing_files = glob.glob(f"{checkpoint_output}/*.fasta")
+    return [os.path.basename(f).replace('.fasta', '') for f in pairing_files]
+
+rule repeatmasker_x_elements:
+    input:
+        query = "results/{base}/paired_by_y_prime_reads/{pairing}.fasta",
+        database = f"references/pairings_for_x_element_ends/{STRAIN}_pairings/{STRAIN}_paired_{{pairing}}.fasta"
+    output:
+        out_file = "results/{base}/paired_x_element_ends_repeatmasker_results/{pairing}.fasta.out",
+        filtered = "results/{base}/paired_x_element_ends_repeatmasker_results/{pairing}_x_element_ends_filtered.out",
+        ssv = "results/{base}/paired_x_element_ends_repeatmasker_results/{base}_{pairing}_x_element_ends_repeatmasker_results.ssv"
+    params:
+        outdir = "results/{base}/paired_x_element_ends_repeatmasker_results/"
+    threads: 12
+    shell:
+        """
+        mkdir -p {params.outdir}
+
+        RepeatMasker {input.query} -lib {input.database} -s -pa {threads} \
+            --cutoff 500 -no_is -norna -gff -dir {params.outdir}
+
+        # Create header
+        echo -e "SW_score\\tdivergence_percent\\tdeletion_percent\\tinsertion_percent\\tread_id\\tmatch_start_on_read\\tmatch_end_on_read\\tleftover_on_read\\tstrand\\tx_element_ends\\tsection_number\\tmatch_start_on_chr_end_section\\tmatch_end_on_chr_end_section\\tleftover_on_chr_end_section\\tmatch_id\\tsub_match" > {output.ssv}
+
+        # Filter for x_ends and append
+        grep "x_ends" {output.out_file} > {output.filtered} || touch {output.filtered}
+        cat {output.filtered} >> {output.ssv}
+        """
+
+def get_pairing_names_with_refs(wildcards):
+    """Get list of pairings that have corresponding reference databases"""
+    pairing_names = get_pairing_names(wildcards)
+    valid_pairings = []
+    for pairing in pairing_names:
+        ref_file = f"references/pairings_for_x_element_ends/{STRAIN}_pairings/{STRAIN}_paired_{pairing}.fasta"
+        if os.path.exists(ref_file):
+            valid_pairings.append(pairing)
+        else:
+            print(f"Warning: No reference file for pairing {pairing}, skipping")
+    return valid_pairings
+
+def aggregate_x_element_inputs(wildcards):
+    """Aggregate all x_element RepeatMasker results based on checkpoint output"""
+    pairing_names = get_pairing_names_with_refs(wildcards)
+    return expand("results/{base}/paired_x_element_ends_repeatmasker_results/{base}_{pairing}_x_element_ends_repeatmasker_results.ssv",
+                  base=wildcards.base,
+                  pairing=pairing_names)
+
+rule aggregate_x_elements:
+    input:
+        aggregate_x_element_inputs
+    output:
+        marker = touch("results/{base}/paired_x_element_ends_repeatmasker_results/.done")
+    shell:
+        "echo 'All X element RepeatMasker jobs complete'"
+
+rule make_x_element_ends_pairs_repeatmasker_tsv:
+    input:
+        x_elements_done = "results/{base}/paired_x_element_ends_repeatmasker_results/.done",
+        pairings_dir = "results/{base}/paired_by_y_prime_reads/",
+        y_prime_probe = "results/{base}/{base}_post_y_prime_probe.tsv"
+    output:
+        all_tsv = "results/{base}/{base}_paired_x_element_ends_repeatmasker.tsv",
+        good_tsv = "results/{base}/{base}_good_x_element_ends_paired_repeatmasker.tsv",
+        gained_tsv = "results/{base}/{base}_good_gained_y_x_element_ends_paired_repeatmasker.tsv"
+    params:
+        strain = STRAIN,
+        repeatmasker_dir = "results/{base}/paired_x_element_ends_repeatmasker_results/"
+    shell:
+        """
+        python scripts/make_x_element_ends_pairs_repeatmasker_tsv.py \
+            {params.repeatmasker_dir} \
+            {params.strain} \
+            {input.y_prime_probe} \
+            {output.all_tsv} \
+            {output.good_tsv} \
+            {output.gained_tsv}
+        """
+
+# =============================================================================
+# Step 12: Find 250bp tracts of spacer sequences
+# =============================================================================
+
+rule repeatmasker_spacers:
+    input:
+        query = "results/{base}/paired_by_y_prime_reads/{pairing}.fasta",
+        database = f"references/pairings_for_spacers/{STRAIN}_pairings/{STRAIN}_paired_{{pairing}}.fasta"
+    output:
+        out_file = "results/{base}/paired_spacer_repeatmasker_results/{pairing}.fasta.out",
+        filtered = "results/{base}/paired_spacer_repeatmasker_results/{pairing}_spacer_filtered.out",
+        ssv = "results/{base}/paired_spacer_repeatmasker_results/{base}_{pairing}_spacer_repeatmasker_results.ssv"
+    params:
+        outdir = "results/{base}/paired_spacer_repeatmasker_results/"
+    threads: 12
+    shell:
+        """
+        mkdir -p {params.outdir}
+
+        RepeatMasker {input.query} -lib {input.database} -s -pa {threads} \
+            --cutoff 500 -no_is -norna -gff -dir {params.outdir}
+
+        # Create header
+        echo -e "SW_score\\tdivergence_percent\\tdeletion_percent\\tinsertion_percent\\tread_id\\tmatch_start_on_read\\tmatch_end_on_read\\tleftover_on_read\\tstrand\\tchr_end_tract\\tsection_number\\tmatch_start_on_chr_end_section\\tmatch_end_on_chr_end_section\\tleftover_on_chr_end_section\\tmatch_id\\tsub_match" > {output.ssv}
+
+        # Filter for spacer sequences and append
+        grep "_from_repeat_to_plus_50kb" {output.out_file} > {output.filtered} || touch {output.filtered}
+        cat {output.filtered} >> {output.ssv}
+        """
+
+def aggregate_spacer_inputs(wildcards):
+    """Aggregate all spacer RepeatMasker results based on checkpoint output"""
+    pairing_names = get_pairing_names_with_refs(wildcards)
+    return expand("results/{base}/paired_spacer_repeatmasker_results/{base}_{pairing}_spacer_repeatmasker_results.ssv",
+                  base=wildcards.base,
+                  pairing=pairing_names)
+
+rule aggregate_spacers:
+    input:
+        aggregate_spacer_inputs
+    output:
+        marker = touch("results/{base}/paired_spacer_repeatmasker_results/.done")
+    shell:
+        "echo 'All spacer RepeatMasker jobs complete'"
+
+rule make_spacer_pairs_repeatmasker_tsv:
+    input:
+        spacers_done = "results/{base}/paired_spacer_repeatmasker_results/.done",
+        pairings_dir = "results/{base}/paired_by_y_prime_reads/",
+        y_prime_probe = "results/{base}/{base}_post_y_prime_probe.tsv",
+        anchors_bed = f"references/{STRAIN}_anchors_and_distances.bed",
+        features_bed = FEATURES_BED
+    output:
+        all_tsv = "results/{base}/{base}_paired_spacer_repeatmasker.tsv",
+        good_tsv = "results/{base}/{base}_paired_good_spacer_repeatmasker.tsv",
+        gained_tsv = "results/{base}/{base}_paired_good_gained_spacer_repeatmasker.tsv"
+    params:
+        strain = STRAIN,
+        repeatmasker_dir = "results/{base}/paired_spacer_repeatmasker_results/"
+    shell:
+        """
+        python scripts/make_spacer_pairs_repeatmasker_tsv.py \
+            {params.repeatmasker_dir} \
+            {params.strain} \
+            {input.anchors_bed} \
+            {input.features_bed} \
+            {input.y_prime_probe} \
+            {output.all_tsv} \
+            {output.good_tsv} \
+            {output.gained_tsv}
+        """

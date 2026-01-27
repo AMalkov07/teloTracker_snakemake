@@ -1,0 +1,37 @@
+# config_label.yaml
+# Configuration for Pipeline 2: Reference Labeling
+#
+# Usage: snakemake -s Snakefile_label -c 56
+#
+# Prerequisites: Run Snakefile_create_ref first to generate the polished reference
+
+# Required: Base name for the analysis (must match Pipeline 1)
+base_name: "dorado_fast5_7575_day0_PromethION_no_tag_yes_rejection"
+
+# Required: Strain identifier (must match Pipeline 1)
+strain: "7575"
+
+# Anchor set name
+anchor_set: "test_anchors"
+
+# Paths to reference files for labeling
+references:
+  anchors: "references/test_anchors.fasta"
+  # Y prime sequences from RepeatMasker (use strain-specific file)
+  repeatmasker_y_primes: "references/repeatmasker_7575_all_y_primes.fasta"
+  # X prime sequences for detection (optional)
+  xprimes: "references/7575_xprimes.fasta"
+  # Y prime probe for verification (optional)
+  probe: "references/probe.fasta"
+
+# BLAST parameters for labeling
+min_pident: 75.0      # Minimum percent identity (lowered for cross-strain comparison)
+min_length: 100       # Minimum alignment length
+evalue: "1e-5"        # E-value threshold
+
+# Boundary adjustment parameters (to maximize ITS regions between features)
+# Trims telomeric bases from feature boundaries:
+#   - R arm: trims T and G from feature ends until hitting A or C
+#   - L arm: trims A and C from feature ends until hitting T or G
+adjust_boundaries: true
+boundary_window: 50   # Minimum feature size to maintain after trimming (bp)

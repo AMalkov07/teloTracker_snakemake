@@ -1,0 +1,30 @@
+# config_create_ref.yaml
+# Configuration for Pipeline 1: Reference Creation
+#
+# Usage: snakemake -s Snakefile_create_ref -c 56
+
+# Required: Base name for the analysis
+base_name: "dorado_fast5_7575_day0_PromethION_no_tag_yes_rejection"
+
+# Required: Strain identifier (e.g., "6991", "7302", "7575")
+strain: "7575"
+
+# Anchor set name
+anchor_set: "test_anchors"
+
+# Input BAM directory
+bam_dir: "../samples_dorado_basecalled2"
+
+# Base reference for initial mapping (used in Step 4)
+reference_fasta: "/Shared/malkova_lab/Ivan/nanopore_sequencing/reference_files/6991_only_to_anchors.fasta"
+
+# Paths to reference files
+references:
+  anchors: "references/test_anchors.fasta"
+  adapters: "references/offical_nanopore_adapter_seq+trunc.txt"
+  probe: "references/probe.fasta"
+
+# Dorado configuration
+dorado_mode: "docker"  # Options: "docker" or "local"
+dorado_image: "/Shared/malkova_lab/dorado_files/docker_images_of_dorado/dorado-11-26-2025.sif"
+dorado_model: "dna_r10.4.1_e8.2_400bps_sup@v5.2.0"

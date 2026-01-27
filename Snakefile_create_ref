@@ -1,0 +1,480 @@
+# Snakefile_create_ref
+# Pipeline 1: Reference Creation
+# Combines the original Snakemake rules (up to y_prime_analysis) with create_ref.sh steps
+#
+# Usage: snakemake -s Snakefile_create_ref -c 56
+#
+# This pipeline:
+# 1. Processes BAM/FASTA to identify telomere-containing reads
+# 2. BLASTs against anchors and Y prime probes
+# 3. Creates a polished reference genome using Flye and Dorado
+
+import os
+import glob
+
+# Load configuration
+configfile: "config_create_ref.yaml"
+
+# Variables from config
+BASE = config["base_name"]
+ANCHOR = config["anchor_set"]
+BAM_IN = f"{config['bam_dir']}/{BASE}.bam"
+FASTA_IN = f"results/{BASE}/{BASE}.fasta"
+STRAIN = config.get("strain", BASE.split('_')[1] if 'dorado_' in BASE else BASE.split('_')[0])
+
+# Define the 16 yeast chromosomes and their two sides (L and R)
+CHROMS = [str(i) for i in range(1, 17)]
+SIDES = ["L", "R"]
+CHROM_SIDES = [f"chr{c}{s}" for c in CHROMS for s in SIDES]
+
+# Output directories
+OUTPUT_DIR = f"results/{BASE}/assembly_{STRAIN}"
+
+# Reference creation config
+REFERENCE = config["reference_fasta"]  # Base reference for initial mapping
+ADAPTER_FILE = config["references"]["adapters"]
+DORADO_MODE = config.get("dorado_mode", "docker")
+DORADO_IMAGE = config.get("dorado_image", "")
+DORADO_MODEL = config.get("dorado_model", "dna_r10.4.1_e8.2_400bps_sup@v5.2.0")
+
+# Final output files
+DORADO_REF = f"{OUTPUT_DIR}/assembly_{STRAIN}_dorado_reference.fasta"
+FINAL_ALIGNMENT = f"{OUTPUT_DIR}/assembly_{STRAIN}_final_alignment_to_dorado_ref.bam"
+
+rule all:
+    input:
+        # Y prime analysis outputs (from original pipeline)
+        f"results/{BASE}/{BASE}_post_y_prime_probe.tsv",
+        f"results/{BASE}/{BASE}_stats_y_prime.txt",
+        f"results/{BASE}/y_prime_blast/all_{BASE}_probe_matches.tsv",
+        directory(f"results/{BASE}/figures_for_y_primes"),
+        # Reference creation outputs
+        DORADO_REF,
+        FINAL_ALIGNMENT
+
+# =============================================================================
+# PART 1: Original Snakemake rules (up to y_prime_analysis)
+# =============================================================================
+
+# --- STEP 0: Automatic Detection ---
+if not os.path.exists(FASTA_IN):
+    rule prep_from_bam:
+        input:
+            bam = BAM_IN
+        output:
+            fastq = f"results/{BASE}/{BASE}.fastq",
+            fasta = FASTA_IN
+        threads: 16
+        shell:
+            """
+            samtools fastq -@ {threads} -T '*' {input.bam} > {output.fastq}
+            seqtk seq -A {output.fastq} > {output.fasta}
+            """
+
+rule index_fasta:
+    input:
+        fasta = FASTA_IN
+    output:
+        fai = f"{FASTA_IN}.fai"
+    shell:
+        "samtools faidx {input.fasta}"
+
+# --- STEP 1: Blast for Reads with Anchors ---
+rule blast_anchors:
+    input:
+        query = FASTA_IN,
+        db = config["references"]["anchors"]
+    output:
+        tsv = f"results/{BASE}/{BASE}_blasted_{ANCHOR}.tsv"
+    threads: 56
+    shell:
+        """
+        echo -e "read_id\ttotal_read_length\tread_bp_used_for_match\tmatch_start_on_read\tmatch_end_on_read\tanchor_name\ttotal_anchor_length\tmatch_start_on_anchor\tmatch_end_on_anchor\tpident\tbitscore\tevalue" > {output.tsv}
+
+        blastn -query {input.query} -db {input.db} -task megablast \
+            -perc_identity 85 -min_raw_gapped_score 3000 -num_threads {threads} \
+            -outfmt "6 qseqid qlen length qstart qend sseqid slen sstart send pident bitscore evalue" \
+            >> {output.tsv}
+        """
+
+# --- STEP 2: Filter Blast Results ---
+rule filter_anchors:
+    input:
+        tsv = rules.blast_anchors.output.tsv
+    output:
+        all_matches = f"results/{BASE}/all_matches_{BASE}_blasted_{ANCHOR}.tsv",
+        top_matches = f"results/{BASE}/top_matches_{BASE}_blasted_{ANCHOR}.tsv"
+    shell:
+        "python scripts/filter_for_reads_with_anchors.py {input.tsv} {output.all_matches} {output.top_matches}"
+
+# --- STEP 3: Split and Label ---
+rule split_and_label:
+    input:
+        tsv = rules.filter_anchors.output.top_matches,
+        fasta = FASTA_IN,
+        fai = f"{FASTA_IN}.fai"
+    output:
+        reads = expand("results/{{BASE}}/chr_anchor_included_individual_files/{{BASE}}_blasted_{{ANCHOR}}_{cs}_anchor_reads.fasta",
+                       cs=CHROM_SIDES)
+    shell:
+        """
+        mkdir -p results/{BASE}/chr_anchor_included_individual_files/
+        python scripts/split_and_label_all_reads_include_anchor.py {input.tsv} {input.fasta} results/{BASE}/chr_anchor_included_individual_files/ {BASE} {ANCHOR}
+        """
+
+rule aggregate_chromosomes:
+    input:
+        reads = expand(f"results/{BASE}/chr_anchor_included_individual_files/{BASE}_blasted_{ANCHOR}_{{cs}}_anchor_reads.fasta",
+                       cs=CHROM_SIDES)
+    output:
+        merged = f"results/{BASE}/{BASE}_all_chromosome_anchored_reads_pre_trim.fasta"
+    shell:
+        "cat {input.reads} > {output.merged}"
+
+rule porechop_trim:
+    input:
+        fasta = rules.aggregate_chromosomes.output.merged,
+        adapters = config["references"]["adapters"]
+    output:
+        fastq = f"results/{BASE}/porechop_trim/all_chromosome_anchored_read_trimmed.fastq",
+        fasta = f"results/{BASE}/porechop_trim/all_chromosome_anchored_read_trimmed.fasta",
+        log = f"results/{BASE}/{BASE}_all_chrs_split_to_telomere_porechopped.log"
+    threads: 56
+    shell:
+        """
+        porechop_abi -t {threads} --format fastq -ddb -v 3 --no_split \
+            -cap {input.adapters} -i {input.fasta} \
+            -o {output.fastq} > {output.log}
+
+        sed -n '1~4s/^@/>/p;2~4p' {output.fastq} > {output.fasta}
+        """
+
+rule sequence_summary:
+    input:
+        fasta = FASTA_IN
+    output:
+        summary = f"results/{BASE}/{BASE}_sequencing_summary.tsv"
+    shell:
+        """
+        echo -e "read_id\\tsequence_length_template" > {output.summary}
+        seqkit fx2tab -n -l -i {input.fasta} >> {output.summary}
+        """
+
+rule parse_porechop_log:
+    input:
+        log = f"results/{BASE}/{BASE}_all_chrs_split_to_telomere_porechopped.log"
+    output:
+        tsv = f"results/{BASE}/{BASE}_porechopped_results.tsv"
+    shell:
+        "python scripts/check_for_adapters.py {BASE} {input.log} {output.tsv}"
+
+rule compare_callers:
+    input:
+        summary = rules.sequence_summary.output.summary,
+        porechop = rules.parse_porechop_log.output.tsv,
+        blast_raw = f"results/{BASE}/{BASE}_blasted_{ANCHOR}.tsv",
+        blast_top = f"results/{BASE}/top_matches_{BASE}_blasted_{ANCHOR}.tsv"
+    output:
+        stats = f"results/{BASE}/{BASE}_adapter_trimming_check.stats",
+        table = f"results/{BASE}/{BASE}_adapter_trimming_check.tsv"
+    shell:
+        """
+        python scripts/compare_adapter_callers_dorado.py \
+            {input.summary} \
+            {input.porechop} \
+            {input.blast_raw} \
+            {input.blast_top} \
+            {output.stats} \
+            {output.table} \
+            {ANCHOR}
+        """
+
+rule index_merged_fasta:
+    input:
+        rules.aggregate_chromosomes.output.merged
+    output:
+        fai = f"{rules.aggregate_chromosomes.output.merged}.fai"
+    shell:
+        "samtools faidx {input}"
+
+rule fine_trimming:
+    input:
+        fasta = rules.aggregate_chromosomes.output.merged,
+        fai = f"{rules.aggregate_chromosomes.output.merged}.fai",
+        adapter_info = rules.compare_callers.output.table,
+        best_anchor = f"results/{BASE}/top_matches_{BASE}_blasted_{ANCHOR}.tsv"
+    output:
+        main_tsv = f"results/{BASE}/{BASE}_post_telo_trimming.tsv",
+        fasta_trimmed = f"results/{BASE}/{BASE}_fine_trimmed.fasta",
+        trim_dir = directory(f"results/{BASE}/repeat_trim_files/")
+    shell:
+        """
+        mkdir -p {output.trim_dir}
+        python scripts/fine_telomere_trimming.py \
+            {input.fasta} \
+            {input.adapter_info} \
+            {input.best_anchor} \
+            {output.main_tsv} \
+            {output.trim_dir} \
+            {BASE} \
+            {output.fasta_trimmed}
+        """
+
+rule blast_y_primes:
+    input:
+        query = "results/{BASE}/chr_anchor_included_individual_files/{BASE}_blasted_" + ANCHOR + "_{chrom_side}_anchor_reads.fasta",
+        db = config["references"]["probe"]
+    output:
+        tsv = "results/{BASE}/y_prime_blast/{BASE}_{chrom_side}_blasted_probe.tsv"
+    threads: 4
+    shell:
+        """
+        echo -e "read_id\\ttotal_read_length\\tread_bp_used_for_match\\tmatch_start_on_read\\tmatch_end_on_read\\tanchor_name\\ttotal_anchor_length\\tmatch_start_on_anchor\\tmatch_end_on_anchor\\tpident\\tbitscore\\tevalue" > {output.tsv}
+
+        blastn -query {input.query} -db {input.db} -perc_identity 90 -num_threads {threads} \
+            -outfmt "6 qseqid qlen length qstart qend sseqid slen sstart send pident bitscore evalue" \
+            >> {output.tsv}
+        """
+
+rule aggregate_y_prime_blasts:
+    input:
+        expand("results/{BASE}/y_prime_blast/{BASE}_{chrom_side}_blasted_probe.tsv",
+               BASE=BASE, chrom_side=CHROM_SIDES)
+    output:
+        probe_dir = directory(f"results/{BASE}/y_prime_blast")
+    shell:
+        "echo 'All Y prime BLAST jobs complete'"
+
+rule y_prime_analysis:
+    input:
+        best_anchor = f"results/{BASE}/top_matches_{BASE}_blasted_{ANCHOR}.tsv",
+        telo_results = f"results/{BASE}/{BASE}_post_telo_trimming.tsv",
+        probe_blasts = expand("results/{BASE}/y_prime_blast/{BASE}_{chrom_side}_blasted_probe.tsv",
+                             BASE=BASE, chrom_side=CHROM_SIDES)
+    output:
+        main_tsv = f"results/{BASE}/{BASE}_post_y_prime_probe.tsv",
+        stats = f"results/{BASE}/{BASE}_stats_y_prime.txt",
+        combined_probe = f"results/{BASE}/y_prime_blast/all_{BASE}_probe_matches.tsv",
+        figures = directory(f"results/{BASE}/figures_for_y_primes")
+    params:
+        base_name = BASE,
+        anchor_set = ANCHOR,
+        probe_dir = f"results/{BASE}/y_prime_blast"
+    shell:
+        """
+        python scripts/y_prime_analysis.py {params.base_name} {params.anchor_set} \
+            --top-anchor-blast {input.best_anchor} \
+            --telomere-repeat-results {input.telo_results} \
+            --probe-blast-dir {params.probe_dir} \
+            --output-tsv {output.main_tsv} \
+            --output-stats {output.stats} \
+            --figure-dir {output.figures} \
+            --combined-probe-output {output.combined_probe}
+        """
+
+# =============================================================================
+# PART 2: Reference Creation (from create_ref.sh steps 1-9)
+# =============================================================================
+
+# Step 1: Trim adapters with porechop_abi (on all reads, not just anchored)
+rule trim_all_reads:
+    input:
+        fastq = f"results/{BASE}/{BASE}.fastq",
+        adapters = ADAPTER_FILE
+    output:
+        trimmed = f"{OUTPUT_DIR}/assembly_{STRAIN}_trimmed.fastq"
+    threads: 56
+    shell:
+        """
+        mkdir -p {OUTPUT_DIR}
+        porechop_abi -i {input.fastq} -o {output.trimmed} \
+            -cap {input.adapters} -t {threads} --no_split -ddb
+        """
+
+# Step 2: Select 75th percentile reads
+rule select_75th_percentile_reads:
+    input:
+        tsv = f"results/{BASE}/{BASE}_post_y_prime_probe.tsv"
+    output:
+        read_pairs = f"{OUTPUT_DIR}/assembly_{STRAIN}_selected_read_chr_arm_pairs.txt",
+        read_ids = f"{OUTPUT_DIR}/assembly_{STRAIN}_selected_read_chr_arm_pairs_only.txt"
+    params:
+        output_dir = OUTPUT_DIR
+    shell:
+        """
+        python run_subtelomere_reference_pipeline.py select_reads \
+            --input-tsv {input.tsv} \
+            --output-dir {params.output_dir} \
+            --output-file {output.read_pairs}
+        """
+
+# Step 3: Extract selected reads from FASTQ
+rule extract_selected_reads:
+    input:
+        fastq = f"{OUTPUT_DIR}/assembly_{STRAIN}_trimmed.fastq",
+        read_ids = f"{OUTPUT_DIR}/assembly_{STRAIN}_selected_read_chr_arm_pairs_only.txt"
+    output:
+        selected_fastq = f"{OUTPUT_DIR}/assembly_{STRAIN}_selected_reads.fastq"
+    shell:
+        """
+        python run_subtelomere_reference_pipeline.py extract_reads \
+            --reads-fastq {input.fastq} \
+            --read-ids-file {input.read_ids} \
+            --output-fastq {output.selected_fastq}
+        """
+
+# Step 4: Map reads to reference
+rule initial_mapping:
+    input:
+        reference = REFERENCE,
+        reads = f"{OUTPUT_DIR}/assembly_{STRAIN}_selected_reads.fastq"
+    output:
+        bam = f"{OUTPUT_DIR}/assembly_{STRAIN}_initial_mapped.bam",
+        bai = f"{OUTPUT_DIR}/assembly_{STRAIN}_initial_mapped.bam.bai"
+    threads: 56
+    shell:
+        """
+        minimap2 -ax map-ont -L -t {threads} {input.reference} {input.reads} \
+            | samtools sort -@ {threads} -o {output.bam}
+        samtools index -@ {threads} {output.bam}
+        """
+
+# Step 5: Extend reference using soft-clipped bases
+rule extend_reference:
+    input:
+        bam = f"{OUTPUT_DIR}/assembly_{STRAIN}_initial_mapped.bam",
+        reference = REFERENCE,
+        read_ids = f"{OUTPUT_DIR}/assembly_{STRAIN}_selected_read_chr_arm_pairs_only.txt"
+    output:
+        extended = f"{OUTPUT_DIR}/assembly_{STRAIN}_extended_to_telomere_reference.fasta"
+    shell:
+        """
+        python run_subtelomere_reference_pipeline.py extend_reference \
+            --bamfile {input.bam} \
+            --reference {input.reference} \
+            --read-ids-file {input.read_ids} \
+            --output-fasta {output.extended}
+        """
+
+# Step 6: Polish with Flye
+rule flye_polish:
+    input:
+        reference = f"{OUTPUT_DIR}/assembly_{STRAIN}_extended_to_telomere_reference.fasta",
+        reads = f"{OUTPUT_DIR}/assembly_{STRAIN}_trimmed.fastq"
+    output:
+        polished = f"{OUTPUT_DIR}/flye_polish/polished_3.fasta",
+        reference = f"{OUTPUT_DIR}/assembly_{STRAIN}_flye_reference.fasta"
+    params:
+        flye_dir = f"{OUTPUT_DIR}/flye_polish"
+    threads: 56
+    shell:
+        """
+        mkdir -p {params.flye_dir}
+        flye --polish-target {input.reference} \
+             --nano-hq {input.reads} \
+             --out-dir {params.flye_dir} \
+             --threads {threads} \
+             -i 3
+        cp {output.polished} {output.reference}
+        """
+
+# Step 7: Align with Dorado
+rule dorado_align:
+    input:
+        reference = f"{OUTPUT_DIR}/assembly_{STRAIN}_flye_reference.fasta",
+        reads = f"{OUTPUT_DIR}/assembly_{STRAIN}_trimmed.fastq"
+    output:
+        bam = f"{OUTPUT_DIR}/assembly_{STRAIN}_dorado_aligned.bam",
+        bai = f"{OUTPUT_DIR}/assembly_{STRAIN}_dorado_aligned.bam.bai"
+    params:
+        dorado_mode = DORADO_MODE,
+        dorado_image = DORADO_IMAGE
+    threads: 56
+    shell:
+        """
+        if [ "{params.dorado_mode}" == "docker" ]; then
+            singularity exec {params.dorado_image} \
+                dorado aligner {input.reference} {input.reads} | samtools sort -@ {threads} > {output.bam}
+        else
+            dorado aligner {input.reference} {input.reads} | samtools sort -@ {threads} > {output.bam}
+        fi
+        samtools index -@ {threads} {output.bam}
+        """
+
+# Step 8: Add model info and polish with Dorado
+rule dorado_polish:
+    input:
+        bam = f"{OUTPUT_DIR}/assembly_{STRAIN}_dorado_aligned.bam",
+        reference = f"{OUTPUT_DIR}/assembly_{STRAIN}_flye_reference.fasta"
+    output:
+        consensus = f"{OUTPUT_DIR}/dorado_polish/consensus.fasta",
+        final_ref = DORADO_REF
+    params:
+        dorado_dir = f"{OUTPUT_DIR}/dorado_polish",
+        dorado_mode = DORADO_MODE,
+        dorado_image = DORADO_IMAGE,
+        dorado_model = DORADO_MODEL,
+        output_dir = OUTPUT_DIR
+    threads: 56
+    shell:
+        """
+        mkdir -p {params.dorado_dir}
+
+        # Add basecaller model to BAM header
+        BAM_WITH_MODEL="{params.output_dir}/assembly_{STRAIN}_dorado_aligned_with_model.bam"
+
+        samtools view -H {input.bam} > {params.output_dir}/header.sam
+
+        if grep -q "^@RG" {params.output_dir}/header.sam; then
+            sed -i "s/^@RG\\t/@RG\\tDS:basecall_model={params.dorado_model}\\t/" {params.output_dir}/header.sam
+        else
+            echo -e "@RG\\tID:unknown\\tDS:basecall_model={params.dorado_model}" >> {params.output_dir}/header.sam
+        fi
+
+        samtools reheader {params.output_dir}/header.sam {input.bam} > $BAM_WITH_MODEL
+        samtools index $BAM_WITH_MODEL
+        rm {params.output_dir}/header.sam
+
+        # Run Dorado polish
+        if [ "{params.dorado_mode}" == "docker" ]; then
+            singularity exec --nv --env PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True {params.dorado_image} \
+                dorado polish $BAM_WITH_MODEL {input.reference} \
+                --threads {threads} --batchsize 4 --draft-batchsize 500K \
+                --bam-chunk 20000 --bam-subchunk 2000 \
+                --window-len 7000 --window-overlap 3000 \
+                --ignore-read-groups --vcf --min-mapq 20 --min-depth 5 \
+                --output-dir {params.dorado_dir}
+        else
+            dorado polish $BAM_WITH_MODEL {input.reference} \
+                --threads {threads} --batchsize 4 --draft-batchsize 500K \
+                --bam-chunk 20000 --bam-subchunk 2000 \
+                --window-len 7000 --window-overlap 3000 \
+                --ignore-read-groups --vcf --min-mapq 20 --min-depth 5 \
+                --output-dir {params.dorado_dir}
+        fi
+
+        cp {output.consensus} {output.final_ref}
+        """
+
+# Step 9: Final alignment to polished reference
+rule final_alignment:
+    input:
+        reference = DORADO_REF,
+        reads = f"{OUTPUT_DIR}/assembly_{STRAIN}_trimmed.fastq"
+    output:
+        bam = FINAL_ALIGNMENT,
+        bai = f"{FINAL_ALIGNMENT}.bai"
+    params:
+        dorado_mode = DORADO_MODE,
+        dorado_image = DORADO_IMAGE
+    threads: 56
+    shell:
+        """
+        if [ "{params.dorado_mode}" == "docker" ]; then
+            singularity exec {params.dorado_image} \
+                dorado aligner {input.reference} {input.reads} | samtools sort -@ {threads} > {output.bam}
+        else
+            dorado aligner {input.reference} {input.reads} | samtools sort -@ {threads} > {output.bam}
+        fi
+        samtools index -@ {threads} {output.bam}
+        """
