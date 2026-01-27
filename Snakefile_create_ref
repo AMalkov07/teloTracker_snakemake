@@ -5,9 +5,15 @@
 # Usage: snakemake -s Snakefile_create_ref -c 56
 #
 # This pipeline:
-# 1. Processes BAM/FASTA to identify telomere-containing reads
+# 1. Processes BAM/FASTQ to identify telomere-containing reads
 # 2. BLASTs against anchors and Y prime probes
 # 3. Creates a polished reference genome using Flye and Dorado
+#
+# Input format auto-detection:
+# - Looks for {base_name}.bam or {base_name}.fastq in input_dir
+# - BAM: converts to FASTQ first
+# - FASTQ: uses directly
+# - If neither found: raises an error
 
 import os
 import glob
@@ -18,9 +24,43 @@ configfile: "config_create_ref.yaml"
 # Variables from config
 BASE = config["base_name"]
 ANCHOR = config["anchor_set"]
-BAM_IN = f"{config['bam_dir']}/{BASE}.bam"
-FASTA_IN = f"results/{BASE}/{BASE}.fasta"
+INPUT_DIR = config["input_dir"]
 STRAIN = config.get("strain", BASE.split('_')[1] if 'dorado_' in BASE else BASE.split('_')[0])
+
+# Output paths
+FASTQ_OUT = f"results/{BASE}/{BASE}.fastq"
+FASTA_IN = f"results/{BASE}/{BASE}.fasta"
+
+# =============================================================================
+# Auto-detect input format (BAM or FASTQ)
+# =============================================================================
+def detect_input_format():
+    """Detect the input file format (bam or fastq)"""
+    bam_path = f"{INPUT_DIR}/{BASE}.bam"
+    fastq_path = f"{INPUT_DIR}/{BASE}.fastq"
+    fastq_gz_path = f"{INPUT_DIR}/{BASE}.fastq.gz"
+
+    if os.path.exists(bam_path):
+        return "bam", bam_path
+    elif os.path.exists(fastq_path):
+        return "fastq", fastq_path
+    elif os.path.exists(fastq_gz_path):
+        return "fastq_gz", fastq_gz_path
+    else:
+        # Check if outputs already exist (resuming a previous run)
+        if os.path.exists(FASTQ_OUT) or os.path.exists(FASTA_IN):
+            return "existing", FASTQ_OUT
+        raise ValueError(
+            f"\n\nERROR: No input file found in '{INPUT_DIR}/' with base name '{BASE}'.\n"
+            f"Expected one of:\n"
+            f"  - {INPUT_DIR}/{BASE}.bam\n"
+            f"  - {INPUT_DIR}/{BASE}.fastq\n"
+            f"  - {INPUT_DIR}/{BASE}.fastq.gz\n\n"
+            f"Please check your config_create_ref.yaml settings for 'input_dir' and 'base_name'.\n"
+        )
+
+INPUT_FORMAT, INPUT_PATH = detect_input_format()
+print(f"Detected input format: {INPUT_FORMAT} ({INPUT_PATH})")
 
 # Define the 16 yeast chromosomes and their two sides (L and R)
 CHROMS = [str(i) for i in range(1, 17)]
@@ -56,20 +96,55 @@ rule all:
 # PART 1: Original Snakemake rules (up to y_prime_analysis)
 # =============================================================================
 
-# --- STEP 0: Automatic Detection ---
-if not os.path.exists(FASTA_IN):
+# --- STEP 0: Input Conversion (auto-detected format) ---
+if INPUT_FORMAT == "bam":
+    # BAM input: convert to FASTQ then FASTA
     rule prep_from_bam:
         input:
-            bam = BAM_IN
+            bam = INPUT_PATH
         output:
-            fastq = f"results/{BASE}/{BASE}.fastq",
+            fastq = FASTQ_OUT,
             fasta = FASTA_IN
         threads: 16
         shell:
             """
+            mkdir -p results/{BASE}
             samtools fastq -@ {threads} -T '*' {input.bam} > {output.fastq}
             seqtk seq -A {output.fastq} > {output.fasta}
             """
+
+elif INPUT_FORMAT == "fastq":
+    # FASTQ input: symlink/copy FASTQ and convert to FASTA
+    rule prep_from_fastq:
+        input:
+            fastq = INPUT_PATH
+        output:
+            fastq = FASTQ_OUT,
+            fasta = FASTA_IN
+        shell:
+            """
+            mkdir -p results/{BASE}
+            ln -sf $(realpath {input.fastq}) {output.fastq} || cp {input.fastq} {output.fastq}
+            seqtk seq -A {input.fastq} > {output.fasta}
+            """
+
+elif INPUT_FORMAT == "fastq_gz":
+    # Gzipped FASTQ input: decompress and convert to FASTA
+    rule prep_from_fastq_gz:
+        input:
+            fastq_gz = INPUT_PATH
+        output:
+            fastq = FASTQ_OUT,
+            fasta = FASTA_IN
+        threads: 4
+        shell:
+            """
+            mkdir -p results/{BASE}
+            gunzip -c {input.fastq_gz} > {output.fastq}
+            seqtk seq -A {output.fastq} > {output.fasta}
+            """
+
+# If INPUT_FORMAT == "existing", no conversion rule needed (files already exist)
 
 rule index_fasta:
     input:
