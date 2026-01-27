@@ -93,6 +93,39 @@ rule all:
         FINAL_ALIGNMENT
 
 # =============================================================================
+# READS-ONLY TARGET
+# =============================================================================
+# Use this target when you only need to process reads for RepeatMasker analysis
+# (e.g., processing day3 reads to analyze against an existing day0 reference)
+# without creating a new polished reference.
+#
+# Usage: snakemake -s Snakefile_create_ref reads_only -c 56
+#
+# This produces:
+#   - Chromosome-anchored reads split into 32 files (chr_anchor_included_individual_files/)
+#   - Y prime probe analysis results (_post_y_prime_probe.tsv)
+#   - Post-telomere-trimming TSV
+#
+# After running this, you can use Snakefile_label in independent mode:
+#   reference_fasta: "path/to/day0_reference.fasta"  # Your existing reference
+#   reads_source:
+#     base_name: "your_day3_base_name"
+#     results_dir: "results"
+
+rule reads_only:
+    input:
+        # Chromosome-anchored read files (needed for RepeatMasker analysis)
+        expand(f"results/{BASE}/chr_anchor_included_individual_files/{BASE}_blasted_{ANCHOR}_{{chrom_side}}_anchor_reads.fasta",
+               chrom_side=CHROM_SIDES),
+        # Y prime analysis outputs
+        f"results/{BASE}/{BASE}_post_y_prime_probe.tsv",
+        f"results/{BASE}/{BASE}_stats_y_prime.txt",
+        f"results/{BASE}/y_prime_blast/all_{BASE}_probe_matches.tsv",
+        directory(f"results/{BASE}/figures_for_y_primes"),
+        # Fine-trimmed reads
+        f"results/{BASE}/{BASE}_fine_trimmed.fasta"
+
+# =============================================================================
 # PART 1: Original Snakemake rules (up to y_prime_analysis)
 # =============================================================================
 
