@@ -28,9 +28,526 @@ from xprime_detection import (
     filter_xprime_hits,
     validate_xprime_positions,
     get_chr_sizes_from_blast,
+    parse_xprime_fasta_for_boundaries,
+    split_xprime_to_core_variable,
     MIN_XPRIME_IDENTITY,
     MIN_HIGH_QUALITY_IDENTITY
 )
+
+from Bio import SeqIO
+
+
+# =============================================================================
+# Feature Boundary Adjustment Functions
+# =============================================================================
+# These functions adjust feature boundaries to maximize ITS (Interstitial
+# Telomeric Sequence) regions between features.
+#
+# ITS sequences are telomere-like:
+# - L arm: AC-rich sequences (toward low coordinate telomere)
+# - R arm: TG-rich sequences (toward high coordinate telomere)
+#
+# Algorithm (for each boundary):
+# 1. Check the base immediately outside the feature boundary
+# 2. If NON-TELOMERIC base outside: EXPAND until hitting a telomeric base
+# 3. If TELOMERIC base outside: TRIM telomeric bases from inside the feature
+# 4. Never both - each boundary either expands or trims
+#
+# Telomeric bases by arm:
+# - R arm: T and G (toward high coordinates/telomere)
+# - L arm: A and C (toward low coordinates/telomere)
+#
+# X prime core+variable are treated as ONE feature:
+# - Only adjust outer boundaries (telomere-facing and anchor-facing)
+# - Internal boundary between core and variable is preserved
+# =============================================================================
+
+def get_telomeric_bases(arm: str) -> set:
+    """
+    Get the bases that are considered telomeric for this arm.
+
+    Args:
+        arm: 'L' or 'R'
+
+    Returns:
+        Set of telomeric bases
+    """
+    if arm == 'R':
+        return {'T', 'G'}  # TG repeats on R arm (toward high coordinates/telomere)
+    else:  # L arm
+        return {'A', 'C'}  # AC repeats on L arm (toward low coordinates/telomere)
+
+
+def trim_start_boundary(ref_seq: str, current_start: int, current_end: int, arm: str,
+                        min_feature_size: int = 50) -> int:
+    """
+    Trim telomeric bases from start to maximize ITS.
+
+    For R arm: trim T and G until hitting A or C
+    For L arm: trim A and C until hitting T or G
+
+    Args:
+        ref_seq: Reference sequence
+        current_start: Current start position (0-based)
+        current_end: Current end position (0-based, exclusive)
+        arm: 'L' or 'R'
+        min_feature_size: Minimum feature size to maintain
+
+    Returns:
+        New start position
+    """
+    telomeric = get_telomeric_bases(arm)
+    new_start = current_start
+
+    # Trim while we see telomeric bases, but keep minimum feature size
+    while new_start < current_end - min_feature_size:
+        base = ref_seq[new_start].upper()
+        if base in telomeric:
+            new_start += 1
+        else:
+            # Hit a non-telomeric base - stop trimming
+            break
+
+    return new_start
+
+
+def trim_end_boundary(ref_seq: str, current_start: int, current_end: int, arm: str,
+                      min_feature_size: int = 50) -> int:
+    """
+    Trim telomeric bases from end to maximize ITS.
+
+    For R arm: trim T and G until hitting A or C
+    For L arm: trim A and C until hitting T or G
+
+    Args:
+        ref_seq: Reference sequence
+        current_start: Current start position (0-based)
+        current_end: Current end position (0-based, exclusive)
+        arm: 'L' or 'R'
+        min_feature_size: Minimum feature size to maintain
+
+    Returns:
+        New end position
+    """
+    telomeric = get_telomeric_bases(arm)
+    new_end = current_end
+
+    # Trim while we see telomeric bases, but keep minimum feature size
+    while new_end > current_start + min_feature_size:
+        base = ref_seq[new_end - 1].upper()
+        if base in telomeric:
+            new_end -= 1
+        else:
+            # Hit a non-telomeric base - stop trimming
+            break
+
+    return new_end
+
+
+def expand_start_boundary(ref_seq: str, current_start: int, arm: str,
+                          max_expansion: int = 1000) -> int:
+    """
+    Expand start boundary outward until hitting a telomeric base.
+
+    Args:
+        ref_seq: Reference sequence
+        current_start: Current start position (0-based)
+        arm: 'L' or 'R'
+        max_expansion: Maximum number of bases to expand
+
+    Returns:
+        New start position (may be less than current_start if expanded)
+    """
+    telomeric = get_telomeric_bases(arm)
+    new_start = current_start
+
+    # Expand outward (decrease position) while we see non-telomeric bases
+    while new_start > 0 and (current_start - new_start) < max_expansion:
+        base_before = ref_seq[new_start - 1].upper()
+        if base_before in telomeric:
+            # Hit a telomeric base - stop expanding
+            break
+        new_start -= 1
+
+    return new_start
+
+
+def expand_end_boundary(ref_seq: str, current_end: int, arm: str,
+                        max_expansion: int = 1000) -> int:
+    """
+    Expand end boundary outward until hitting a telomeric base.
+
+    Args:
+        ref_seq: Reference sequence
+        current_end: Current end position (0-based, exclusive)
+        arm: 'L' or 'R'
+        max_expansion: Maximum number of bases to expand
+
+    Returns:
+        New end position (may be greater than current_end if expanded)
+    """
+    telomeric = get_telomeric_bases(arm)
+    chr_len = len(ref_seq)
+    new_end = current_end
+
+    # Expand outward (increase position) while we see non-telomeric bases
+    while new_end < chr_len and (new_end - current_end) < max_expansion:
+        base_after = ref_seq[new_end].upper()
+        if base_after in telomeric:
+            # Hit a telomeric base - stop expanding
+            break
+        new_end += 1
+
+    return new_end
+
+
+def adjust_start_boundary(ref_seq: str, current_start: int, current_end: int, arm: str,
+                          min_feature_size: int = 50, max_expansion: int = 1000) -> int:
+    """
+    Adjust start boundary - either expand or trim to maximize ITS.
+
+    Logic:
+    - If non-telomeric base immediately outside feature: EXPAND until hitting telomeric base
+    - If telomeric base immediately outside feature: TRIM telomeric bases from inside
+    - Never both - each boundary either expands or trims
+
+    Args:
+        ref_seq: Reference sequence
+        current_start: Current start position (0-based)
+        current_end: Current end position (0-based, exclusive)
+        arm: 'L' or 'R'
+        min_feature_size: Minimum feature size to maintain (for trimming)
+        max_expansion: Maximum bases to expand
+
+    Returns:
+        New start position
+    """
+    telomeric = get_telomeric_bases(arm)
+
+    # Check the base immediately before the feature start
+    if current_start > 0:
+        base_before = ref_seq[current_start - 1].upper()
+        if base_before not in telomeric:
+            # Non-telomeric base outside - EXPAND
+            return expand_start_boundary(ref_seq, current_start, arm, max_expansion)
+
+    # Telomeric base outside (or at chromosome start) - TRIM
+    return trim_start_boundary(ref_seq, current_start, current_end, arm, min_feature_size)
+
+
+def adjust_end_boundary(ref_seq: str, current_start: int, current_end: int, arm: str,
+                        min_feature_size: int = 50, max_expansion: int = 1000) -> int:
+    """
+    Adjust end boundary - either expand or trim to maximize ITS.
+
+    Logic:
+    - If non-telomeric base immediately outside feature: EXPAND until hitting telomeric base
+    - If telomeric base immediately outside feature: TRIM telomeric bases from inside
+    - Never both - each boundary either expands or trims
+
+    Args:
+        ref_seq: Reference sequence
+        current_start: Current start position (0-based)
+        current_end: Current end position (0-based, exclusive)
+        arm: 'L' or 'R'
+        min_feature_size: Minimum feature size to maintain (for trimming)
+        max_expansion: Maximum bases to expand
+
+    Returns:
+        New end position
+    """
+    telomeric = get_telomeric_bases(arm)
+    chr_len = len(ref_seq)
+
+    # Check the base immediately after the feature end
+    if current_end < chr_len:
+        base_after = ref_seq[current_end].upper()
+        if base_after not in telomeric:
+            # Non-telomeric base outside - EXPAND
+            return expand_end_boundary(ref_seq, current_end, arm, max_expansion)
+
+    # Telomeric base outside (or at chromosome end) - TRIM
+    return trim_end_boundary(ref_seq, current_start, current_end, arm, min_feature_size)
+
+
+def adjust_feature_boundaries_for_chr_end(ref_seq: str, features: list, arm: str,
+                                          chr_start: int = 0, chr_end_coord: int = None,
+                                          min_feature_size: int = 50,
+                                          max_expansion: int = 1000) -> list:
+    """
+    Adjust all feature boundaries for a chromosome end to maximize ITS regions.
+
+    For each boundary:
+    - If non-telomeric base immediately outside: EXPAND until hitting telomeric base
+    - If telomeric base immediately outside: TRIM telomeric bases from inside
+    - Never both - each boundary either expands or trims
+
+    Args:
+        ref_seq: Reference sequence for this chromosome
+        features: List of feature dicts with 'start', 'end' keys
+        arm: 'L' or 'R'
+        chr_start: Chromosome start (for boundary limits)
+        chr_end_coord: Chromosome end (for boundary limits)
+        min_feature_size: Minimum feature size to maintain after trimming
+        max_expansion: Maximum bases to expand
+
+    Returns:
+        List of adjusted feature dicts
+    """
+    if chr_end_coord is None:
+        chr_end_coord = len(ref_seq)
+
+    if not features:
+        return features
+
+    adjusted_features = []
+
+    for feature in features:
+        current_start = feature['start']
+        current_end = feature['end']
+
+        # Adjust start boundary (expand or trim)
+        new_start = adjust_start_boundary(ref_seq, current_start, current_end, arm,
+                                          min_feature_size, max_expansion)
+
+        # Adjust end boundary (expand or trim)
+        new_end = adjust_end_boundary(ref_seq, current_start, current_end, arm,
+                                      min_feature_size, max_expansion)
+
+        # Make sure we didn't over-trim (start should be less than end)
+        if new_start >= new_end:
+            # Adjustment would eliminate the feature - keep original
+            new_start = current_start
+            new_end = current_end
+
+        # Create adjusted feature
+        adjusted_feature = feature.copy()
+        adjusted_feature['original_start'] = current_start
+        adjusted_feature['original_end'] = current_end
+        adjusted_feature['start'] = new_start
+        adjusted_feature['end'] = new_end
+
+        adjusted_features.append(adjusted_feature)
+
+    return adjusted_features
+
+
+def load_reference_sequences(fasta_path: str) -> dict:
+    """Load reference sequences from FASTA file."""
+    sequences = {}
+    for record in SeqIO.parse(fasta_path, "fasta"):
+        sequences[record.id] = str(record.seq)
+    return sequences
+
+
+def adjust_all_feature_boundaries(chr_end_regions: dict, ref_sequences: dict,
+                                  chr_end_xprime_split: dict = None,
+                                  min_feature_size: int = 50) -> tuple:
+    """
+    Adjust feature boundaries for all chromosome ends to maximize ITS regions.
+
+    For each boundary:
+    - If non-telomeric base immediately outside: EXPAND until hitting telomeric base
+    - If telomeric base immediately outside: TRIM telomeric bases from inside
+    - Never both - each boundary either expands or trims
+
+    Telomeric bases:
+    - R arm: T and G (toward high coordinates/telomere)
+    - L arm: A and C (toward low coordinates/telomere)
+
+    X prime core+variable are treated as ONE feature - only outer boundaries adjusted.
+
+    Args:
+        chr_end_regions: Dict mapping chr_end to {'anchor': [...], 'x_prime': [...], 'y_prime': [...]}
+        ref_sequences: Dict mapping chr name to sequence
+        chr_end_xprime_split: Dict mapping chr_end to {'core': ..., 'variable': ...}
+        min_feature_size: Minimum feature size to maintain after trimming
+
+    Returns:
+        Tuple of (adjusted_chr_end_regions, adjusted_chr_end_xprime_split)
+    """
+    adjusted_regions = {}
+    adjusted_xprime_split = {} if chr_end_xprime_split else None
+
+    for chr_end, regions in chr_end_regions.items():
+        arm = chr_end[-1]  # L or R
+
+        # Find reference sequence for this chromosome
+        ref_seq = None
+        chr_base = chr_end[:-1]  # Remove L/R
+
+        for ref_chr, seq in ref_sequences.items():
+            ref_chr_clean = ref_chr.replace('_extended', '')
+            if ref_chr_clean == chr_base or ref_chr_clean.startswith(chr_base):
+                ref_seq = seq
+                break
+
+        if ref_seq is None:
+            print(f"  Warning: Could not find reference sequence for {chr_end}")
+            adjusted_regions[chr_end] = regions
+            if chr_end_xprime_split and chr_end in chr_end_xprime_split:
+                adjusted_xprime_split[chr_end] = chr_end_xprime_split[chr_end]
+            continue
+
+        chr_len = len(ref_seq)
+
+        # Collect Y primes and X primes for adjustment (not anchors)
+        # Anchors should not be adjusted - they are well-defined
+        features_to_adjust = []
+
+        for xprime in regions.get('x_prime', []):
+            features_to_adjust.append({**xprime, '_type': 'x_prime'})
+
+        for i, yprime in enumerate(regions.get('y_prime', [])):
+            features_to_adjust.append({**yprime, '_type': 'y_prime', '_index': i})
+
+        if features_to_adjust:
+            # Adjust boundaries - trim telomeric bases from each feature
+            adjusted_features = adjust_feature_boundaries_for_chr_end(
+                ref_seq, features_to_adjust, arm,
+                chr_start=0, chr_end_coord=chr_len,
+                min_feature_size=min_feature_size
+            )
+
+            # Reconstruct regions
+            adjusted_regions[chr_end] = {
+                'anchor': regions.get('anchor', []),  # Keep anchors unchanged
+                'x_prime': [],
+                'y_prime': []
+            }
+
+            for feat in adjusted_features:
+                feat_type = feat.pop('_type')
+                if '_index' in feat:
+                    del feat['_index']
+                adjusted_regions[chr_end][feat_type].append(feat)
+        else:
+            adjusted_regions[chr_end] = regions
+
+        # Also adjust X prime split elements if available
+        # IMPORTANT: Core and variable are treated as ONE feature
+        # - Only trim the outer boundaries (telomere-facing and anchor-facing)
+        # - Do NOT trim the internal boundary between core and variable
+        # - Ensure core and variable remain adjacent (no gap)
+        if chr_end_xprime_split and chr_end in chr_end_xprime_split:
+            split_info = chr_end_xprime_split[chr_end]
+            core = split_info.get('core')
+            variable = split_info.get('variable')
+
+            if core and variable:
+                # Both exist - treat as one unit, only trim outer boundaries
+                # Determine which is closer to telomere vs anchor based on arm and position
+                if arm == 'L':
+                    # L arm: telomere at low coordinates
+                    # The element with lower start is closer to telomere
+                    if variable['start'] < core['start']:
+                        # Variable is closer to telomere: variable -> core -> anchor
+                        telomere_element = 'variable'
+                        anchor_element = 'core'
+                    else:
+                        # Core is closer to telomere: core -> variable -> anchor
+                        telomere_element = 'core'
+                        anchor_element = 'variable'
+                else:
+                    # R arm: telomere at high coordinates
+                    # The element with higher end is closer to telomere
+                    if variable['end'] > core['end']:
+                        # Variable is closer to telomere: anchor -> core -> variable
+                        telomere_element = 'variable'
+                        anchor_element = 'core'
+                    else:
+                        # Core is closer to telomere: anchor -> variable -> core
+                        telomere_element = 'core'
+                        anchor_element = 'variable'
+
+                # Get the elements
+                telo_elem = split_info[telomere_element].copy()
+                anchor_elem = split_info[anchor_element].copy()
+
+                # Adjust only the outer boundaries (expand or trim):
+                # - Telomere-facing element: adjust the boundary toward telomere
+                # - Anchor-facing element: adjust the boundary toward anchor
+                # Each boundary either expands or trims, never both
+                if arm == 'L':
+                    # L arm: telomere at low coords
+                    # Adjust START of telomere element (faces telomere)
+                    new_telo_start = adjust_start_boundary(
+                        ref_seq, telo_elem['start'], telo_elem['end'], arm, min_feature_size
+                    )
+                    telo_elem['start'] = new_telo_start
+
+                    # Adjust END of anchor element (faces anchor direction)
+                    new_anchor_end = adjust_end_boundary(
+                        ref_seq, anchor_elem['start'], anchor_elem['end'], arm, min_feature_size
+                    )
+                    anchor_elem['end'] = new_anchor_end
+
+                    # Ensure they remain adjacent: anchor element starts where telomere element ends
+                    # The internal boundary should match
+                    if telomere_element == 'variable':
+                        # variable -> core: core starts where variable ends
+                        anchor_elem['start'] = telo_elem['end']
+                    else:
+                        # core -> variable: variable starts where core ends
+                        anchor_elem['start'] = telo_elem['end']
+                else:
+                    # R arm: telomere at high coords
+                    # Adjust END of telomere element (faces telomere)
+                    new_telo_end = adjust_end_boundary(
+                        ref_seq, telo_elem['start'], telo_elem['end'], arm, min_feature_size
+                    )
+                    telo_elem['end'] = new_telo_end
+
+                    # Adjust START of anchor element (faces anchor direction)
+                    new_anchor_start = adjust_start_boundary(
+                        ref_seq, anchor_elem['start'], anchor_elem['end'], arm, min_feature_size
+                    )
+                    anchor_elem['start'] = new_anchor_start
+
+                    # Ensure they remain adjacent: telomere element starts where anchor element ends
+                    if telomere_element == 'variable':
+                        # core -> variable: variable starts where core ends
+                        telo_elem['start'] = anchor_elem['end']
+                    else:
+                        # variable -> core: core starts where variable ends
+                        telo_elem['start'] = anchor_elem['end']
+
+                # Reconstruct the split info
+                adjusted_split = {
+                    'core': anchor_elem if anchor_element == 'core' else telo_elem,
+                    'variable': anchor_elem if anchor_element == 'variable' else telo_elem
+                }
+
+            elif core:
+                # Only core exists - trim both ends
+                adjusted_list = adjust_feature_boundaries_for_chr_end(
+                    ref_seq, [core], arm,
+                    chr_start=0, chr_end_coord=chr_len,
+                    min_feature_size=min_feature_size
+                )
+                adjusted_split = {
+                    'core': adjusted_list[0] if adjusted_list else core,
+                    'variable': None
+                }
+
+            elif variable:
+                # Only variable exists - trim both ends
+                adjusted_list = adjust_feature_boundaries_for_chr_end(
+                    ref_seq, [variable], arm,
+                    chr_start=0, chr_end_coord=chr_len,
+                    min_feature_size=min_feature_size
+                )
+                adjusted_split = {
+                    'core': None,
+                    'variable': adjusted_list[0] if adjusted_list else variable
+                }
+
+            else:
+                adjusted_split = {'core': None, 'variable': None}
+
+            adjusted_xprime_split[chr_end] = adjusted_split
+
+    return adjusted_regions, adjusted_xprime_split
 
 
 def run_probe_blast(probe_fasta, reference_fasta, output_file, min_identity=90, num_threads=4):
@@ -578,7 +1095,7 @@ def write_bed(chr_end_regions, output_file):
                            f"{name}\t{score}\t{region['strand']}\n")
 
 
-def write_bed_simplified(chr_end_regions, output_file):
+def write_bed_simplified(chr_end_regions, output_file, chr_end_xprime_split=None):
     """
     Write annotations in simplified BED format (matching 6991_final_features.bed format).
 
@@ -587,9 +1104,13 @@ def write_bed_simplified(chr_end_regions, output_file):
 
     Includes space_between_anchor entries showing the gap between anchor and X prime.
 
+    If chr_end_xprime_split is provided, outputs separate x_core_element and x_variable_element
+    instead of combined x_prime.
+
     Args:
         chr_end_regions: Dict of chromosome end regions
         output_file: Path to output BED file
+        chr_end_xprime_split: Optional dict mapping chr_end to {'core': ..., 'variable': ...}
     """
     def clean_chr_name(chr_name):
         """Remove _extended suffix from chromosome names."""
@@ -597,8 +1118,20 @@ def write_bed_simplified(chr_end_regions, output_file):
             return chr_name[:-9]  # Remove '_extended' (9 characters)
         return chr_name
 
+    def chr_end_sort_key(chr_end):
+        """Sort key for chromosome ends: chr1L, chr1R, chr2L, chr2R, ..., chr16L, chr16R."""
+        # Extract chromosome number and arm (L/R)
+        # chr_end format: chr1L, chr10R, etc.
+        import re
+        match = re.match(r'chr(\d+)([LR])', chr_end)
+        if match:
+            chr_num = int(match.group(1))
+            arm = 0 if match.group(2) == 'L' else 1
+            return (chr_num, arm)
+        return (999, 0)  # Put unrecognized entries at the end
+
     with open(output_file, 'w') as f:
-        for chr_end, regions in sorted(chr_end_regions.items()):
+        for chr_end, regions in sorted(chr_end_regions.items(), key=lambda x: chr_end_sort_key(x[0])):
             # Get anchor and x_prime positions for calculating space_between_anchor
             anchors = regions.get('anchor', [])
             xprimes = regions.get('x_prime', [])
@@ -611,23 +1144,110 @@ def write_bed_simplified(chr_end_regions, output_file):
             if xprimes:
                 xprime_info = xprimes[0]
 
+            # Check if we have split X prime info for this chr_end
+            has_split_xprime = (chr_end_xprime_split and
+                               chr_end in chr_end_xprime_split and
+                               chr_end_xprime_split[chr_end].get('core') is not None)
+
             for region_type in ['anchor', 'x_prime', 'y_prime']:
-                for i, region in enumerate(regions[region_type]):
+                # Skip x_prime if we have split info - we'll write core/variable separately
+                if region_type == 'x_prime' and has_split_xprime:
+                    continue
+
+                # For Y primes, determine numbering order based on arm
+                # Convention: Y_Prime_1 is always closest to anchor (away from telomere)
+                # L arm: anchor at high coordinates, so Y_Prime_1 = highest coordinate (need to reverse numbering)
+                # R arm: anchor at low coordinates, so Y_Prime_1 = lowest coordinate (already sorted this way)
+                region_list = regions[region_type]
+                arm = chr_end[-1]  # L or R
+
+                for i, region in enumerate(region_list):
                     # Simplified BED format: chr start end name strand length
                     # Name format matches 6991_final_features.bed style
+                    # Using 1-based inclusive coordinates for output
                     if region_type == 'y_prime':
                         # Y primes are numbered: chr1L_Y_Prime_1, chr1L_Y_Prime_2, etc.
-                        name = f"{chr_end}_Y_Prime_{i+1}"
+                        # Y_Prime_1 is always closest to anchor
+                        if arm == 'L':
+                            # L arm: anchor at high coordinates
+                            # Regions are sorted by start position (ascending)
+                            # So last region (highest coord) is closest to anchor = Y_Prime_1
+                            # Need to reverse the numbering
+                            yprime_num = len(region_list) - i
+                        else:
+                            # R arm: anchor at low coordinates
+                            # Regions are sorted by start position (ascending)
+                            # So first region (i=0) is closest to anchor = Y_Prime_1
+                            yprime_num = i + 1
+                        name = f"{chr_end}_Y_Prime_{yprime_num}"
+                        # Y primes: increment start by 1 for 1-based output
+                        write_start = region['start'] + 1
                     elif region_type == 'x_prime':
                         name = f"{chr_end}_x_prime"
+                        write_start = region['start']
                     else:
+                        # Anchors: keep start as-is (already correct)
                         name = f"{chr_end}_{region_type}"
+                        write_start = region['start']
 
-                    length = region['end'] - region['start']
+                    # Length calculation: end - start + 1 for 1-based inclusive
+                    length = region['end'] - write_start + 1
                     chr_clean = clean_chr_name(region['chr'])
 
-                    f.write(f"{chr_clean}\t{region['start']}\t{region['end']}\t"
+                    f.write(f"{chr_clean}\t{write_start}\t{region['end']}\t"
                            f"{name}\t{region['strand']}\t{length}\n")
+
+            # Write split X prime (core and variable) if available
+            if has_split_xprime:
+                split_info = chr_end_xprime_split[chr_end]
+                core_element = split_info.get('core')
+                var_element = split_info.get('variable')
+
+                # Determine arm for proper ordering
+                arm = chr_end[-1]  # L or R
+
+                # Write in correct order based on arm
+                # L arm (from telomere to middle): variable -> core
+                # R arm (from middle to telomere): core -> variable
+                if arm == 'L':
+                    elements_to_write = [(var_element, 'x_variable_element'), (core_element, 'x_core_element')]
+                else:
+                    elements_to_write = [(core_element, 'x_core_element'), (var_element, 'x_variable_element')]
+
+                # Determine which element comes first (smaller start value)
+                # The first element gets start+1, the second stays unchanged (no gap)
+                # L arm: variable comes first, R arm: core comes first
+                first_element_type = 'x_variable_element' if arm == 'L' else 'x_core_element'
+
+                for element, element_type in elements_to_write:
+                    if element is not None:
+                        chr_clean = clean_chr_name(element['chr'])
+                        name = f"{chr_end}_{element_type}"
+                        strand = element.get('strand', '+')
+
+                        # First element (smaller start): increment start by 1 for 1-based output
+                        # Second element: keep start as-is (starts where first element ends)
+                        if element_type == first_element_type:
+                            write_start = element['start'] + 1
+                        else:
+                            write_start = element['start']
+
+                        # Length calculation: end - start + 1 for 1-based inclusive
+                        length = element['end'] - write_start + 1
+
+                        f.write(f"{chr_clean}\t{write_start}\t{element['end']}\t"
+                               f"{name}\t{strand}\t{length}\n")
+
+                # Update xprime_info for space calculation using full X prime span
+                if core_element and var_element:
+                    # Use the combined span for space calculation
+                    xprime_info = {
+                        'chr': core_element['chr'],
+                        'start': min(core_element['start'], var_element['start']),
+                        'end': max(core_element['end'], var_element['end'])
+                    }
+                elif core_element:
+                    xprime_info = core_element
 
             # Calculate and write space_between_anchor if both anchor and x_prime exist
             if anchor_info and xprime_info:
@@ -642,15 +1262,15 @@ def write_bed_simplified(chr_end_regions, output_file):
 
                 if arm == 'L':
                     # L arm: telomere at low coordinates, anchor closer to middle
-                    # Structure: TELO---[Y']---[X']---[space]---[ANCHOR]---middle
-                    # Space is between X prime end and anchor start
+                    # Structure: TELO---[Y']---[X_var]---[X_core]---[space]---[ANCHOR]---middle
+                    # Space is between X prime end (core end) and anchor start
                     space_start = xprime_end + 1
                     space_end = anchor_start - 1
                     strand = '+'
                 else:
                     # R arm: telomere at high coordinates, anchor closer to middle
-                    # Structure: middle---[ANCHOR]---[space]---[X']---[Y']---TELO
-                    # Space is between anchor end and X prime start
+                    # Structure: middle---[ANCHOR]---[space]---[X_core]---[X_var]---[Y']---TELO
+                    # Space is between anchor end and X prime start (core start)
                     space_start = anchor_end + 1
                     space_end = xprime_start - 1
                     strand = '+'
@@ -661,6 +1281,86 @@ def write_bed_simplified(chr_end_regions, output_file):
                     space_name = f"{chr_end}_space_between_anchor"
                     f.write(f"{chr_name}\t{space_start}\t{space_end}\t"
                            f"{space_name}\t{strand}\t{space_length}\n")
+
+            # Calculate and write ITS (Interstitial Telomeric Sequence) regions
+            # ITS regions are gaps between x_variable and Y primes, and between consecutive Y primes
+            yprimes = regions.get('y_prime', [])
+            if yprimes:
+                arm = chr_end[-1]  # L or R
+                chr_name = clean_chr_name(yprimes[0]['chr'])
+
+                # Get x_variable position for ITS_0-1 calculation
+                x_var_start = None
+                x_var_end = None
+                if has_split_xprime:
+                    var_element = chr_end_xprime_split[chr_end].get('variable')
+                    if var_element:
+                        x_var_start = var_element['start']
+                        x_var_end = var_element['end']
+
+                # Y primes are sorted by ascending start coordinate
+                sorted_yprimes = sorted(yprimes, key=lambda x: x['start'])
+
+                if arm == 'R':
+                    # R arm: telomere at high coordinates
+                    # Structure: x_var -> ITS_0-1 -> Y_Prime_1 -> ITS_1-2 -> Y_Prime_2 -> ... -> telomere
+                    # Y_Prime_1 is at lowest coordinate (first in sorted list)
+
+                    # ITS_0-1: between x_variable end and Y_Prime_1 start
+                    if x_var_end is not None and sorted_yprimes:
+                        its_start = x_var_end + 1
+                        its_end = sorted_yprimes[0]['start'] - 1
+                        if its_end >= its_start:
+                            its_length = its_end - its_start + 1
+                            its_name = f"ITS_{chr_end}_Y_Prime_0-1"
+                            f.write(f"{chr_name}\t{its_start}\t{its_end}\t"
+                                   f"{its_name}\t+\t{its_length}\n")
+
+                    # ITS between consecutive Y primes
+                    for i in range(len(sorted_yprimes) - 1):
+                        its_start = sorted_yprimes[i]['end'] + 1
+                        its_end = sorted_yprimes[i + 1]['start'] - 1
+                        if its_end >= its_start:
+                            its_length = its_end - its_start + 1
+                            # Y_Prime numbers: i+1 and i+2 (since first Y prime is Y_Prime_1)
+                            its_name = f"ITS_{chr_end}_Y_Prime_{i+1}-{i+2}"
+                            f.write(f"{chr_name}\t{its_start}\t{its_end}\t"
+                                   f"{its_name}\t+\t{its_length}\n")
+
+                else:
+                    # L arm: telomere at low coordinates
+                    # Structure: telomere -> Y_Prime_N -> ITS_(N-1)-N -> ... -> Y_Prime_1 -> ITS_0-1 -> x_var
+                    # Y_Prime_1 is at highest coordinate (last in sorted list)
+                    # Numbering is reversed: sorted_yprimes[0] = Y_Prime_N, sorted_yprimes[-1] = Y_Prime_1
+
+                    n_yprimes = len(sorted_yprimes)
+
+                    # ITS_0-1: between Y_Prime_1 (highest coord) end and x_variable start
+                    if x_var_start is not None and sorted_yprimes:
+                        # Y_Prime_1 is the last in sorted list (highest coordinate)
+                        its_start = sorted_yprimes[-1]['end'] + 1
+                        its_end = x_var_start - 1
+                        if its_end >= its_start:
+                            its_length = its_end - its_start + 1
+                            its_name = f"ITS_{chr_end}_Y_Prime_0-1"
+                            f.write(f"{chr_name}\t{its_start}\t{its_end}\t"
+                                   f"{its_name}\t-\t{its_length}\n")
+
+                    # ITS between consecutive Y primes (in coordinate order, but named by Y prime numbers)
+                    for i in range(len(sorted_yprimes) - 1):
+                        its_start = sorted_yprimes[i]['end'] + 1
+                        its_end = sorted_yprimes[i + 1]['start'] - 1
+                        if its_end >= its_start:
+                            its_length = its_end - its_start + 1
+                            # For L arm, Y prime numbering is reversed:
+                            # sorted_yprimes[i] is Y_Prime_(n_yprimes - i)
+                            # sorted_yprimes[i+1] is Y_Prime_(n_yprimes - i - 1)
+                            # ITS is between them, so ITS_(n_yprimes - i - 1)-(n_yprimes - i)
+                            lower_yprime_num = n_yprimes - i - 1  # The Y prime with lower number (higher coord)
+                            higher_yprime_num = n_yprimes - i     # The Y prime with higher number (lower coord)
+                            its_name = f"ITS_{chr_end}_Y_Prime_{lower_yprime_num}-{higher_yprime_num}"
+                            f.write(f"{chr_name}\t{its_start}\t{its_end}\t"
+                                   f"{its_name}\t-\t{its_length}\n")
 
 
 def write_tsv(chr_end_regions, output_file):
@@ -851,6 +1551,18 @@ def main():
         action='store_true',
         help='Skip Y prime probe verification even if probe file is provided'
     )
+    parser.add_argument(
+        '--adjust-boundaries',
+        action='store_true',
+        help='Adjust feature boundaries to maximize ITS (Interstitial Telomeric Sequence) regions. '
+             'Trims telomeric bases from feature ends: R arm trims T/G, L arm trims A/C.'
+    )
+    parser.add_argument(
+        '--boundary-window',
+        type=int,
+        default=50,
+        help='Minimum feature size to maintain after boundary trimming (default: 50bp)'
+    )
 
     args = parser.parse_args()
 
@@ -956,6 +1668,7 @@ def main():
     # Step 5b: Assign X PRIMES to chromosome ends (if X prime file provided)
     xprime_quality = []
     xprime_position_warnings = []
+    chr_end_xprime_split = {}  # Store split core/variable elements
 
     if args.xprimes and len(xprime_df) > 0:
         print("Step 5b: Assigning X PRIME regions...")
@@ -964,7 +1677,9 @@ def main():
         print(f"         - High quality threshold: {MIN_HIGH_QUALITY_IDENTITY}%")
         print("         - Selecting best match per chromosome end")
 
-        chr_end_xprimes, xprime_quality = assign_xprimes_to_chr_ends(xprime_df, chr_end_regions)
+        chr_end_xprimes, xprime_quality, chr_end_xprime_split = assign_xprimes_to_chr_ends(
+            xprime_df, chr_end_regions, xprime_fasta_path=args.xprimes
+        )
 
         # Get chromosome sizes for position validation
         chr_sizes = get_chr_sizes_from_blast(xprime_df)
@@ -1111,6 +1826,26 @@ def main():
     # Print quality report
     print_quality_report(chr_end_regions, quality_report, yprime_quality)
 
+    # Step 6b: Adjust feature boundaries to maximize ITS (if enabled)
+    if args.adjust_boundaries:
+        print("\nStep 6b: Adjusting feature boundaries to maximize ITS regions...")
+        print(f"         - Min feature size after trimming: {args.boundary_window}bp")
+        print("         - R arm: trimming T and G from feature ends (ITS is TG-rich)")
+        print("         - L arm: trimming A and C from feature ends (ITS is AC-rich)")
+
+        # Load reference sequences
+        ref_sequences = load_reference_sequences(args.reference)
+        print(f"         - Loaded {len(ref_sequences)} chromosome sequences")
+
+        # Adjust boundaries - trim telomeric bases from feature ends
+        chr_end_regions, chr_end_xprime_split = adjust_all_feature_boundaries(
+            chr_end_regions, ref_sequences, chr_end_xprime_split,
+            min_feature_size=args.boundary_window  # Reusing this param as min size
+        )
+
+        print("         - Trimmed telomeric bases from X prime and Y prime boundaries")
+        print()
+
     # Step 7: Write output files
     print("\nStep 7: Writing output files...")
     write_gff3(chr_end_regions, gff_file)
@@ -1119,7 +1854,7 @@ def main():
     write_bed(chr_end_regions, bed_file)
     print(f"BED file: {bed_file}")
 
-    write_bed_simplified(chr_end_regions, bed_simp_file)
+    write_bed_simplified(chr_end_regions, bed_simp_file, chr_end_xprime_split)
     print(f"Simplified BED file: {bed_simp_file}")
 
     write_tsv(chr_end_regions, tsv_file)

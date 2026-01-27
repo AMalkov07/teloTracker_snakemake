@@ -5,21 +5,24 @@
 #$ -j y
 #$ -cwd
 
+conda activate consensus
+
 set -e  # Exit on error
 set -u  # Exit on undefined variable
 set -o pipefail  # Exit on pipe failure
 
 # ============================================================================
-# Configuration - Edit these values to match your create_ref.sh setup
+# Configuration - Edit these values for your reference
 # ============================================================================
 
-# Must match the values from create_ref.sh
-BASE_NAME="dorado_fast5_7575_day0_PromethION_no_tag_yes_rejection"
-STRAIN_ID="7575"
+BASE_NAME="dorado_7302_day0_PromethION_no_tag_yes_rejection"
+STRAIN_ID="7302"
 
-# Input: Reference created by create_ref.sh (Dorado polished reference)
-REFERENCE_DIR="results/${BASE_NAME}/assembly_${STRAIN_ID}"
-REFERENCE_FASTA="${REFERENCE_DIR}/assembly_${STRAIN_ID}_dorado_reference.fasta"
+# Input: Reference FASTA file
+#REFERENCE_DIR="results/${BASE_NAME}/assembly_${STRAIN_ID}"
+REFERENCE_DIR="labeling_test"
+#REFERENCE_FASTA="${REFERENCE_DIR}/assembly_${STRAIN_ID}_dorado_reference.fasta"
+REFERENCE_FASTA="${REFERENCE_DIR}/${STRAIN_ID}.fasta"
 
 # Reference sequences for labeling (from strain 6991)
 ANCHORS_FASTA="references/test_anchors.fasta"
@@ -28,7 +31,7 @@ XPRIMES_FASTA="references/6991_xprimes.fasta"  # X prime sequences for detection
 PROBE_FASTA="references/probe.fasta"  # Y prime probe for verification
 
 # Output configuration
-OUTPUT_DIR="${REFERENCE_DIR}/pretelomeric_labels"
+OUTPUT_DIR="results/${BASE_NAME}/pretelomeric_labels"
 PREFIX="pretelomeric_regions_${STRAIN_ID}"
 
 # Thread configuration
@@ -38,6 +41,13 @@ THREADS=56
 MIN_PIDENT=75.0        # Minimum percent identity (lowered for cross-strain comparison)
 MIN_LENGTH=100         # Minimum alignment length
 EVALUE=1e-5           # E-value threshold (relaxed for cross-strain)
+
+# Boundary adjustment parameters (to maximize ITS regions between features)
+# Trims telomeric bases from feature boundaries:
+#   - R arm: trims T and G from feature ends until hitting A or C
+#   - L arm: trims A and C from feature ends until hitting T or G
+ADJUST_BOUNDARIES=true  # Set to true to trim telomeric bases from feature boundaries
+BOUNDARY_WINDOW=50      # Minimum feature size to maintain after trimming (bp)
 
 # ============================================================================
 # Setup
@@ -93,6 +103,10 @@ echo "Threads: ${THREADS}"
 echo "Min percent identity: ${MIN_PIDENT}"
 echo "Min alignment length: ${MIN_LENGTH}"
 echo "E-value threshold: ${EVALUE}"
+echo "Trim telomeric bases from boundaries: ${ADJUST_BOUNDARIES}"
+if [ "${ADJUST_BOUNDARIES}" = "true" ]; then
+    echo "Min feature size after trimming: ${BOUNDARY_WINDOW}bp"
+fi
 echo ""
 
 # ============================================================================
@@ -115,6 +129,11 @@ if [ -n "${XPRIMES_FASTA}" ]; then
     XPRIME_ARG="--xprimes ${XPRIMES_FASTA}"
 fi
 
+BOUNDARY_ARG=""
+if [ "${ADJUST_BOUNDARIES}" = "true" ]; then
+    BOUNDARY_ARG="--adjust-boundaries --boundary-window ${BOUNDARY_WINDOW}"
+fi
+
 python scripts/label_pretelomeric_regions.py \
     --reference "${REFERENCE_FASTA}" \
     --anchors "${ANCHORS_FASTA}" \
@@ -126,7 +145,8 @@ python scripts/label_pretelomeric_regions.py \
     --min-length "${MIN_LENGTH}" \
     --evalue "${EVALUE}" \
     ${XPRIME_ARG} \
-    ${PROBE_ARG}
+    ${PROBE_ARG} \
+    ${BOUNDARY_ARG}
 
 # ============================================================================
 # Extract Y Prime Sequences to FASTA

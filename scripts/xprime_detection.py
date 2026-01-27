@@ -71,6 +71,155 @@ def extract_chr_end_from_xprime_query(qseqid: str) -> Optional[str]:
     return None
 
 
+def parse_xprime_fasta_for_boundaries(xprime_fasta_path: str) -> Dict[str, Dict]:
+    """
+    Parse X prime FASTA file to extract core/variable boundary information.
+
+    Header format: >chr1L_xprime chr1:213-962(-) len=749 core_len=463 var_len=287
+
+    Args:
+        xprime_fasta_path: Path to X prime FASTA file
+
+    Returns:
+        Dict mapping chr_end to {'core_len': int, 'var_len': int, 'strand': str}
+    """
+    boundaries = {}
+
+    try:
+        with open(xprime_fasta_path, 'r') as f:
+            for line in f:
+                if line.startswith('>'):
+                    # Parse header
+                    parts = line.strip().split()
+                    if len(parts) >= 1:
+                        # Extract chr_end from first part (e.g., >chr1L_xprime -> chr1L)
+                        chr_end = parts[0][1:].replace('_xprime', '')
+
+                        # Parse core_len and var_len from header
+                        core_len = 0
+                        var_len = 0
+                        strand = '+'
+
+                        for part in parts:
+                            if part.startswith('core_len='):
+                                try:
+                                    core_len = int(part.split('=')[1])
+                                except (ValueError, IndexError):
+                                    pass
+                            elif part.startswith('var_len='):
+                                try:
+                                    var_len = int(part.split('=')[1])
+                                except (ValueError, IndexError):
+                                    pass
+                            elif '(' in part and ')' in part:
+                                # Extract strand from coordinates like chr1:213-962(-)
+                                strand_match = part[part.find('(')+1:part.find(')')]
+                                if strand_match in ['+', '-']:
+                                    strand = strand_match
+
+                        boundaries[chr_end] = {
+                            'core_len': core_len,
+                            'var_len': var_len,
+                            'strand': strand
+                        }
+    except FileNotFoundError:
+        pass
+
+    return boundaries
+
+
+def split_xprime_to_core_variable(xprime_hit: Dict, boundaries: Dict[str, Dict]) -> Tuple[Optional[Dict], Optional[Dict]]:
+    """
+    Split a detected X prime hit into core and variable elements based on reference proportions.
+
+    The split is based on the ratio of core_len to var_len from the source X prime.
+    For L arms (minus strand): variable is at lower coordinates, core at higher
+    For R arms (plus strand): core is at lower coordinates, variable at higher
+
+    Args:
+        xprime_hit: X prime hit dictionary with 'start', 'end', 'source_chr_end', 'strand'
+        boundaries: Dict mapping chr_end to core/variable lengths
+
+    Returns:
+        Tuple of (core_element_dict, variable_element_dict) - either can be None
+    """
+    source_chr_end = xprime_hit.get('source_chr_end')
+    if not source_chr_end or source_chr_end not in boundaries:
+        # No boundary info available, return None
+        return None, None
+
+    boundary_info = boundaries[source_chr_end]
+    core_len = boundary_info['core_len']
+    var_len = boundary_info['var_len']
+    ref_strand = boundary_info['strand']
+
+    # If no variable element, return only core
+    if var_len == 0:
+        core_element = xprime_hit.copy()
+        core_element['type'] = 'x_core_element'
+        return core_element, None
+
+    # Calculate the total reference length and proportions
+    total_ref_len = core_len + var_len
+    if total_ref_len == 0:
+        return None, None
+
+    core_ratio = core_len / total_ref_len
+    var_ratio = var_len / total_ref_len
+
+    # Get the detected X prime coordinates
+    detected_start = xprime_hit['start']
+    detected_end = xprime_hit['end']
+    detected_len = detected_end - detected_start
+
+    # Calculate split lengths based on ratios
+    split_core_len = int(detected_len * core_ratio)
+    split_var_len = detected_len - split_core_len  # Remainder goes to variable
+
+    # Determine arm from target chr_end
+    target_chr_end = xprime_hit.get('target_chr_end', source_chr_end)
+    arm = target_chr_end[-1] if target_chr_end else 'L'
+
+    # Determine order based on arm
+    # L arm (minus strand orientation): telomere at low coords
+    #   Order from low to high: Telomere - [Y'] - Variable - Core - Space - Anchor
+    # R arm (plus strand orientation): telomere at high coords
+    #   Order from low to high: Anchor - Space - Core - Variable - [Y'] - Telomere
+
+    if arm == 'L':
+        # L arm: variable at lower coordinates, core at higher
+        var_start = detected_start
+        var_end = detected_start + split_var_len
+        core_start = var_end
+        core_end = detected_end
+        strand = '-'
+    else:
+        # R arm: core at lower coordinates, variable at higher
+        core_start = detected_start
+        core_end = detected_start + split_core_len
+        var_start = core_end
+        var_end = detected_end
+        strand = '+'
+
+    # Create core element
+    core_element = xprime_hit.copy()
+    core_element['start'] = core_start
+    core_element['end'] = core_end
+    core_element['type'] = 'x_core_element'
+    core_element['strand'] = strand
+    core_element['length'] = core_end - core_start
+
+    # Create variable element
+    var_element = xprime_hit.copy()
+    var_element['start'] = var_start
+    var_element['end'] = var_end
+    var_element['type'] = 'x_variable_element'
+    var_element['strand'] = strand
+    var_element['length'] = var_end - var_start
+
+    return core_element, var_element
+
+
 def extract_chr_end_from_subject(sseqid: str) -> Tuple[Optional[str], Optional[str]]:
     """
     Extract chromosome and determine arm from subject chromosome name.
@@ -151,7 +300,8 @@ def filter_xprime_hits(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def assign_xprimes_to_chr_ends(xprime_df: pd.DataFrame, chr_end_regions: Dict) -> Tuple[Dict, List[Dict]]:
+def assign_xprimes_to_chr_ends(xprime_df: pd.DataFrame, chr_end_regions: Dict,
+                                xprime_fasta_path: Optional[str] = None) -> Tuple[Dict, List[Dict], Dict]:
     """
     Assign X prime hits to chromosome ends, selecting the best match for each end.
 
@@ -160,21 +310,30 @@ def assign_xprimes_to_chr_ends(xprime_df: pd.DataFrame, chr_end_regions: Dict) -
     2. Select the best hit (highest adjusted identity)
     3. Check if the best hit's source matches the expected chr end
     4. Warn if there's a mismatch or low quality
+    5. Split into core and variable elements if boundary info available
 
     Args:
         xprime_df: DataFrame with filtered X prime BLAST results
         chr_end_regions: Dict of chromosome end regions (from anchor detection)
+        xprime_fasta_path: Optional path to X prime FASTA file for core/variable boundary info
 
     Returns:
         Tuple of:
-        - Dict mapping chr_end to list of X prime hits
+        - Dict mapping chr_end to list of X prime hits (combined)
         - List of quality report entries
+        - Dict mapping chr_end to {'core': core_element, 'variable': var_element}
     """
     chr_end_xprimes = defaultdict(list)
+    chr_end_xprime_split = {}  # Store split core/variable elements
     quality_report = []
 
+    # Parse boundary info from FASTA if provided
+    boundaries = {}
+    if xprime_fasta_path:
+        boundaries = parse_xprime_fasta_for_boundaries(xprime_fasta_path)
+
     if len(xprime_df) == 0:
-        return chr_end_xprimes, quality_report
+        return chr_end_xprimes, quality_report, chr_end_xprime_split
 
     # Get chromosome sizes from the data
     chr_sizes = xprime_df.groupby('sseqid')['slen'].first().to_dict()
@@ -265,7 +424,15 @@ def assign_xprimes_to_chr_ends(xprime_df: pd.DataFrame, chr_end_regions: Dict) -
         best_hit['type'] = 'x_prime'
         chr_end_xprimes[chr_end].append(best_hit)
 
-    return chr_end_xprimes, quality_report
+        # Split into core and variable elements if boundary info available
+        if boundaries:
+            core_element, var_element = split_xprime_to_core_variable(best_hit, boundaries)
+            chr_end_xprime_split[chr_end] = {
+                'core': core_element,
+                'variable': var_element
+            }
+
+    return chr_end_xprimes, quality_report, chr_end_xprime_split
 
 
 def validate_xprime_positions(chr_end_xprimes: Dict, chr_end_yprimes: Dict, chr_sizes: Dict) -> List[Dict]:

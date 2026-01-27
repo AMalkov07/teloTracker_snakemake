@@ -126,7 +126,9 @@ def extract_xprimes(fasta_sequences, x_elements):
                 'length': core_end - core_start,
                 'core_coords': f"{core_start}-{core_end}",
                 'var_coords': 'MISSING',
-                'core_only': True
+                'core_only': True,
+                'core_len': core_end - core_start,
+                'var_len': 0
             }
 
             xprime_sequences.append((chr_end, xprime_seq, info))
@@ -208,7 +210,9 @@ def extract_xprimes(fasta_sequences, x_elements):
             'length': combined_end - combined_start,
             'core_coords': f"{core_start}-{core_end}",
             'var_coords': f"{var_start}-{var_end}",
-            'core_only': False
+            'core_only': False,
+            'core_len': core_end - core_start,
+            'var_len': var_end - var_start
         }
 
         xprime_sequences.append((chr_end, xprime_seq, info))
@@ -229,8 +233,14 @@ def write_fasta(xprime_sequences, output_path, line_width=80):
     with open(output_path, 'w') as f:
         for chr_end, seq, info in xprime_sequences:
             # Create header with useful info
+            # Include core and variable lengths for downstream splitting
             core_only_tag = " [core_only]" if info.get('core_only', False) else ""
-            header = f">{chr_end}_xprime {info['chr']}:{info['start']}-{info['end']}({info['strand']}) len={info['length']}{core_only_tag}"
+
+            # Add core_len and var_len to header for downstream processing
+            core_len = info.get('core_len', info['length'])  # Default to full length if core_only
+            var_len = info.get('var_len', 0)
+
+            header = f">{chr_end}_xprime {info['chr']}:{info['start']}-{info['end']}({info['strand']}) len={info['length']} core_len={core_len} var_len={var_len}{core_only_tag}"
             f.write(header + '\n')
 
             # Write sequence with line breaks
