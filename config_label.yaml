@@ -3,18 +3,48 @@
 #
 # Usage: snakemake -s Snakefile_label -c 56
 #
-# Prerequisites: Run Snakefile_create_ref first to generate the polished reference
+# This pipeline can run in two modes:
+#   1. Standard mode: After running Snakefile_create_ref (uses same base_name for everything)
+#   2. Independent mode: Use custom reference + different reads for RepeatMasker analysis
+#
+# =============================================================================
+# STANDARD MODE (default)
+# =============================================================================
+# Just set base_name and strain - pipeline uses outputs from Snakefile_create_ref
 
-# Required: Base name for the analysis (must match Pipeline 1)
+# Required: Base name for the analysis
 base_name: "dorado_fast5_7575_day0_PromethION_no_tag_yes_rejection"
 
-# Required: Strain identifier (must match Pipeline 1)
+# Required: Strain identifier
 strain: "7575"
 
 # Anchor set name
 anchor_set: "test_anchors"
 
-# Paths to reference files for labeling
+# =============================================================================
+# INDEPENDENT MODE (optional overrides)
+# =============================================================================
+# Use these to run labeling on one reference while analyzing reads from another sample
+#
+# Example: Label day0 reference, analyze day3 reads for recombination
+#   reference_fasta: "path/to/day0_reference.fasta"
+#   reads_source:
+#     base_name: "dorado_fast5_7575_day3_PromethION_no_tag_yes_rejection"
+#     results_dir: "results"  # where Pipeline 1 outputs are for the reads
+
+# Custom reference FASTA for labeling (overrides default Pipeline 1 output)
+# If not set, uses: results/{base_name}/assembly_{strain}/assembly_{strain}_dorado_reference.fasta
+# reference_fasta: ""
+
+# Reads source for RepeatMasker analysis (if different from base_name)
+# Set this to analyze reads from a different sample against the labeled reference
+# reads_source:
+#   base_name: "dorado_fast5_7575_day3_PromethION_no_tag_yes_rejection"
+#   results_dir: "results"
+
+# =============================================================================
+# REFERENCE FILES
+# =============================================================================
 references:
   anchors: "references/test_anchors.fasta"
   # Y prime sequences from RepeatMasker (use strain-specific file)
