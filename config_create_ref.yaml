@@ -14,7 +14,7 @@ anchor_set: "test_anchors"
 
 # Input directory containing BAM or FASTQ file
 # Pipeline auto-detects format: looks for {base_name}.bam or {base_name}.fastq
-input_dir: "../samples_dorado_basecalled2"
+input_dir: "./samples_dorado_basecalled2"
 
 # Base reference for initial mapping (used in Step 4)
 reference_fasta: "/Shared/malkova_lab/Ivan/nanopore_sequencing/reference_files/6991_only_to_anchors.fasta"
