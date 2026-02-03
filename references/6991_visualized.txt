@@ -1,0 +1,781 @@
+================================================================================
+  CHROMOSOME END STRUCTURE VISUALIZATION
+  Input: references/6991_final_features.bed
+  Format: BED
+================================================================================
+
+==============================================================================================================
+  SUMMARY TABLE
+==============================================================================================================
+Chr End    Telo bp    Anchor   X Prime      Y Primes   Total Y bp   ITS    Structure Type      
+--------------------------------------------------------------------------------------------------------------
+chr1L      212        Yes      Yes (c+v)    0                   0  0      No Y'               
+chr1R      323        Yes      Yes (c+v)    0                   0  0      No Y'               
+chr2L      262        Yes      Yes (c+v)    1               5,976  0      Solo Short Y'       
+chr2R      269        Yes      Yes (c+v)    0                   0  0      No Y'               
+chr3L      298        Yes      Yes (c+v)    0                   0  0      No Y'               
+chr3R      292        Yes      Yes (c+v)    0                   0  0      No Y'               
+chr4L      198        Yes      Yes (c+v)    0                   0  0      No Y'               
+chr4R      220        Yes      Yes (c+v)    7              46,579  7      Tandem (7x Y')      
+chr5L      255        Yes      Yes (c)      1               6,482  1      Solo Long Y'        
+chr5R      195        Yes      Yes (c+v)    1               6,695  1      Solo Long Y'        
+chr6L      185        Yes      Yes (c+v)    1               5,978  1      Solo Short Y'       
+chr6R      204        Yes      Yes (c)      0                   0  0      No Y'               
+chr7L      225        Yes      Yes (c+v)    0                   0  0      No Y'               
+chr7R      226        Yes      Yes (c+v)    1               6,656  0      Solo Long Y'        
+chr8L      253        Yes      Yes (c)      1               5,061  0      Solo Short Y'       
+chr8R      228        Yes      Yes (c+v)    1               5,472  1      Solo Short Y'       
+chr9L      290        Yes      Yes (c+v)    1               6,871  0      Solo Long Y'        
+chr9R      291        Yes      Yes (c+v)    0                   0  0      No Y'               
+chr10L     309        Yes      Yes (c+v)    1               6,870  0      Solo Long Y'        
+chr10R     201        Yes      Yes (c+v)    0                   0  0      No Y'               
+chr11L     230        Yes      Yes (c+v)    0                   0  0      No Y'               
+chr11R     293        Yes      Yes (c+v)    0                   0  0      No Y'               
+chr12L     237        Yes      Yes (c)      1               5,192  0      Solo Short Y'       
+chr12R     151        Yes      Yes (c+v)    7              46,343  6      Tandem (7x Y')      
+chr13L     237        Yes      Yes (c+v)    1               5,485  1      Solo Short Y'       
+chr13R     251        Yes      Yes (c+v)    0                   0  0      No Y'               
+chr14L     233        Yes      Yes (c+v)    5              29,776  5      Tandem (5x Y')      
+chr14R     279        Yes      Yes (c+v)    1               6,532  1      Solo Long Y'        
+chr15L     268        Yes      Yes (c+v)    0                   0  0      No Y'               
+chr15R     190        Yes      Yes (c+v)    1               6,650  0      Solo Long Y'        
+chr16L     269        Yes      Yes (c+v)    1               6,737  1      Solo Long Y'        
+chr16R     275        Yes      Yes (c)      1               5,303  0      Solo Short Y'       
+--------------------------------------------------------------------------------------------------------------
+  X Prime: (c+v) = core+variable, (c) = core only, (v) = variable only
+
+  Statistics:
+  - Total chromosome ends: 32
+  - With anchor: 32/32
+  - With X prime: 32/32
+  - With Y prime(s): 18/32
+  - Total Y prime regions: 34
+  - Total telomere bp: 7,849
+  - Total ITS regions: 25
+
+================================================================================
+  INDIVIDUAL CHROMOSOME END DETAILS
+================================================================================
+
+================================================================================
+  chr1L
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:          1 -        212  (212 bp)
+  ANCHOR:       10,983 -     16,022  (5,040 bp, 100.0% identity)
+  X PRIME:         213 -        962  (749 bp, 100.0% identity) (core+variable)
+  Y PRIMES: NONE DETECTED
+
+  Distance Analysis:
+  ----------------------------------------
+  Telomere to first element: 213 bp
+  X prime to Anchor:         10,021 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--10kb--[X':749bp]--1bp--[TELO:212bp]
+
+================================================================================
+  chr1R
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:    219,265 -    219,587  (323 bp)
+  ANCHOR:      188,511 -    193,550  (5,040 bp, 100.0% identity)
+  X PRIME:     218,522 -    219,264  (742 bp, 100.0% identity) (core+variable)
+  Y PRIMES: NONE DETECTED
+
+  Distance Analysis:
+  ----------------------------------------
+  Anchor to X prime:         24,972 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--24kb--[X':742bp]--1bp--[TELO:323bp]
+
+================================================================================
+  chr2L
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:          1 -        262  (262 bp)
+  ANCHOR:       10,995 -     16,034  (5,040 bp, 100.0% identity)
+  X PRIME:       6,239 -      7,000  (761 bp, 100.0% identity) (core+variable)
+  Y PRIMES: 1 detected
+      [1]         263 -      6,238  (5,976 bp, 1)
+
+  Distance Analysis:
+  ----------------------------------------
+  Telomere to first element: 263 bp
+  X prime to Anchor:         3,995 bp
+  Y prime to X prime:        1 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--3kb--[X':761bp]--1bp--[Y':5kb]--1bp--[TELO:262bp]
+
+================================================================================
+  chr2R
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:    809,655 -    809,923  (269 bp)
+  ANCHOR:      793,854 -    798,893  (5,040 bp, 100.0% identity)
+  X PRIME:     808,896 -    809,654  (758 bp, 100.0% identity) (core+variable)
+  Y PRIMES: NONE DETECTED
+
+  Distance Analysis:
+  ----------------------------------------
+  Anchor to X prime:         10,003 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--10kb--[X':758bp]--1bp--[TELO:269bp]
+
+================================================================================
+  chr3L
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:          1 -        298  (298 bp)
+  ANCHOR:       10,986 -     16,025  (5,040 bp, 100.0% identity)
+  X PRIME:         299 -      1,055  (756 bp, 100.0% identity) (core+variable)
+  Y PRIMES: NONE DETECTED
+
+  Distance Analysis:
+  ----------------------------------------
+  Telomere to first element: 299 bp
+  X prime to Anchor:         9,931 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--9kb--[X':756bp]--1bp--[TELO:298bp]
+
+================================================================================
+  chr3R
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:    335,358 -    335,649  (292 bp)
+  ANCHOR:      319,607 -    324,646  (5,040 bp, 100.0% identity)
+  X PRIME:     334,640 -    335,357  (717 bp, 100.0% identity) (core+variable)
+  Y PRIMES: NONE DETECTED
+
+  Distance Analysis:
+  ----------------------------------------
+  Anchor to X prime:         9,994 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--9kb--[X':717bp]--1bp--[TELO:292bp]
+
+================================================================================
+  chr4L
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:          1 -        198  (198 bp)
+  ANCHOR:       21,005 -     26,044  (5,040 bp, 100.0% identity)
+  X PRIME:         199 -        916  (717 bp, 100.0% identity) (core+variable)
+  Y PRIMES: NONE DETECTED
+
+  Distance Analysis:
+  ----------------------------------------
+  Telomere to first element: 199 bp
+  X prime to Anchor:         20,089 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--20kb--[X':717bp]--1bp--[TELO:198bp]
+
+================================================================================
+  chr4R
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:  1,566,890 -  1,567,109  (220 bp)
+  ANCHOR:    1,511,881 -  1,516,920  (5,040 bp, 100.0% identity)
+  X PRIME:   1,518,819 -  1,519,558  (739 bp, 100.0% identity) (core+variable)
+  Y PRIMES: 7 detected
+      [1]   1,519,940 -  1,526,593  (6,654 bp, 1)
+      [2]   1,526,602 -  1,533,255  (6,654 bp, 2)
+      [3]   1,533,264 -  1,539,917  (6,654 bp, 3)
+      [4]   1,539,926 -  1,546,580  (6,655 bp, 4)
+      [5]   1,546,750 -  1,553,403  (6,654 bp, 5)
+      [6]   1,553,574 -  1,560,227  (6,654 bp, 6)
+      [7]   1,560,236 -  1,566,889  (6,654 bp, 7)
+  ITS:      7 internal telomeric sequences
+            Total: 752 bp
+
+  Distance Analysis:
+  ----------------------------------------
+  Last Y prime ends at:      1,566,889 bp
+  Anchor to X prime:         1,899 bp
+  X prime to Y prime:        382 bp
+  Y prime gaps:              9, 9, 9, 170, 171, 9 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--1kb--[X':739bp]--382bp--[Y':6kb]--9bp--[Y':6kb]
+      --9bp--[Y':6kb]--9bp--[Y':6kb]--170bp--[Y':6kb]--171bp--[Y':6kb]
+      --9bp--[Y':6kb]--1bp--[TELO:220bp]
+
+================================================================================
+  chr5L
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:          1 -        255  (255 bp)
+  ANCHOR:        7,509 -     12,548  (5,040 bp, 100.0% identity)
+  X PRIME:       6,763 -      6,873  (110 bp, 100.0% identity) (core only)
+  Y PRIMES: 1 detected
+      [1]         256 -      6,737  (6,482 bp, 1)
+  ITS:      1 internal telomeric sequences
+            Total: 25 bp
+
+  Distance Analysis:
+  ----------------------------------------
+  Telomere to first element: 256 bp
+  X prime to Anchor:         636 bp
+  Y prime to X prime:        26 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--636bp--[X':110bp]--26bp--[Y':6kb]--1bp--
+      [TELO:255bp]
+
+================================================================================
+  chr5R
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:    598,374 -    598,568  (195 bp)
+  ANCHOR:      584,517 -    589,556  (5,040 bp, 100.0% identity)
+  X PRIME:     591,038 -    591,663  (625 bp, 100.0% identity) (core+variable)
+  Y PRIMES: 1 detected
+      [1]     591,679 -    598,373  (6,695 bp, 1)
+  ITS:      1 internal telomeric sequences
+            Total: 15 bp
+
+  Distance Analysis:
+  ----------------------------------------
+  Last Y prime ends at:      598,373 bp
+  Anchor to X prime:         1,482 bp
+  X prime to Y prime:        16 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--1kb--[X':625bp]--16bp--[Y':6kb]--1bp--[TELO:195bp]
+
+================================================================================
+  chr6L
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:          1 -        185  (185 bp)
+  ANCHOR:       19,307 -     24,346  (5,040 bp, 100.0% identity)
+  X PRIME:       6,278 -      6,985  (707 bp, 100.0% identity) (core+variable)
+  Y PRIMES: 1 detected
+      [1]         186 -      6,163  (5,978 bp, 1)
+  ITS:      1 internal telomeric sequences
+            Total: 114 bp
+
+  Distance Analysis:
+  ----------------------------------------
+  Telomere to first element: 186 bp
+  X prime to Anchor:         12,322 bp
+  Y prime to X prime:        115 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--12kb--[X':707bp]--115bp--[Y':5kb]--1bp--
+      [TELO:185bp]
+
+================================================================================
+  chr6R
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:    271,493 -    271,696  (204 bp)
+  ANCHOR:      260,623 -    265,662  (5,040 bp, 100.0% identity)
+  X PRIME:     271,109 -    271,490  (381 bp, 100.0% identity) (core only)
+  Y PRIMES: NONE DETECTED
+
+  Distance Analysis:
+  ----------------------------------------
+  Anchor to X prime:         5,447 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--5kb--[X':381bp]--3bp--[TELO:204bp]
+
+================================================================================
+  chr7L
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:          1 -        225  (225 bp)
+  ANCHOR:        1,961 -      7,000  (5,040 bp, 100.0% identity)
+  X PRIME:         226 -        973  (747 bp, 100.0% identity) (core+variable)
+  Y PRIMES: NONE DETECTED
+
+  Distance Analysis:
+  ----------------------------------------
+  Telomere to first element: 226 bp
+  X prime to Anchor:         988 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--988bp--[X':747bp]--1bp--[TELO:225bp]
+
+================================================================================
+  chr7R
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:  1,096,334 -  1,096,559  (226 bp)
+  ANCHOR:    1,075,599 -  1,080,638  (5,040 bp, 100.0% identity)
+  X PRIME:   1,088,923 -  1,089,633  (710 bp, 100.0% identity) (core+variable)
+  Y PRIMES: 1 detected
+      [1]   1,089,634 -  1,096,289  (6,656 bp, 1)
+
+  Distance Analysis:
+  ----------------------------------------
+  Last Y prime ends at:      1,096,289 bp
+  Anchor to X prime:         8,285 bp
+  X prime to Y prime:        1 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--8kb--[X':710bp]--1bp--[Y':6kb]--45bp--[TELO:226bp]
+
+================================================================================
+  chr8L
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:          1 -        253  (253 bp)
+  ANCHOR:        6,071 -     11,110  (5,040 bp, 100.0% identity)
+  X PRIME:       5,414 -      5,867  (453 bp, 100.0% identity) (core only)
+  Y PRIMES: 1 detected
+      [1]         254 -      5,314  (5,061 bp, 1)
+
+  Distance Analysis:
+  ----------------------------------------
+  Telomere to first element: 254 bp
+  X prime to Anchor:         204 bp
+  Y prime to X prime:        100 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--204bp--[X':453bp]--100bp--[Y':5kb]--1bp--
+      [TELO:253bp]
+
+================================================================================
+  chr8R
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:    576,598 -    576,825  (228 bp)
+  ANCHOR:      535,799 -    540,838  (5,040 bp, 100.0% identity)
+  X PRIME:     570,245 -    570,968  (723 bp, 100.0% identity) (core+variable)
+  Y PRIMES: 1 detected
+      [1]     571,126 -    576,597  (5,472 bp, 1)
+  ITS:      1 internal telomeric sequences
+            Total: 157 bp
+
+  Distance Analysis:
+  ----------------------------------------
+  Last Y prime ends at:      576,597 bp
+  Anchor to X prime:         29,407 bp
+  X prime to Y prime:        158 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--29kb--[X':723bp]--158bp--[Y':5kb]--1bp--
+      [TELO:228bp]
+
+================================================================================
+  chr9L
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:          1 -        290  (290 bp)
+  ANCHOR:       26,013 -     31,052  (5,040 bp, 100.0% identity)
+  X PRIME:       7,162 -      7,997  (835 bp, 100.0% identity) (core+variable)
+  Y PRIMES: 1 detected
+      [1]         291 -      7,161  (6,871 bp, 1)
+
+  Distance Analysis:
+  ----------------------------------------
+  Telomere to first element: 291 bp
+  X prime to Anchor:         18,016 bp
+  Y prime to X prime:        1 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--18kb--[X':835bp]--1bp--[Y':6kb]--1bp--[TELO:290bp]
+
+================================================================================
+  chr9R
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:    438,158 -    438,448  (291 bp)
+  ANCHOR:      422,417 -    427,456  (5,040 bp, 100.0% identity)
+  X PRIME:     437,410 -    438,157  (747 bp, 100.0% identity) (core+variable)
+  Y PRIMES: NONE DETECTED
+
+  Distance Analysis:
+  ----------------------------------------
+  Anchor to X prime:         9,954 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--9kb--[X':747bp]--1bp--[TELO:291bp]
+
+================================================================================
+  chr10L
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:          1 -        309  (309 bp)
+  ANCHOR:       21,050 -     26,089  (5,040 bp, 100.0% identity)
+  X PRIME:       7,180 -      8,015  (835 bp, 100.0% identity) (core+variable)
+  Y PRIMES: 1 detected
+      [1]         310 -      7,179  (6,870 bp, 1)
+
+  Distance Analysis:
+  ----------------------------------------
+  Telomere to first element: 310 bp
+  X prime to Anchor:         13,035 bp
+  Y prime to X prime:        1 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--13kb--[X':835bp]--1bp--[Y':6kb]--1bp--[TELO:309bp]
+
+================================================================================
+  chr10R
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:    745,346 -    745,546  (201 bp)
+  ANCHOR:      724,541 -    729,580  (5,040 bp, 100.0% identity)
+  X PRIME:     744,584 -    745,345  (761 bp, 100.0% identity) (core+variable)
+  Y PRIMES: NONE DETECTED
+
+  Distance Analysis:
+  ----------------------------------------
+  Anchor to X prime:         15,004 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--15kb--[X':761bp]--1bp--[TELO:201bp]
+
+================================================================================
+  chr11L
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:          1 -        230  (230 bp)
+  ANCHOR:        6,060 -     11,099  (5,040 bp, 100.0% identity)
+  X PRIME:         231 -        971  (740 bp, 100.0% identity) (core+variable)
+  Y PRIMES: NONE DETECTED
+
+  Distance Analysis:
+  ----------------------------------------
+  Telomere to first element: 231 bp
+  X prime to Anchor:         5,089 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--5kb--[X':740bp]--1bp--[TELO:230bp]
+
+================================================================================
+  chr11R
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:    684,313 -    684,605  (293 bp)
+  ANCHOR:      668,565 -    673,604  (5,040 bp, 100.0% identity)
+  X PRIME:     683,610 -    684,312  (702 bp, 100.0% identity) (core+variable)
+  Y PRIMES: NONE DETECTED
+
+  Distance Analysis:
+  ----------------------------------------
+  Anchor to X prime:         10,006 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--10kb--[X':702bp]--1bp--[TELO:293bp]
+
+================================================================================
+  chr12L
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:          1 -        237  (237 bp)
+  ANCHOR:        6,004 -     11,043  (5,040 bp, 100.0% identity)
+  X PRIME:       5,454 -      5,874  (420 bp, 100.0% identity) (core only)
+  Y PRIMES: 1 detected
+      [1]         238 -      5,429  (5,192 bp, 1)
+
+  Distance Analysis:
+  ----------------------------------------
+  Telomere to first element: 238 bp
+  X prime to Anchor:         130 bp
+  Y prime to X prime:        25 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--130bp--[X':420bp]--25bp--[Y':5kb]--1bp--
+      [TELO:237bp]
+
+================================================================================
+  chr12R
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:  1,082,696 -  1,082,846  (151 bp)
+  ANCHOR:    1,024,261 -  1,029,300  (5,040 bp, 100.0% identity)
+  X PRIME:   1,034,400 -  1,035,149  (749 bp, 100.0% identity) (core+variable)
+  Y PRIMES: 7 detected
+      [1]   1,035,275 -  1,041,760  (6,486 bp, 1)
+      [2]   1,041,954 -  1,048,573  (6,620 bp, 2)
+      [3]   1,048,742 -  1,055,396  (6,655 bp, 3)
+      [4]   1,055,602 -  1,062,220  (6,619 bp, 4)
+      [5]   1,062,391 -  1,069,045  (6,655 bp, 5)
+      [6]   1,069,218 -  1,075,871  (6,654 bp, 6)
+      [7]   1,076,042 -  1,082,695  (6,654 bp, 7)
+  ITS:      6 internal telomeric sequences
+            Total: 1,078 bp
+
+  Distance Analysis:
+  ----------------------------------------
+  Last Y prime ends at:      1,082,695 bp
+  Anchor to X prime:         5,100 bp
+  X prime to Y prime:        126 bp
+  Y prime gaps:              194, 169, 206, 171, 173, 171 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--5kb--[X':749bp]--126bp--[Y':6kb]--194bp--[Y':6kb]
+      --169bp--[Y':6kb]--206bp--[Y':6kb]--171bp--[Y':6kb]--173bp--[Y':6kb]
+      --171bp--[Y':6kb]--1bp--[TELO:151bp]
+
+================================================================================
+  chr13L
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:          1 -        237  (237 bp)
+  ANCHOR:       10,992 -     16,031  (5,040 bp, 100.0% identity)
+  X PRIME:       5,774 -      6,529  (755 bp, 100.0% identity) (core+variable)
+  Y PRIMES: 1 detected
+      [1]         238 -      5,722  (5,485 bp, 1)
+  ITS:      1 internal telomeric sequences
+            Total: 51 bp
+
+  Distance Analysis:
+  ----------------------------------------
+  Telomere to first element: 238 bp
+  X prime to Anchor:         4,463 bp
+  Y prime to X prime:        52 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--4kb--[X':755bp]--52bp--[Y':5kb]--1bp--[TELO:237bp]
+
+================================================================================
+  chr13R
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:    924,409 -    924,659  (251 bp)
+  ANCHOR:      913,556 -    918,595  (5,040 bp, 100.0% identity)
+  X PRIME:     923,643 -    924,408  (765 bp, 100.0% identity) (core+variable)
+  Y PRIMES: NONE DETECTED
+
+  Distance Analysis:
+  ----------------------------------------
+  Anchor to X prime:         5,048 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--5kb--[X':765bp]--1bp--[TELO:251bp]
+
+================================================================================
+  chr14L
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:          1 -        233  (233 bp)
+  ANCHOR:       40,988 -     46,027  (5,040 bp, 100.0% identity)
+  X PRIME:      30,956 -     31,692  (736 bp, 100.0% identity) (core+variable)
+  Y PRIMES: 5 detected
+      [1]         234 -      5,721  (5,488 bp, 5)
+      [2]       5,895 -     11,382  (5,488 bp, 4)
+      [3]      11,556 -     17,043  (5,488 bp, 3)
+      [4]      17,214 -     23,868  (6,655 bp, 2)
+      [5]      24,036 -     30,692  (6,657 bp, 1)
+  ITS:      5 internal telomeric sequences
+            Total: 954 bp
+
+  Distance Analysis:
+  ----------------------------------------
+  Telomere to first element: 234 bp
+  X prime to Anchor:         9,296 bp
+  Y prime to X prime:        264 bp
+  Y prime gaps:              174, 174, 171, 168 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--9kb--[X':736bp]--264bp--[Y':6kb]--168bp--[Y':6kb]
+      --171bp--[Y':5kb]--174bp--[Y':5kb]--174bp--[Y':5kb]--1bp--[TELO:233bp]
+
+================================================================================
+  chr14R
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:    800,727 -    801,005  (279 bp)
+  ANCHOR:      785,029 -    790,068  (5,040 bp, 100.0% identity)
+  X PRIME:     793,324 -    794,122  (798 bp, 100.0% identity) (core+variable)
+  Y PRIMES: 1 detected
+      [1]     794,195 -    800,726  (6,532 bp, 1)
+  ITS:      1 internal telomeric sequences
+            Total: 72 bp
+
+  Distance Analysis:
+  ----------------------------------------
+  Last Y prime ends at:      800,726 bp
+  Anchor to X prime:         3,256 bp
+  X prime to Y prime:        73 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--3kb--[X':798bp]--73bp--[Y':6kb]--1bp--[TELO:279bp]
+
+================================================================================
+  chr15L
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:          1 -        268  (268 bp)
+  ANCHOR:        1,840 -      6,879  (5,040 bp, 100.0% identity)
+  X PRIME:         269 -      1,001  (732 bp, 100.0% identity) (core+variable)
+  Y PRIMES: NONE DETECTED
+
+  Distance Analysis:
+  ----------------------------------------
+  Telomere to first element: 269 bp
+  X prime to Anchor:         839 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--839bp--[X':732bp]--1bp--[TELO:268bp]
+
+================================================================================
+  chr15R
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:  1,091,562 -  1,091,751  (190 bp)
+  ANCHOR:    1,065,700 -  1,070,739  (5,040 bp, 100.0% identity)
+  X PRIME:   1,084,214 -  1,084,911  (697 bp, 100.0% identity) (core+variable)
+  Y PRIMES: 1 detected
+      [1]   1,084,912 -  1,091,561  (6,650 bp, 1)
+
+  Distance Analysis:
+  ----------------------------------------
+  Last Y prime ends at:      1,091,561 bp
+  Anchor to X prime:         13,475 bp
+  X prime to Y prime:        1 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--13kb--[X':697bp]--1bp--[Y':6kb]--1bp--[TELO:190bp]
+
+================================================================================
+  chr16L
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:          1 -        269  (269 bp)
+  ANCHOR:       20,998 -     26,037  (5,040 bp, 100.0% identity)
+  X PRIME:       7,013 -      7,622  (609 bp, 100.0% identity) (core+variable)
+  Y PRIMES: 1 detected
+      [1]         270 -      7,006  (6,737 bp, 1)
+  ITS:      1 internal telomeric sequences
+            Total: 6 bp
+
+  Distance Analysis:
+  ----------------------------------------
+  Telomere to first element: 270 bp
+  X prime to Anchor:         13,376 bp
+  Y prime to X prime:        7 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--13kb--[X':609bp]--7bp--[Y':6kb]--1bp--[TELO:269bp]
+
+================================================================================
+  chr16R
+================================================================================
+
+  Region Summary:
+  ----------------------------------------
+  TELOMERE:    948,613 -    948,887  (275 bp)
+  ANCHOR:      936,960 -    941,999  (5,040 bp, 100.0% identity)
+  X PRIME:     942,898 -    943,273  (375 bp, 100.0% identity) (core only)
+  Y PRIMES: 1 detected
+      [1]     943,310 -    948,612  (5,303 bp, 1)
+
+  Distance Analysis:
+  ----------------------------------------
+  Last Y prime ends at:      948,612 bp
+  Anchor to X prime:         899 bp
+  X prime to Y prime:        37 bp
+
+  Structure Diagram (not to scale):
+  ----------------------------------------
+  (middle)---[ANCHOR:5kb]--899bp--[X':375bp]--37bp--[Y':5kb]--1bp--
+      [TELO:275bp]
+
+================================================================================
+  END OF REPORT
+================================================================================
+

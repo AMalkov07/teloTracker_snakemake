@@ -1,0 +1,16 @@
+# config.yaml
+base_name: "dorado_7302_day0_PromethION_no_tag_yes_rejection"
+anchor_set: "test_anchors"
+adapter_seq_file: "offical_nanopore_adapter_seq+trunc.txt"
+bam_dir: "samples_dorado_basecalled"
+strain: "7302"
+
+# Paths to references
+references:
+  anchors: "references/test_anchors.fasta"
+  adapters: "references/offical_nanopore_adapter_seq+trunc.txt"
+  probe: "references/probe.fasta"
+
+  repeatmasker_y_primes: "references/repeatmasker_{strain}_all_y_primes.fasta"
+  x_element_pairings_dir: "references/pairings_for_x_element_ends/{strain}_pairings"
+  spacer_pairings_dir: "references/pairings_for_spacers/{strain}_pairings"
