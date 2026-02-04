@@ -82,6 +82,34 @@ def load_yprime_regions(tsv_path):
     return yprimes
 
 
+def parse_yprime_id_from_source(source):
+    """
+    Parse Y' prime ID and color from the source column.
+
+    Source format: Y_Prime_chr10L1#Long/Solo/ID6_Purple-Dark
+    Returns: (id_str, color) e.g., ('ID6', 'Purple-Dark')
+    """
+    try:
+        # Split on '#' to get the metadata part
+        if '#' in source:
+            metadata = source.split('#')[1]
+            # Split on '/' to get Size/Type/ID_Color
+            parts = metadata.split('/')
+            if len(parts) >= 3:
+                # ID_Color is the third part, e.g., "ID6_Purple-Dark"
+                id_color = parts[2]
+                # Split on first '_' to separate ID from color
+                if '_' in id_color:
+                    underscore_idx = id_color.index('_')
+                    y_prime_id = id_color[:underscore_idx]
+                    color = id_color[underscore_idx + 1:]
+                    return (y_prime_id, color)
+    except (IndexError, ValueError) as e:
+        print(f"  Warning: Could not parse ID from source: {source}")
+
+    return (None, None)
+
+
 def find_unique_yprimes(yprimes_df, sequences):
     """
     Find unique Y prime sequences and track all their locations.
@@ -89,7 +117,9 @@ def find_unique_yprimes(yprimes_df, sequences):
     Returns dict mapping sequence -> {
         'locations': [(chr_end, position_num, identity, length), ...],
         'avg_identity': float,
-        'length': int
+        'length': int,
+        'y_prime_id': str,  # Inherited from BLAST match
+        'color': str        # Inherited from BLAST match
     }
     """
     print("Extracting and deduplicating Y prime sequences...")
@@ -98,7 +128,8 @@ def find_unique_yprimes(yprimes_df, sequences):
     chr_end_counts = defaultdict(int)
 
     # Store sequences with their metadata
-    sequence_info = defaultdict(lambda: {'locations': [], 'identities': [], 'length': 0})
+    sequence_info = defaultdict(lambda: {'locations': [], 'identities': [], 'length': 0,
+                                          'y_prime_id': None, 'color': None})
 
     for _, row in yprimes_df.iterrows():
         chr_end = row['chr_end']
@@ -108,6 +139,9 @@ def find_unique_yprimes(yprimes_df, sequences):
         strand = row['strand']
         length = int(row['length'])
         pident = float(row['pident'])
+
+        # Get source column to extract Y' prime ID
+        source = row.get('source', '')
 
         # Increment position counter for this chr_end
         chr_end_counts[chr_end] += 1
@@ -122,6 +156,13 @@ def find_unique_yprimes(yprimes_df, sequences):
         sequence_info[seq]['locations'].append((chr_end, position_num, pident, length))
         sequence_info[seq]['identities'].append(pident)
         sequence_info[seq]['length'] = length
+
+        # Parse and store Y' prime ID from source (use first match's ID)
+        if sequence_info[seq]['y_prime_id'] is None and source:
+            y_prime_id, color = parse_yprime_id_from_source(source)
+            if y_prime_id:
+                sequence_info[seq]['y_prime_id'] = y_prime_id
+                sequence_info[seq]['color'] = color
 
     # Calculate average identity for each unique sequence
     for seq in sequence_info:
@@ -144,7 +185,7 @@ def classify_yprime_size(length):
         return "Unknown"
 
 
-def format_header(locations, avg_identity, length, yprime_index):
+def format_header(locations, avg_identity, length, y_prime_id=None, color=None):
     """
     Format FASTA header with all locations and metadata.
 
@@ -179,16 +220,12 @@ def format_header(locations, avg_identity, length, yprime_index):
     total_positions = sum(len(positions) for positions in chr_end_positions.values())
     tandem_type = "Solo" if total_positions == 1 else "Tandem"
 
-    # Assign a temporary ID based on index (will need proper clustering for accurate IDs)
-    # Using rotating IDs 1-7 as placeholder - proper ID assignment requires sequence clustering
-    y_prime_id = f"ID{(yprime_index % 7) + 1}"
-
-    # Assign color based on ID (matching 6991 convention)
-    color_map = {
-        "ID1": "Blue", "ID2": "Red", "ID3": "Orange", "ID4": "Green",
-        "ID5": "Purple", "ID6": "Yellow", "ID7": "Pink"
-    }
-    color = color_map.get(y_prime_id, "Gray")
+    # Use inherited ID and color from BLAST match, or fall back to Unknown
+    if y_prime_id is None:
+        y_prime_id = "Unknown"
+        color = "Gray"
+    elif color is None:
+        color = "Gray"
 
     # Format header to match 6991 style: Y_Prime_location#Size/Type/ID_Color
     header = f">Y_Prime_{location_str}#{size_class}/{tandem_type}/{y_prime_id}_{color}"
@@ -212,7 +249,8 @@ def write_fasta(unique_yprimes, output_path):
                 info['locations'],
                 info['avg_identity'],
                 info['length'],
-                idx  # Pass index for ID assignment
+                info.get('y_prime_id'),  # Pass inherited ID from BLAST match
+                info.get('color')        # Pass inherited color from BLAST match
             )
             f.write(f"{header}\n")
 
