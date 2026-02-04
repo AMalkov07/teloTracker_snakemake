@@ -14,14 +14,14 @@ set -o pipefail  # Exit on pipe failure
 # Configuration - Edit these values for your reference
 # ============================================================================
 
-BASE_NAME="dorado_7172_day0_PromethION_no_tag_yes_rejection"
-STRAIN_ID="7172"
+BASE_NAME="dorado_7302_day0_PromethION_no_tag_yes_rejection"
+STRAIN_ID="7302"
 
 # Input: Reference FASTA file
-REFERENCE_DIR="results/${BASE_NAME}/assembly_${STRAIN_ID}"
-#REFERENCE_DIR="labeling_test"
-REFERENCE_FASTA="${REFERENCE_DIR}/assembly_${STRAIN_ID}_dorado_reference.fasta"
-#REFERENCE_FASTA="${REFERENCE_DIR}/${STRAIN_ID}.fasta"
+#REFERENCE_DIR="results/${BASE_NAME}/assembly_${STRAIN_ID}"
+REFERENCE_DIR="labeling_test"
+#REFERENCE_FASTA="${REFERENCE_DIR}/assembly_${STRAIN_ID}_dorado_reference.fasta"
+REFERENCE_FASTA="${REFERENCE_DIR}/${STRAIN_ID}.fasta"
 
 # Reference sequences for labeling (from strain 6991)
 REFERENCES_DIR="/Shared/malkova_lab/Ivan/nanopore_sequencing/reference_files"
@@ -239,7 +239,8 @@ else
             "${STRAIN_ID}" \
             "${SIMPLIFIED_BED}" \
             "${REFERENCE_FASTA}" \
-            "references/"
+            "references/" \
+            --fixed-50kb
 
         if [ -f "${SPACER_SEQUENCES}" ]; then
             echo "Created: ${SPACER_SEQUENCES}"

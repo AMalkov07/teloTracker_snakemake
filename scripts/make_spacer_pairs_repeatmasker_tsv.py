@@ -113,7 +113,7 @@ df_all_repeatmakser_results['anchor_label'] = df_all_repeatmakser_results.apply(
 
 df_all_repeatmakser_results.sort_values(by=['original_chr_end_anchor', 'read_id', 'match_start_on_read'], inplace=True)
 
-df_all_repeatmakser_results.to_csv(f'results/{base_name}_paired_spacer_repeatmasker.tsv' , sep= '\t')
+df_all_repeatmakser_results.to_csv(f'results/{base_name}/{base_name}_paired_spacer_repeatmasker.tsv' , sep= '\t')
 
 ################## Testing these cutoff values for a good match ##################
 df_good_repeatmakser_results = df_all_repeatmakser_results[df_all_repeatmakser_results['sub_match'] == False]
@@ -133,7 +133,7 @@ print(df_good_repeatmakser_results['good_read'].value_counts())
 df_good_repeatmakser_results = df_good_repeatmakser_results[df_good_repeatmakser_results['good_read'] == True]
 
 df_good_repeatmakser_results.sort_values(by=['original_chr_end_anchor', 'read_id', 'match_start_on_read'], inplace=True)
-df_good_repeatmakser_results.to_csv(f'results/{base_name}_paired_good_spacer_repeatmasker.tsv' , sep= '\t')
+df_good_repeatmakser_results.to_csv(f'results/{base_name}/{base_name}_paired_good_spacer_repeatmasker.tsv' , sep= '\t')
 
 ###############
 
@@ -147,6 +147,6 @@ print(df_good_repeatmakser_results['gained_y'].value_counts())
 df_good_gained_y_repeatmakser_results = df_good_repeatmakser_results[df_good_repeatmakser_results['gained_y'] == True]
 
 df_good_gained_y_repeatmakser_results.sort_values(by=['original_chr_end_anchor', 'read_id', 'match_start_on_read'], inplace=True)
-df_good_gained_y_repeatmakser_results.to_csv(f'results/{base_name}_paired_good_gained_spacer_repeatmasker.tsv' , sep= '\t')
+df_good_gained_y_repeatmakser_results.to_csv(f'results/{base_name}/{base_name}_paired_good_gained_spacer_repeatmasker.tsv' , sep= '\t')
 
 

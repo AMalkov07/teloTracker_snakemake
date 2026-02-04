@@ -15,8 +15,8 @@ strain_id = sys.argv[3]
 
 print(f'Opening {file_name}...')
 
-repeatmasker_results_dir = f'{file_name}/read_repeatmasker_results/'
-repeatmasker_results_dir_list = os.listdir(f'{file_name}/read_repeatmasker_results/')
+repeatmasker_results_dir = f'results/{file_name}/read_repeatmasker_results/'
+repeatmasker_results_dir_list = os.listdir(f'results/{file_name}/read_repeatmasker_results/')
 
 all_results_files = [f'{repeatmasker_results_dir}/{f}' for f in repeatmasker_results_dir_list if f.startswith('dorado') and f.endswith('results.ssv')]
 
@@ -143,7 +143,7 @@ def its_annotation(chr_end):
     
 df_all_repeatmakser_results['ITS_length'] = df_all_repeatmakser_results['chr_end'].apply(lambda x: its_annotation(x))
 
-df_all_repeatmakser_results.to_csv(f'{file_name}_repeatmasker.tsv', sep='\t')
+df_all_repeatmakser_results.to_csv(f'results/{file_name}/{file_name}_repeatmasker.tsv', sep='\t')
 
 
 # Get the previous master tsv results into a dataframe
@@ -157,7 +157,7 @@ df_filter = df_filter[df_filter['Adapter_After_Telomere'] == True]
 
 df_combined_repeatmakser_results = df_all_repeatmakser_results.merge(df_filter, left_on='read_id', right_on='read_id', how='inner', suffixes=(None, '_filter'))
 
-df_combined_repeatmakser_results.to_csv(f'{file_name}_combined_repeatmasker.tsv', sep='\t')
+df_combined_repeatmakser_results.to_csv(f'results/{file_name}/{file_name}_combined_repeatmasker.tsv', sep='\t')
 
 
 ##########################   Filter and analyze below only the reads that gained Y's   ##########################
@@ -244,7 +244,7 @@ df_gained_y_combined_repeatmakser_results["y_prime_color_multiplier"] = df_gaine
 
 # Saves to .tsv and prints the gained Y' dataframe with all the new columns 
 
-df_gained_y_combined_repeatmakser_results.to_csv(f'{file_name}_gained_y_repeatmasker.tsv', sep='\t')
+df_gained_y_combined_repeatmakser_results.to_csv(f'results/{file_name}/{file_name}_gained_y_repeatmasker.tsv', sep='\t')
 
 ###########   Get Total Reads sequenced   ###########
 

@@ -60,7 +60,7 @@ for file_name in input_base_name:
 
     print(df_all_repeatmakser_results)
 
-    df_all_repeatmakser_results.to_csv(f'results/{file_name}_repeatmasker.tsv' , sep= '\t')
+    df_all_repeatmakser_results.to_csv(f'results/{file_name}/{file_name}_repeatmasker.tsv' , sep= '\t')
 
     ###############
 
@@ -93,7 +93,7 @@ for file_name in input_base_name:
     print(df_all_repeatmakser_results['good_ends'].value_counts())
     
     df_good_end_y_repeatmakser_results = df_all_repeatmakser_results[df_all_repeatmakser_results['good_ends'] == True]
-    df_good_end_y_repeatmakser_results.to_csv(f'results/{file_name}_good_end_y_repeatmasker.tsv' , sep= '\t')
+    df_good_end_y_repeatmakser_results.to_csv(f'results/{file_name}/{file_name}_good_end_y_repeatmasker.tsv' , sep= '\t')
     
     
     ######
@@ -109,4 +109,4 @@ for file_name in input_base_name:
     print(df_all_repeatmakser_results['gained_y'].value_counts())
     
     df_gained_y_repeatmakser_results = df_all_repeatmakser_results[df_all_repeatmakser_results['gained_y'] == True]
-    df_gained_y_repeatmakser_results.to_csv(f'results/{file_name}_gained_y_repeatmasker.tsv' , sep= '\t')
+    df_gained_y_repeatmakser_results.to_csv(f'results/{file_name}/{file_name}_gained_y_repeatmasker.tsv' , sep= '\t')

@@ -79,7 +79,7 @@ for base_name in input_base_name:
 
     #continue
 
-    df_file = f'results/{base_name}_good_end_y_repeatmasker.tsv'
+    df_file = f'results/{base_name}/{base_name}_good_end_y_repeatmasker.tsv'
 
     strain_id = f'{base_name.split("dorado_")[1]}'
     strain_id = f'{strain_id.split("_day")[0]}'
@@ -88,7 +88,7 @@ for base_name in input_base_name:
 
     df_input = pd.read_csv(f'results/outputs/{base_name}_post_y_prime_probe.tsv', sep='\t')
 
-    output_file = f'results/{base_name}_y_prime_recombination.tsv'
+    output_file = f'results/{base_name}/{base_name}_y_prime_recombination.tsv'
 
     df_input = df_input.dropna(subset=["repeat_length"])
     df_input = df_input[df_input['Adapter_After_Telomere'] == True]
@@ -328,7 +328,7 @@ for base_name in input_base_name:
 
 #df_combined.to_csv('wt_day3_and_day4_y_prime_recombination.tsv', sep='\t', index=False)
 
-df_final = pd.read_csv(f'results/{sys.argv[1]}_y_prime_recombination.tsv', sep='\t')
+df_final = pd.read_csv(f'results/{sys.argv[1]}/{sys.argv[1]}_y_prime_recombination.tsv', sep='\t')
 
 total_reads = len(df_final)
 print(f'Total Reads: {total_reads}\n\n')
