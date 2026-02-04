@@ -14,14 +14,14 @@ set -o pipefail  # Exit on pipe failure
 # Configuration - Edit these values for your reference
 # ============================================================================
 
-BASE_NAME="dorado_7302_day0_PromethION_no_tag_yes_rejection"
-STRAIN_ID="7302"
+BASE_NAME="dorado_7172_day0_PromethION_no_tag_yes_rejection"
+STRAIN_ID="7172"
 
 # Input: Reference FASTA file
-#REFERENCE_DIR="results/${BASE_NAME}/assembly_${STRAIN_ID}"
-REFERENCE_DIR="labeling_test"
-#REFERENCE_FASTA="${REFERENCE_DIR}/assembly_${STRAIN_ID}_dorado_reference.fasta"
-REFERENCE_FASTA="${REFERENCE_DIR}/${STRAIN_ID}.fasta"
+REFERENCE_DIR="results/${BASE_NAME}/assembly_${STRAIN_ID}"
+#REFERENCE_DIR="labeling_test"
+REFERENCE_FASTA="${REFERENCE_DIR}/assembly_${STRAIN_ID}_dorado_reference.fasta"
+#REFERENCE_FASTA="${REFERENCE_DIR}/${STRAIN_ID}.fasta"
 
 # Reference sequences for labeling (from strain 6991)
 REFERENCES_DIR="/Shared/malkova_lab/Ivan/nanopore_sequencing/reference_files"
@@ -174,7 +174,7 @@ LABELED_TSV="${OUTPUT_DIR}/${PREFIX}.tsv"
 YPRIME_OUTPUT_FASTA="${OUTPUT_DIR}/extracted_yprimes_${STRAIN_ID}.fasta"
 
 if [ -f "${LABELED_TSV}" ]; then
-    python "${SCRIPTS_DIR}/extract_yprime_fasta.py" \
+    python scripts/extract_yprime_fasta.py \
         --labeled-tsv "${LABELED_TSV}" \
         --reference "${REFERENCE_FASTA}" \
         --output "${YPRIME_OUTPUT_FASTA}" \
@@ -202,7 +202,7 @@ fi
 echo "  - Y prime FASTA: ${YPRIME_OUTPUT_FASTA}"
 echo ""
 echo "Visualization tips:"
-echo "  - Load the GFF3 file in a genome browser (e.g., IGV, JBrowse)"
+echo "  - Load the GFF3 file inside a genome browser (e.g., IGV, JBrowse)"
 echo "  - Use the BED file with bedtools for region extraction"
 echo "  - Analyze the TSV file for quantitative analysis"
 echo "  - View the structure visualization for per-chromosome-end summaries"
