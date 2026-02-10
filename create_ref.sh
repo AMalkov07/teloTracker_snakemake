@@ -17,7 +17,7 @@ set -o pipefail  # Exit on pipe failure
 # ============================================================================
 
 # Required inputs
-BASE_NAME="dorado_7302_day0_PromethION_no_tag_yes_rejection"
+BASE_NAME="dorado_7302_day0_PromethION_no_tag_yes_rejection.bam"
 STRAIN_ID="7302"
 
 # Paths relative to Snakemake pipeline outputs
@@ -34,9 +34,9 @@ THREADS=56
 ###### Below does NOT need to be adjusted ######
 
 # Reference configuration
-REFERENCE="/Shared/malkova_lab/Ivan/nanopore_sequencing/reference_files/6991_only_to_anchors.fasta"
-ADAPTER_FILE="/Shared/malkova_lab/Ivan/nanopore_sequencing/offical_nanopore_adapter_seq+trunc.txt"
-SCRIPTS_DIR="/Shared/malkova_lab/Ivan/nanopore_sequencing/reference_files/scripts"
+REFERENCE="references/6991_only_to_anchors.fasta"
+ADAPTER_FILE="references/offical_nanopore_adapter_seq+trunc.txt"
+SCRIPTS_DIR="scripts"
 
 # Dorado configuration
 DORADO_MODE="docker"  # "docker" or "local"

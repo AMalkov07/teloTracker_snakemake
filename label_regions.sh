@@ -24,14 +24,14 @@ REFERENCE_FASTA="${REFERENCE_DIR}/assembly_${STRAIN_ID}_dorado_reference.fasta"
 #REFERENCE_FASTA="${REFERENCE_DIR}/${STRAIN_ID}.fasta"
 
 # Reference sequences for labeling (from strain 6991)
-REFERENCES_DIR="/Shared/malkova_lab/Ivan/nanopore_sequencing/reference_files"
+REFERENCES_DIR="references"
 ANCHORS_FASTA="${REFERENCES_DIR}/test_anchors.fasta"
 YPRIMES_FASTA="${REFERENCES_DIR}/repeatmasker_6991_all_y_primes.fasta"
 XPRIMES_FASTA="${REFERENCES_DIR}/6991_xprimes.fasta"  # X prime sequences for detection
 PROBE_FASTA="${REFERENCES_DIR}/probe.fasta"  # Y prime probe for verification
 
 # Scripts directory
-SCRIPTS_DIR="/Shared/malkova_lab/Ivan/nanopore_sequencing/reference_files/scripts"
+SCRIPTS_DIR="scripts"
 
 # Output configuration
 OUTPUT_DIR="results/${BASE_NAME}/pretelomeric_labels"
