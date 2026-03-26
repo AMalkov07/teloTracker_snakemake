@@ -17,10 +17,10 @@ strain_id = sys.argv[3]
 
 print(f'Opening {base_name}...')
 
-df_file = f'{base_name}_gained_y_repeatmasker.tsv'
-input_chr_end_read_files_dir = f'{base_name}/chr_anchor_included_individual_files/'
+df_file = f'results/{base_name}_gained_y_repeatmasker.tsv'
+input_chr_end_read_files_dir = f'results/{base_name}/chr_anchor_included_individual_files/'
 
-output_pairing_fasta_file_dir = f'{base_name}/paired_by_y_prime_reads/'
+output_pairing_fasta_file_dir = f'results/{base_name}/paired_by_y_prime_reads/'
 
 os.system(f'mkdir -p {output_pairing_fasta_file_dir}')
 
@@ -42,11 +42,7 @@ elif '7172' == strain_id: # mph1
 elif '7302' == strain_id: # mph1
     y_prime_0_ends = ['chr1L', 'chr1R', 'chr2R', 'chr3L', 'chr3R', 'chr4L', 'chr6R',
                 'chr7L','chr9R', 'chr10R', 'chr11L', 'chr11R', 'chr13R', 'chr15L']
-
-elif '7575' == strain_id: # day0
-    y_prime_0_ends = ['chr1L', 'chr1R', 'chr3L', 'chr3R', 'chr4L', 'chr6L', 'chr6R',
-                'chr7L', 'chr9R', 'chr10R', 'chr11L', 'chr11R', 'chr13R']
-
+    
 else:
     raise ValueError(f'Unknown strain_id: {strain_id}')
 

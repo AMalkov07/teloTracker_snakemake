@@ -33,6 +33,7 @@ THREADS=56
 # Reference configuration
 REFERENCE="/Shared/malkova_lab/Ivan/nanopore_sequencing/reference_files/6991_only_to_anchors.fasta"
 ADAPTER_FILE="/Shared/malkova_lab/Ivan/nanopore_sequencing/offical_nanopore_adapter_seq+trunc.txt"
+SCRIPTS_DIR="/Shared/malkova_lab/Ivan/nanopore_sequencing/reference_files/scripts"
 
 # Dorado configuration
 DORADO_MODE="docker"  # "docker" or "local"
@@ -126,7 +127,7 @@ echo "========================================================================"
 echo "Step 2: Selecting 75th percentile reads from TSV"
 echo "========================================================================"
 
-python run_subtelomere_reference_pipeline.py select_reads \
+python "${SCRIPTS_DIR}/run_subtelomere_reference_pipeline.py" select_reads \
     --input-tsv "${INPUT_TSV}" \
     --output-dir "${OUTPUT_DIR}" \
     --output-file "${SELECTED_READS_TEXT_FILE}"
@@ -142,7 +143,7 @@ echo "========================================================================"
 echo "Step 3: Extracting selected reads from trimmed FASTQ"
 echo "========================================================================"
 
-python run_subtelomere_reference_pipeline.py extract_reads \
+python "${SCRIPTS_DIR}/run_subtelomere_reference_pipeline.py" extract_reads \
     --reads-fastq "${TRIMMED_FASTQ}" \
     --read-ids-file "${SELECTED_READS_IDS_ONLY_FILE}" \
     --output-fastq "${SELECTED_FASTQ}"
@@ -174,7 +175,7 @@ echo "========================================================================"
 echo "Step 5: Extending reference using soft-clipped bases"
 echo "========================================================================"
 
-python run_subtelomere_reference_pipeline.py extend_reference \
+python "${SCRIPTS_DIR}/run_subtelomere_reference_pipeline.py" extend_reference \
     --bamfile "${INITIAL_BAM_FILE}" \
     --reference "${REFERENCE}" \
     --read-ids-file "${SELECTED_READS_IDS_ONLY_FILE}" \

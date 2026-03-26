@@ -73,7 +73,10 @@ def calculate_adjusted_pident(pident: float, alignment_length: int, query_length
     # Calculate adjusted identity using full query length
     adjusted = (matches / query_length) * 100.0
 
-    return adjusted
+    # Cap at 100% - alignment gaps can cause adjusted > 100% when
+    # alignment_length > query_length, which would incorrectly favor
+    # shorter Y prime references over longer ones
+    return min(adjusted, 100.0)
 
 
 def classify_yprime_size(length: int) -> str:
@@ -285,10 +288,32 @@ def get_quality_score(yp: Dict) -> float:
 
     Uses adjusted_pident if available and USE_ADJUSTED_IDENTITY is enabled,
     otherwise falls back to standard pident.
+
+    The adjusted_pident is ALWAYS the primary factor for selection. A higher
+    adjusted_pident will always win, regardless of alignment length.
+
+    Length is ONLY used as a tiebreaker when two Y primes have the exact same
+    adjusted_pident. In that case, the longer alignment is preferred.
+
+    The length bonus is intentionally tiny (0.00000001 per bp) so that even
+    a 10,000 bp length difference (0.0001) cannot overcome a 0.001% identity
+    difference. This ensures identity is strictly prioritized.
     """
     if USE_ADJUSTED_IDENTITY and 'adjusted_pident' in yp:
-        return yp['adjusted_pident']
-    return yp['pident']
+        base_score = yp['adjusted_pident']
+    else:
+        base_score = yp['pident']
+
+    # Add an extremely small length bonus as a tiebreaker ONLY
+    # This bonus is so small it can never affect identity-based ranking:
+    # - Maximum realistic length: 10,000 bp
+    # - Maximum bonus: 10,000 * 0.00000001 = 0.0001
+    # - Minimum identity difference that matters: 0.001% (3 decimal places)
+    # So the length bonus can ONLY matter when identities are exactly equal
+    length = yp.get('length', 0)
+    length_bonus = length * 0.00000001
+
+    return base_score + length_bonus
 
 
 def truncate_yprime(yp: Dict, truncate_start: bool, truncate_bp: int) -> Optional[Dict]:

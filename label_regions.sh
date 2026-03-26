@@ -1,7 +1,6 @@
 #!/bin/bash
-#$ -q UI-GPU
+#$ -q TELOMERE2,UI
 #$ -pe smp 56
-#$ -l gpu=true
 #$ -j y
 #$ -cwd
 
@@ -19,16 +18,20 @@ BASE_NAME="dorado_7302_day0_PromethION_no_tag_yes_rejection"
 STRAIN_ID="7302"
 
 # Input: Reference FASTA file
-#REFERENCE_DIR="results/${BASE_NAME}/assembly_${STRAIN_ID}"
-REFERENCE_DIR="labeling_test"
-#REFERENCE_FASTA="${REFERENCE_DIR}/assembly_${STRAIN_ID}_dorado_reference.fasta"
-REFERENCE_FASTA="${REFERENCE_DIR}/${STRAIN_ID}.fasta"
+REFERENCE_DIR="results/${BASE_NAME}/assembly_${STRAIN_ID}"
+#REFERENCE_DIR="labeling_test"
+REFERENCE_FASTA="${REFERENCE_DIR}/assembly_${STRAIN_ID}_dorado_reference.fasta"
+#REFERENCE_FASTA="${REFERENCE_DIR}/${STRAIN_ID}.fasta"
 
 # Reference sequences for labeling (from strain 6991)
-ANCHORS_FASTA="references/test_anchors.fasta"
-YPRIMES_FASTA="references/repeatmasker_6991_all_y_primes.fasta"
-XPRIMES_FASTA="references/6991_xprimes.fasta"  # X prime sequences for detection
-PROBE_FASTA="references/probe.fasta"  # Y prime probe for verification
+REFERENCES_DIR="references"
+ANCHORS_FASTA="${REFERENCES_DIR}/test_anchors.fasta"
+YPRIMES_FASTA="${REFERENCES_DIR}/repeatmasker_6991_all_y_primes.fasta"
+XPRIMES_FASTA="${REFERENCES_DIR}/6991_xprimes.fasta"  # X prime sequences for detection
+PROBE_FASTA="${REFERENCES_DIR}/probe.fasta"  # Y prime probe for verification
+
+# Scripts directory
+SCRIPTS_DIR="scripts"
 
 # Output configuration
 OUTPUT_DIR="results/${BASE_NAME}/pretelomeric_labels"
@@ -48,6 +51,9 @@ EVALUE=1e-5           # E-value threshold (relaxed for cross-strain)
 #   - L arm: trims A and C from feature ends until hitting T or G
 ADJUST_BOUNDARIES=true  # Set to true to trim telomeric bases from feature boundaries
 BOUNDARY_WINDOW=50      # Minimum feature size to maintain after trimming (bp)
+
+# Debugging options
+DEBUG_BOUNDARIES=false  # Set to true to enable detailed boundary adjustment debugging
 
 # ============================================================================
 # Setup
@@ -107,6 +113,7 @@ echo "Trim telomeric bases from boundaries: ${ADJUST_BOUNDARIES}"
 if [ "${ADJUST_BOUNDARIES}" = "true" ]; then
     echo "Min feature size after trimming: ${BOUNDARY_WINDOW}bp"
 fi
+echo "Debug boundary adjustments: ${DEBUG_BOUNDARIES}"
 echo ""
 
 # ============================================================================
@@ -134,7 +141,12 @@ if [ "${ADJUST_BOUNDARIES}" = "true" ]; then
     BOUNDARY_ARG="--adjust-boundaries --boundary-window ${BOUNDARY_WINDOW}"
 fi
 
-python scripts/label_pretelomeric_regions.py \
+DEBUG_ARG=""
+if [ "${DEBUG_BOUNDARIES}" = "true" ]; then
+    DEBUG_ARG="--debug-boundaries"
+fi
+
+python "${SCRIPTS_DIR}/label_pretelomeric_regions.py" \
     --reference "${REFERENCE_FASTA}" \
     --anchors "${ANCHORS_FASTA}" \
     --yprimes "${YPRIMES_FASTA}" \
@@ -146,7 +158,8 @@ python scripts/label_pretelomeric_regions.py \
     --evalue "${EVALUE}" \
     ${XPRIME_ARG} \
     ${PROBE_ARG} \
-    ${BOUNDARY_ARG}
+    ${BOUNDARY_ARG} \
+    ${DEBUG_ARG}
 
 # ============================================================================
 # Extract Y Prime Sequences to FASTA
@@ -161,7 +174,7 @@ LABELED_TSV="${OUTPUT_DIR}/${PREFIX}.tsv"
 YPRIME_OUTPUT_FASTA="${OUTPUT_DIR}/extracted_yprimes_${STRAIN_ID}.fasta"
 
 if [ -f "${LABELED_TSV}" ]; then
-    python scripts/extract_yprime_fasta.py \
+    python "${SCRIPTS_DIR}/extract_yprime_fasta.py" \
         --labeled-tsv "${LABELED_TSV}" \
         --reference "${REFERENCE_FASTA}" \
         --output "${YPRIME_OUTPUT_FASTA}" \
@@ -193,5 +206,116 @@ echo "  - Load the GFF3 file in a genome browser (e.g., IGV, JBrowse)"
 echo "  - Use the BED file with bedtools for region extraction"
 echo "  - Analyze the TSV file for quantitative analysis"
 echo "  - View the structure visualization for per-chromosome-end summaries"
+echo ""
+
+# ============================================================================
+# Create Reference Files for Pairing Analysis
+# ============================================================================
+
+echo ""
+echo "========================================================================"
+echo "Creating Reference Files for Pairing Analysis"
+echo "========================================================================"
+
+# Define paths for pairing creation
+SIMPLIFIED_BED="${OUTPUT_DIR}/${PREFIX}_simp.bed"
+EXTRACTED_YPRIMES="${OUTPUT_DIR}/extracted_yprimes_${STRAIN_ID}.fasta"
+SPACER_SEQUENCES="references/${STRAIN_ID}_50kb_chopped_up_spacer_sequences.fasta"
+X_ELEMENT_SEQUENCES="references/${STRAIN_ID}_whole_x_regions_sequences.fasta"
+
+# Verify required files exist
+if [ ! -f "${SIMPLIFIED_BED}" ]; then
+    echo "ERROR: Simplified BED file not found: ${SIMPLIFIED_BED}"
+    echo "Skipping pairing creation"
+else
+    if [ ! -f "${EXTRACTED_YPRIMES}" ]; then
+        echo "ERROR: Extracted Y primes not found: ${EXTRACTED_YPRIMES}"
+        echo "Skipping pairing creation"
+    else
+        # Step 1: Create chopped spacer sequences
+        echo ""
+        echo "Step 1: Creating chopped spacer sequences..."
+        python scripts/make_chopped_spacer_sequences.py \
+            "${STRAIN_ID}" \
+            "${SIMPLIFIED_BED}" \
+            "${REFERENCE_FASTA}" \
+            "references/" \
+            --fixed-50kb
+
+        if [ -f "${SPACER_SEQUENCES}" ]; then
+            echo "Created: ${SPACER_SEQUENCES}"
+        else
+            echo "WARNING: Spacer sequences file not created"
+        fi
+
+        # Step 2: Create X element sequences
+        echo ""
+        echo "Step 2: Creating X element sequences..."
+        python scripts/make_x_element_sequences.py \
+            "${STRAIN_ID}" \
+            "${SIMPLIFIED_BED}" \
+            "${REFERENCE_FASTA}" \
+            "references/"
+
+        if [ -f "${X_ELEMENT_SEQUENCES}" ]; then
+            echo "Created: ${X_ELEMENT_SEQUENCES}"
+        else
+            echo "WARNING: X element sequences file not created"
+        fi
+
+        # Step 3: Create spacer pairings
+        echo ""
+        echo "Step 3: Creating spacer pairings for RepeatMasker..."
+        if [ -f "${SPACER_SEQUENCES}" ]; then
+            python scripts/make_databases_of_pairings_for_spacers.py \
+                "${STRAIN_ID}" \
+                "${EXTRACTED_YPRIMES}" \
+                "${SPACER_SEQUENCES}" \
+                "references/pairings_for_spacers/"
+            echo "Created: references/pairings_for_spacers/${STRAIN_ID}_pairings/"
+        else
+            echo "WARNING: Skipping spacer pairings - spacer sequences not available"
+        fi
+
+        # Step 4: Create X element pairings
+        echo ""
+        echo "Step 4: Creating X element pairings for RepeatMasker..."
+        if [ -f "${X_ELEMENT_SEQUENCES}" ]; then
+            python scripts/make_databases_of_pairings_for_x_elements.py \
+                "${STRAIN_ID}" \
+                "${EXTRACTED_YPRIMES}" \
+                "${X_ELEMENT_SEQUENCES}" \
+                "references/pairings_for_x_element_ends/"
+            echo "Created: references/pairings_for_x_element_ends/${STRAIN_ID}_pairings/"
+        else
+            echo "WARNING: Skipping X element pairings - X element sequences not available"
+        fi
+
+        # Copy extracted Y primes to references directory for easy access
+        echo ""
+        echo "Copying extracted Y primes to references directory..."
+        cp "${EXTRACTED_YPRIMES}" "references/extracted_yprimes_${STRAIN_ID}.fasta"
+        echo "Copied: references/extracted_yprimes_${STRAIN_ID}.fasta"
+    fi
+fi
+
+# ============================================================================
+# Final Summary
+# ============================================================================
+
+echo ""
+echo "========================================================================"
+echo "Pipeline completed successfully!"
+echo "========================================================================"
+echo ""
+echo "Reference files created for strain ${STRAIN_ID}:"
+echo "  - Extracted Y primes: references/extracted_yprimes_${STRAIN_ID}.fasta"
+echo "  - Spacer sequences: references/${STRAIN_ID}_50kb_chopped_up_spacer_sequences.fasta"
+echo "  - X element sequences: references/${STRAIN_ID}_whole_x_regions_sequences.fasta"
+echo "  - Spacer pairings: references/pairings_for_spacers/${STRAIN_ID}_pairings/"
+echo "  - X element pairings: references/pairings_for_x_element_ends/${STRAIN_ID}_pairings/"
+echo ""
+echo "You can now run the telomere analysis pipeline with:"
+echo "  qsub telomere_analysis_complete.sh dorado_${STRAIN_ID}_dayX_PromethION_no_tag_yes_rejection"
 echo ""
 echo "End time: $(date)"

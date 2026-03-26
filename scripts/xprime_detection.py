@@ -348,9 +348,10 @@ def assign_xprimes_to_chr_ends(xprime_df: pd.DataFrame, chr_end_regions: Dict,
         if chr_base is None:
             continue
 
-        # Get position (midpoint of hit)
-        hit_start = min(hit['sstart'], hit['send'])
-        hit_end = max(hit['sstart'], hit['send'])
+        # Get position - use pre-converted 0-based coordinates from DataFrame
+        # (start/end are already converted from 1-based BLAST coords in parse_blast_results)
+        hit_start = hit['start']
+        hit_end = hit['end']
         hit_midpoint = (hit_start + hit_end) / 2
 
         # Determine arm based on position
@@ -368,7 +369,7 @@ def assign_xprimes_to_chr_ends(xprime_df: pd.DataFrame, chr_end_regions: Dict,
             'chr': subject_chr,
             'start': hit_start,
             'end': hit_end,
-            'strand': '+' if hit['sstart'] < hit['send'] else '-',
+            'strand': hit['strand'],  # Use pre-computed strand
             'length': hit_end - hit_start,
             'pident': hit['pident'],
             'adjusted_pident': hit['adjusted_pident'],

@@ -7,7 +7,9 @@ configfile: "config.yaml"
 # Variables from config
 BASE = config["base_name"]
 ANCHOR = config["anchor_set"]
-BAM_IN = f"{config['bam_dir']}/{BASE}.bam"
+INPUT_DIR = config['bam_dir']
+BAM_IN = f"{INPUT_DIR}/{BASE}.bam"
+FASTQ_INPUT = f"{INPUT_DIR}/{BASE}.fastq"
 FASTA_IN = f"results/{BASE}/{BASE}.fasta"
 # Use strain from config if provided, otherwise extract from base name
 STRAIN = config.get("strain", BASE.split('_')[1] if 'dorado_' in BASE else BASE.split('_')[0])
@@ -28,11 +30,14 @@ FEATURES_BED = f"{PRETELOMERIC_LABELS_DIR}/pretelomeric_regions_{STRAIN}_simp.be
 
 rule all:
     input:
+        # Outputs from y_prime_analysis rule
         f"results/{BASE}/{BASE}_post_y_prime_probe.tsv",
         f"results/{BASE}/{BASE}_stats_y_prime.txt",
         f"results/{BASE}/y_prime_blast/all_{BASE}_probe_matches.tsv",
-        directory(f"results/{BASE}/figures_for_y_primes"),
-        f"results/{BASE}/{BASE}_y_prime_recombination.tsv",
+        f"results/{BASE}/figures_for_y_primes"  # Note: removed directory() - only valid for rule outputs
+        # --- Rules below require label_regions.sh to be run first ---
+        # Uncomment after running label_regions.sh to generate extracted_yprimes_{STRAIN}.fasta
+        # f"results/{BASE}/{BASE}_y_prime_recombination.tsv",
         # X element and spacer pairing analysis - requires strain-specific reference pairings
         # Uncomment when pairings_for_x_element_ends/{STRAIN}_pairings directory is created
         # f"results/{BASE}/{BASE}_paired_x_element_ends_repeatmasker.tsv",
@@ -44,20 +49,48 @@ rule all:
         # f"results/{BASE}/{BASE}_paired_good_gained_spacer_repeatmasker.tsv"
 
 # --- STEP 0: Automatic Detection ---
-# If the FASTA doesn't exist, we create this rule to generate it from BAM.
+# If the FASTA doesn't exist, we create rules to generate it from either BAM or FASTQ.
 if not os.path.exists(FASTA_IN):
-    rule prep_from_bam:
-        input:
-            bam = BAM_IN
-        output:
-            fastq = f"results/{BASE}/{BASE}.fastq",
-            fasta = FASTA_IN
-        threads: 16
-        shell:
-            """
-            samtools fastq -@ {threads} -T '*' {input.bam} > {output.fastq}
-            seqtk seq -A {output.fastq} > {output.fasta}
-            """
+    # Check for input files in the input directory
+    bam_exists = os.path.exists(BAM_IN)
+    fastq_exists = os.path.exists(FASTQ_INPUT)
+
+    if bam_exists:
+        # BAM file found - convert BAM to FASTQ, then FASTQ to FASTA
+        rule prep_from_bam:
+            input:
+                bam = BAM_IN
+            output:
+                fastq = f"results/{BASE}/{BASE}.fastq",
+                fasta = FASTA_IN
+            threads: 16
+            shell:
+                """
+                samtools fastq -@ {threads} -T '*' {input.bam} > {output.fastq}
+                seqtk seq -A {output.fastq} > {output.fasta}
+                """
+    elif fastq_exists:
+        # FASTQ file found but no BAM - copy FASTQ and convert to FASTA
+        rule prep_from_fastq:
+            input:
+                fastq = FASTQ_INPUT
+            output:
+                fastq = f"results/{BASE}/{BASE}.fastq",
+                fasta = FASTA_IN
+            shell:
+                """
+                mkdir -p results/{BASE}
+                cp {input.fastq} {output.fastq}
+                seqtk seq -A {output.fastq} > {output.fasta}
+                """
+    else:
+        # Neither file found - raise an error
+        raise ValueError(
+            f"No input file found! Expected either:\n"
+            f"  - BAM file: {BAM_IN}\n"
+            f"  - FASTQ file: {FASTQ_INPUT}\n"
+            f"Please provide one of these input files."
+        )
 
 # New rule specifically for indexing
 rule index_fasta:
@@ -98,7 +131,7 @@ rule filter_anchors:
         all_matches = f"results/{BASE}/all_matches_{BASE}_blasted_{ANCHOR}.tsv",
         top_matches = f"results/{BASE}/top_matches_{BASE}_blasted_{ANCHOR}.tsv"
     shell:
-        "python scripts/filter_for_reads_with_anchors.py {input.tsv} {output.all_matches} {output.top_matches}"
+        "python scripts/snakemake_scripts/filter_for_reads_with_anchors.py {input.tsv} {output.all_matches} {output.top_matches}"
 
 # --- STEP 3: Split and Label ---
 rule split_and_label:
@@ -113,7 +146,7 @@ rule split_and_label:
     shell:
         """
         mkdir -p results/{BASE}/chr_anchor_included_individual_files/
-        python scripts/split_and_label_all_reads_include_anchor.py {input.tsv} {input.fasta} results/{BASE}/chr_anchor_included_individual_files/ {BASE} {ANCHOR}
+        python scripts/snakemake_scripts/split_and_label_all_reads_include_anchor.py {input.tsv} {input.fasta} results/{BASE}/chr_anchor_included_individual_files/ {BASE} {ANCHOR}
         """
 
 rule aggregate_chromosomes:
@@ -168,7 +201,7 @@ rule parse_porechop_log:
     output:
         tsv = f"results/{BASE}/{BASE}_porechopped_results.tsv"
     shell:
-        "python scripts/check_for_adapters.py {BASE} {input.log} {output.tsv}"
+        "python scripts/snakemake_scripts/check_for_adapters.py {BASE} {input.log} {output.tsv}"
 
 # --- STEP 8: Compare Callers (QC Stats) ---
 # (From compare_adapter_callers_dorado.py)
@@ -183,7 +216,7 @@ rule compare_callers:
         table = f"results/{BASE}/{BASE}_adapter_trimming_check.tsv"
     shell:
         """
-        python scripts/compare_adapter_callers_dorado.py \
+        python scripts/snakemake_scripts/compare_adapter_callers_dorado.py \
             {input.summary} \
             {input.porechop} \
             {input.blast_raw} \
@@ -217,14 +250,14 @@ rule fine_trimming:
     shell:
         """
         mkdir -p {output.trim_dir}
-        python scripts/fine_telomere_trimming.py \
+        python scripts/snakemake_scripts/fine_telomere_trimming.py \
             {input.fasta} \
             {input.adapter_info} \
             {input.best_anchor} \
             {output.main_tsv} \
             {output.trim_dir} \
             {BASE} \
-            {output.fasta_trimmed} 
+            {output.fasta_trimmed}
         """
 
 # optional
@@ -286,7 +319,7 @@ rule y_prime_analysis:
         probe_dir = f"results/{BASE}/y_prime_blast"  # Pass as parameter instead
     shell:
         """
-        python scripts/y_prime_analysis.py {params.base_name} {params.anchor_set} \
+        python scripts/snakemake_scripts/y_prime_analysis.py {params.base_name} {params.anchor_set} \
             --top-anchor-blast {input.best_anchor} \
             --telomere-repeat-results {input.telo_results} \
             --probe-blast-dir {params.probe_dir} \

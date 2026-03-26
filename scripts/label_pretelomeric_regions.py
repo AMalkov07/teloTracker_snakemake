@@ -62,6 +62,19 @@ from Bio import SeqIO
 # - Internal boundary between core and variable is preserved
 # =============================================================================
 
+# Global debug flag for boundary adjustment - set via --debug-boundaries flag
+BOUNDARY_DEBUG = False
+
+def set_boundary_debug(enabled: bool):
+    """Enable or disable boundary adjustment debugging."""
+    global BOUNDARY_DEBUG
+    BOUNDARY_DEBUG = enabled
+
+def debug_print(*args, **kwargs):
+    """Print only if boundary debugging is enabled."""
+    if BOUNDARY_DEBUG:
+        print(*args, **kwargs)
+
 def get_telomeric_bases(arm: str) -> set:
     """
     Get the bases that are considered telomeric for this arm.
@@ -79,7 +92,7 @@ def get_telomeric_bases(arm: str) -> set:
 
 
 def trim_start_boundary(ref_seq: str, current_start: int, current_end: int, arm: str,
-                        min_feature_size: int = 50) -> int:
+                        min_feature_size: int = 50, feature_name: str = "unknown") -> int:
     """
     Trim telomeric bases from start to maximize ITS.
 
@@ -92,6 +105,7 @@ def trim_start_boundary(ref_seq: str, current_start: int, current_end: int, arm:
         current_end: Current end position (0-based, exclusive)
         arm: 'L' or 'R'
         min_feature_size: Minimum feature size to maintain
+        feature_name: Name of feature being adjusted (for debugging)
 
     Returns:
         New start position
@@ -99,20 +113,42 @@ def trim_start_boundary(ref_seq: str, current_start: int, current_end: int, arm:
     telomeric = get_telomeric_bases(arm)
     new_start = current_start
 
+    debug_print(f"    [TRIM_START] {feature_name}: arm={arm}, telomeric_bases={telomeric}")
+    debug_print(f"    [TRIM_START] current_start={current_start}, current_end={current_end}")
+
+    # Show sequence context around start (10 bases before and after)
+    context_start = max(0, current_start - 10)
+    context_end = min(len(ref_seq), current_start + 10)
+    context_seq = ref_seq[context_start:context_end].upper()
+    marker_pos = current_start - context_start
+    debug_print(f"    [TRIM_START] Sequence context around start (^ marks start):")
+    debug_print(f"    [TRIM_START]   {context_seq}")
+    debug_print(f"    [TRIM_START]   {' ' * marker_pos}^")
+
     # Trim while we see telomeric bases, but keep minimum feature size
+    bases_trimmed = []
     while new_start < current_end - min_feature_size:
         base = ref_seq[new_start].upper()
         if base in telomeric:
+            bases_trimmed.append(f"{new_start}:{base}")
             new_start += 1
         else:
             # Hit a non-telomeric base - stop trimming
+            debug_print(f"    [TRIM_START] Stopped at position {new_start}: base '{base}' is non-telomeric")
             break
+
+    if bases_trimmed:
+        debug_print(f"    [TRIM_START] Trimmed {len(bases_trimmed)} bases: {bases_trimmed[:10]}{'...' if len(bases_trimmed) > 10 else ''}")
+    else:
+        debug_print(f"    [TRIM_START] No bases trimmed (first base at {current_start} is non-telomeric)")
+
+    debug_print(f"    [TRIM_START] Result: {current_start} -> {new_start} (trimmed {new_start - current_start} bp)")
 
     return new_start
 
 
 def trim_end_boundary(ref_seq: str, current_start: int, current_end: int, arm: str,
-                      min_feature_size: int = 50) -> int:
+                      min_feature_size: int = 50, feature_name: str = "unknown") -> int:
     """
     Trim telomeric bases from end to maximize ITS.
 
@@ -125,6 +161,7 @@ def trim_end_boundary(ref_seq: str, current_start: int, current_end: int, arm: s
         current_end: Current end position (0-based, exclusive)
         arm: 'L' or 'R'
         min_feature_size: Minimum feature size to maintain
+        feature_name: Name of feature being adjusted (for debugging)
 
     Returns:
         New end position
@@ -132,20 +169,42 @@ def trim_end_boundary(ref_seq: str, current_start: int, current_end: int, arm: s
     telomeric = get_telomeric_bases(arm)
     new_end = current_end
 
+    debug_print(f"    [TRIM_END] {feature_name}: arm={arm}, telomeric_bases={telomeric}")
+    debug_print(f"    [TRIM_END] current_start={current_start}, current_end={current_end}")
+
+    # Show sequence context around end (10 bases before and after)
+    context_start = max(0, current_end - 10)
+    context_end = min(len(ref_seq), current_end + 10)
+    context_seq = ref_seq[context_start:context_end].upper()
+    marker_pos = current_end - context_start
+    debug_print(f"    [TRIM_END] Sequence context around end (^ marks end):")
+    debug_print(f"    [TRIM_END]   {context_seq}")
+    debug_print(f"    [TRIM_END]   {' ' * marker_pos}^")
+
     # Trim while we see telomeric bases, but keep minimum feature size
+    bases_trimmed = []
     while new_end > current_start + min_feature_size:
         base = ref_seq[new_end - 1].upper()
         if base in telomeric:
+            bases_trimmed.append(f"{new_end - 1}:{base}")
             new_end -= 1
         else:
             # Hit a non-telomeric base - stop trimming
+            debug_print(f"    [TRIM_END] Stopped at position {new_end}: base '{base}' at {new_end - 1} is non-telomeric")
             break
+
+    if bases_trimmed:
+        debug_print(f"    [TRIM_END] Trimmed {len(bases_trimmed)} bases: {bases_trimmed[:10]}{'...' if len(bases_trimmed) > 10 else ''}")
+    else:
+        debug_print(f"    [TRIM_END] No bases trimmed (last base at {current_end - 1} is non-telomeric)")
+
+    debug_print(f"    [TRIM_END] Result: {current_end} -> {new_end} (trimmed {current_end - new_end} bp)")
 
     return new_end
 
 
 def expand_start_boundary(ref_seq: str, current_start: int, arm: str,
-                          max_expansion: int = 1000) -> int:
+                          max_expansion: int = 1000, feature_name: str = "unknown") -> int:
     """
     Expand start boundary outward until hitting a telomeric base.
 
@@ -154,6 +213,7 @@ def expand_start_boundary(ref_seq: str, current_start: int, arm: str,
         current_start: Current start position (0-based)
         arm: 'L' or 'R'
         max_expansion: Maximum number of bases to expand
+        feature_name: Name of feature being adjusted (for debugging)
 
     Returns:
         New start position (may be less than current_start if expanded)
@@ -161,19 +221,37 @@ def expand_start_boundary(ref_seq: str, current_start: int, arm: str,
     telomeric = get_telomeric_bases(arm)
     new_start = current_start
 
+    debug_print(f"    [EXPAND_START] {feature_name}: arm={arm}, telomeric_bases={telomeric}")
+    debug_print(f"    [EXPAND_START] current_start={current_start}, max_expansion={max_expansion}")
+
+    # Show sequence context before start (20 bases before)
+    context_start = max(0, current_start - 20)
+    context_seq = ref_seq[context_start:current_start].upper()
+    debug_print(f"    [EXPAND_START] Sequence before start: ...{context_seq}|<-feature")
+
     # Expand outward (decrease position) while we see non-telomeric bases
+    bases_expanded = []
     while new_start > 0 and (current_start - new_start) < max_expansion:
         base_before = ref_seq[new_start - 1].upper()
         if base_before in telomeric:
             # Hit a telomeric base - stop expanding
+            debug_print(f"    [EXPAND_START] Stopped at position {new_start}: base '{base_before}' at {new_start - 1} is telomeric")
             break
+        bases_expanded.append(f"{new_start - 1}:{base_before}")
         new_start -= 1
+
+    if bases_expanded:
+        debug_print(f"    [EXPAND_START] Expanded {len(bases_expanded)} bases: {bases_expanded[:10]}{'...' if len(bases_expanded) > 10 else ''}")
+    else:
+        debug_print(f"    [EXPAND_START] No expansion (base before start is telomeric)")
+
+    debug_print(f"    [EXPAND_START] Result: {current_start} -> {new_start} (expanded {current_start - new_start} bp)")
 
     return new_start
 
 
 def expand_end_boundary(ref_seq: str, current_end: int, arm: str,
-                        max_expansion: int = 1000) -> int:
+                        max_expansion: int = 1000, feature_name: str = "unknown") -> int:
     """
     Expand end boundary outward until hitting a telomeric base.
 
@@ -182,6 +260,7 @@ def expand_end_boundary(ref_seq: str, current_end: int, arm: str,
         current_end: Current end position (0-based, exclusive)
         arm: 'L' or 'R'
         max_expansion: Maximum number of bases to expand
+        feature_name: Name of feature being adjusted (for debugging)
 
     Returns:
         New end position (may be greater than current_end if expanded)
@@ -190,19 +269,38 @@ def expand_end_boundary(ref_seq: str, current_end: int, arm: str,
     chr_len = len(ref_seq)
     new_end = current_end
 
+    debug_print(f"    [EXPAND_END] {feature_name}: arm={arm}, telomeric_bases={telomeric}")
+    debug_print(f"    [EXPAND_END] current_end={current_end}, max_expansion={max_expansion}")
+
+    # Show sequence context after end (20 bases after)
+    context_end = min(chr_len, current_end + 20)
+    context_seq = ref_seq[current_end:context_end].upper()
+    debug_print(f"    [EXPAND_END] Sequence after end: feature->|{context_seq}...")
+
     # Expand outward (increase position) while we see non-telomeric bases
+    bases_expanded = []
     while new_end < chr_len and (new_end - current_end) < max_expansion:
         base_after = ref_seq[new_end].upper()
         if base_after in telomeric:
             # Hit a telomeric base - stop expanding
+            debug_print(f"    [EXPAND_END] Stopped at position {new_end}: base '{base_after}' is telomeric")
             break
+        bases_expanded.append(f"{new_end}:{base_after}")
         new_end += 1
+
+    if bases_expanded:
+        debug_print(f"    [EXPAND_END] Expanded {len(bases_expanded)} bases: {bases_expanded[:10]}{'...' if len(bases_expanded) > 10 else ''}")
+    else:
+        debug_print(f"    [EXPAND_END] No expansion (base after end is telomeric)")
+
+    debug_print(f"    [EXPAND_END] Result: {current_end} -> {new_end} (expanded {new_end - current_end} bp)")
 
     return new_end
 
 
 def adjust_start_boundary(ref_seq: str, current_start: int, current_end: int, arm: str,
-                          min_feature_size: int = 50, max_expansion: int = 1000) -> int:
+                          min_feature_size: int = 50, max_expansion: int = 1000,
+                          feature_name: str = "unknown") -> int:
     """
     Adjust start boundary - either expand or trim to maximize ITS.
 
@@ -218,25 +316,38 @@ def adjust_start_boundary(ref_seq: str, current_start: int, current_end: int, ar
         arm: 'L' or 'R'
         min_feature_size: Minimum feature size to maintain (for trimming)
         max_expansion: Maximum bases to expand
+        feature_name: Name of feature being adjusted (for debugging)
 
     Returns:
         New start position
     """
     telomeric = get_telomeric_bases(arm)
 
+    debug_print(f"  [ADJUST_START] {feature_name}: checking base before position {current_start}")
+
     # Check the base immediately before the feature start
     if current_start > 0:
         base_before = ref_seq[current_start - 1].upper()
+        first_base_inside = ref_seq[current_start].upper() if current_start < len(ref_seq) else 'N'
+        debug_print(f"  [ADJUST_START] Base BEFORE feature (pos {current_start - 1}): '{base_before}' - {'TELOMERIC' if base_before in telomeric else 'non-telomeric'}")
+        debug_print(f"  [ADJUST_START] First base INSIDE feature (pos {current_start}): '{first_base_inside}' - {'TELOMERIC' if first_base_inside in telomeric else 'non-telomeric'}")
+
         if base_before not in telomeric:
             # Non-telomeric base outside - EXPAND
-            return expand_start_boundary(ref_seq, current_start, arm, max_expansion)
+            debug_print(f"  [ADJUST_START] Decision: EXPAND (base before is non-telomeric)")
+            return expand_start_boundary(ref_seq, current_start, arm, max_expansion, feature_name)
+        else:
+            debug_print(f"  [ADJUST_START] Decision: TRIM (base before is telomeric)")
+    else:
+        debug_print(f"  [ADJUST_START] At chromosome start (position 0), will TRIM")
 
     # Telomeric base outside (or at chromosome start) - TRIM
-    return trim_start_boundary(ref_seq, current_start, current_end, arm, min_feature_size)
+    return trim_start_boundary(ref_seq, current_start, current_end, arm, min_feature_size, feature_name)
 
 
 def adjust_end_boundary(ref_seq: str, current_start: int, current_end: int, arm: str,
-                        min_feature_size: int = 50, max_expansion: int = 1000) -> int:
+                        min_feature_size: int = 50, max_expansion: int = 1000,
+                        feature_name: str = "unknown") -> int:
     """
     Adjust end boundary - either expand or trim to maximize ITS.
 
@@ -252,6 +363,7 @@ def adjust_end_boundary(ref_seq: str, current_start: int, current_end: int, arm:
         arm: 'L' or 'R'
         min_feature_size: Minimum feature size to maintain (for trimming)
         max_expansion: Maximum bases to expand
+        feature_name: Name of feature being adjusted (for debugging)
 
     Returns:
         New end position
@@ -259,15 +371,26 @@ def adjust_end_boundary(ref_seq: str, current_start: int, current_end: int, arm:
     telomeric = get_telomeric_bases(arm)
     chr_len = len(ref_seq)
 
+    debug_print(f"  [ADJUST_END] {feature_name}: checking base after position {current_end}")
+
     # Check the base immediately after the feature end
     if current_end < chr_len:
         base_after = ref_seq[current_end].upper()
+        last_base_inside = ref_seq[current_end - 1].upper() if current_end > 0 else 'N'
+        debug_print(f"  [ADJUST_END] Last base INSIDE feature (pos {current_end - 1}): '{last_base_inside}' - {'TELOMERIC' if last_base_inside in telomeric else 'non-telomeric'}")
+        debug_print(f"  [ADJUST_END] Base AFTER feature (pos {current_end}): '{base_after}' - {'TELOMERIC' if base_after in telomeric else 'non-telomeric'}")
+
         if base_after not in telomeric:
             # Non-telomeric base outside - EXPAND
-            return expand_end_boundary(ref_seq, current_end, arm, max_expansion)
+            debug_print(f"  [ADJUST_END] Decision: EXPAND (base after is non-telomeric)")
+            return expand_end_boundary(ref_seq, current_end, arm, max_expansion, feature_name)
+        else:
+            debug_print(f"  [ADJUST_END] Decision: TRIM (base after is telomeric)")
+    else:
+        debug_print(f"  [ADJUST_END] At chromosome end, will TRIM")
 
     # Telomeric base outside (or at chromosome end) - TRIM
-    return trim_end_boundary(ref_seq, current_start, current_end, arm, min_feature_size)
+    return trim_end_boundary(ref_seq, current_start, current_end, arm, min_feature_size, feature_name)
 
 
 def adjust_feature_boundaries_for_chr_end(ref_seq: str, features: list, arm: str,
@@ -306,19 +429,54 @@ def adjust_feature_boundaries_for_chr_end(ref_seq: str, features: list, arm: str
         current_start = feature['start']
         current_end = feature['end']
 
+        # Get feature name for debugging
+        feature_name = feature.get('source', feature.get('_type', 'unknown'))
+        feature_type = feature.get('_type', feature.get('type', 'unknown'))
+
+        debug_print(f"\n[BOUNDARY_ADJUST] Processing {feature_type}: {feature_name}")
+        debug_print(f"[BOUNDARY_ADJUST] Original coords: {current_start}-{current_end} ({current_end - current_start} bp)")
+
+        # Debug: Print first 30 bases of the feature region to verify reference sequence
+        if BOUNDARY_DEBUG and 'xprime' in feature_name.lower():
+            # Show what's BEFORE the feature (should be telomeric for proper boundary)
+            before_start = max(0, current_start - 50)
+            before_seq = ref_seq[before_start:current_start].upper()
+            debug_print(f"[BOUNDARY_ADJUST] 50bp BEFORE feature ({before_start}-{current_start}): {before_seq}")
+
+            # Show first 50 bases of the feature
+            seq_preview = ref_seq[current_start:min(current_start+50, current_end)].upper()
+            debug_print(f"[BOUNDARY_ADJUST] First 50bp OF feature ({current_start}-{current_start+50}): {seq_preview}")
+
+            # Show the specific bases at key positions
+            debug_print(f"[BOUNDARY_ADJUST] Base at position {current_start} (feature start): '{ref_seq[current_start].upper()}'")
+            if current_start > 0:
+                debug_print(f"[BOUNDARY_ADJUST] Base at position {current_start-1} (before feature): '{ref_seq[current_start-1].upper()}'")
+
+            # For minus strand X primes, also show what the expected sequence should be
+            strand = feature.get('strand', '?')
+            pident = feature.get('pident', 0)
+            debug_print(f"[BOUNDARY_ADJUST] Feature strand: {strand}, BLAST pident: {pident}")
+            if strand == '-' and pident >= 99.0:
+                debug_print(f"[BOUNDARY_ADJUST] WARNING: For {pident}% minus strand match, first base should be non-telomeric!")
+                debug_print(f"[BOUNDARY_ADJUST] Expected 'T' or 'G' at position {current_start}, got '{ref_seq[current_start].upper()}'")
+
         # Adjust start boundary (expand or trim)
         new_start = adjust_start_boundary(ref_seq, current_start, current_end, arm,
-                                          min_feature_size, max_expansion)
+                                          min_feature_size, max_expansion, feature_name)
 
         # Adjust end boundary (expand or trim)
         new_end = adjust_end_boundary(ref_seq, current_start, current_end, arm,
-                                      min_feature_size, max_expansion)
+                                      min_feature_size, max_expansion, feature_name)
 
         # Make sure we didn't over-trim (start should be less than end)
         if new_start >= new_end:
             # Adjustment would eliminate the feature - keep original
+            debug_print(f"[BOUNDARY_ADJUST] WARNING: Over-trimmed! Keeping original coords")
             new_start = current_start
             new_end = current_end
+
+        debug_print(f"[BOUNDARY_ADJUST] Final coords: {new_start}-{new_end} ({new_end - new_start} bp)")
+        debug_print(f"[BOUNDARY_ADJUST] Change: start {current_start}->{new_start} ({new_start - current_start:+d}), end {current_end}->{new_end} ({new_end - current_end:+d})")
 
         # Create adjusted feature
         adjusted_feature = feature.copy()
@@ -372,15 +530,35 @@ def adjust_all_feature_boundaries(chr_end_regions: dict, ref_sequences: dict,
     for chr_end, regions in chr_end_regions.items():
         arm = chr_end[-1]  # L or R
 
+        debug_print(f"\n{'#'*80}")
+        debug_print(f"# PROCESSING CHROMOSOME END: {chr_end} (arm={arm})")
+        debug_print(f"# Telomeric bases for {arm} arm: {get_telomeric_bases(arm)}")
+        debug_print(f"{'#'*80}")
+
         # Find reference sequence for this chromosome
         ref_seq = None
+        matched_ref_chr = None
         chr_base = chr_end[:-1]  # Remove L/R
 
         for ref_chr, seq in ref_sequences.items():
             ref_chr_clean = ref_chr.replace('_extended', '')
-            if ref_chr_clean == chr_base or ref_chr_clean.startswith(chr_base):
+            # Exact match first
+            if ref_chr_clean == chr_base:
                 ref_seq = seq
+                matched_ref_chr = ref_chr
                 break
+            # Partial match: chr_base must be followed by non-digit (e.g., chr1_7575, but NOT chr10)
+            if ref_chr_clean.startswith(chr_base):
+                next_idx = len(chr_base)
+                if next_idx >= len(ref_chr_clean) or not ref_chr_clean[next_idx].isdigit():
+                    ref_seq = seq
+                    matched_ref_chr = ref_chr
+                    break
+
+        debug_print(f"# Looking for chromosome '{chr_base}', matched: '{matched_ref_chr}'")
+        if matched_ref_chr and BOUNDARY_DEBUG:
+            debug_print(f"# Chromosome length: {len(ref_seq)} bp")
+            debug_print(f"# First 100 bases of {matched_ref_chr}: {ref_seq[:100].upper()}")
 
         if ref_seq is None:
             print(f"  Warning: Could not find reference sequence for {chr_end}")
@@ -435,6 +613,11 @@ def adjust_all_feature_boundaries(chr_end_regions: dict, ref_sequences: dict,
             variable = split_info.get('variable')
 
             if core and variable:
+                debug_print(f"\n{'='*80}")
+                debug_print(f"[XPRIME_SPLIT] Processing X prime split for {chr_end}")
+                debug_print(f"[XPRIME_SPLIT] Core: {core['start']}-{core['end']} ({core['end']-core['start']} bp)")
+                debug_print(f"[XPRIME_SPLIT] Variable: {variable['start']}-{variable['end']} ({variable['end']-variable['start']} bp)")
+
                 # Both exist - treat as one unit, only trim outer boundaries
                 # Determine which is closer to telomere vs anchor based on arm and position
                 if arm == 'L':
@@ -460,6 +643,8 @@ def adjust_all_feature_boundaries(chr_end_regions: dict, ref_sequences: dict,
                         telomere_element = 'core'
                         anchor_element = 'variable'
 
+                debug_print(f"[XPRIME_SPLIT] Arm={arm}, telomere_element={telomere_element}, anchor_element={anchor_element}")
+
                 # Get the elements
                 telo_elem = split_info[telomere_element].copy()
                 anchor_elem = split_info[anchor_element].copy()
@@ -471,16 +656,24 @@ def adjust_all_feature_boundaries(chr_end_regions: dict, ref_sequences: dict,
                 if arm == 'L':
                     # L arm: telomere at low coords
                     # Adjust START of telomere element (faces telomere)
+                    debug_print(f"\n[XPRIME_SPLIT] Adjusting START boundary of {telomere_element} (telomere-facing)")
+                    orig_telo_start = telo_elem['start']
                     new_telo_start = adjust_start_boundary(
-                        ref_seq, telo_elem['start'], telo_elem['end'], arm, min_feature_size
+                        ref_seq, telo_elem['start'], telo_elem['end'], arm, min_feature_size,
+                        feature_name=f"{chr_end}_x_{telomere_element}"
                     )
                     telo_elem['start'] = new_telo_start
+                    debug_print(f"[XPRIME_SPLIT] {telomere_element} start: {orig_telo_start} -> {new_telo_start} ({new_telo_start - orig_telo_start:+d} bp)")
 
                     # Adjust END of anchor element (faces anchor direction)
+                    debug_print(f"\n[XPRIME_SPLIT] Adjusting END boundary of {anchor_element} (anchor-facing)")
+                    orig_anchor_end = anchor_elem['end']
                     new_anchor_end = adjust_end_boundary(
-                        ref_seq, anchor_elem['start'], anchor_elem['end'], arm, min_feature_size
+                        ref_seq, anchor_elem['start'], anchor_elem['end'], arm, min_feature_size,
+                        feature_name=f"{chr_end}_x_{anchor_element}"
                     )
                     anchor_elem['end'] = new_anchor_end
+                    debug_print(f"[XPRIME_SPLIT] {anchor_element} end: {orig_anchor_end} -> {new_anchor_end} ({new_anchor_end - orig_anchor_end:+d} bp)")
 
                     # Ensure they remain adjacent: anchor element starts where telomere element ends
                     # The internal boundary should match
@@ -493,16 +686,24 @@ def adjust_all_feature_boundaries(chr_end_regions: dict, ref_sequences: dict,
                 else:
                     # R arm: telomere at high coords
                     # Adjust END of telomere element (faces telomere)
+                    debug_print(f"\n[XPRIME_SPLIT] Adjusting END boundary of {telomere_element} (telomere-facing)")
+                    orig_telo_end = telo_elem['end']
                     new_telo_end = adjust_end_boundary(
-                        ref_seq, telo_elem['start'], telo_elem['end'], arm, min_feature_size
+                        ref_seq, telo_elem['start'], telo_elem['end'], arm, min_feature_size,
+                        feature_name=f"{chr_end}_x_{telomere_element}"
                     )
                     telo_elem['end'] = new_telo_end
+                    debug_print(f"[XPRIME_SPLIT] {telomere_element} end: {orig_telo_end} -> {new_telo_end} ({new_telo_end - orig_telo_end:+d} bp)")
 
                     # Adjust START of anchor element (faces anchor direction)
+                    debug_print(f"\n[XPRIME_SPLIT] Adjusting START boundary of {anchor_element} (anchor-facing)")
+                    orig_anchor_start = anchor_elem['start']
                     new_anchor_start = adjust_start_boundary(
-                        ref_seq, anchor_elem['start'], anchor_elem['end'], arm, min_feature_size
+                        ref_seq, anchor_elem['start'], anchor_elem['end'], arm, min_feature_size,
+                        feature_name=f"{chr_end}_x_{anchor_element}"
                     )
                     anchor_elem['start'] = new_anchor_start
+                    debug_print(f"[XPRIME_SPLIT] {anchor_element} start: {orig_anchor_start} -> {new_anchor_start} ({new_anchor_start - orig_anchor_start:+d} bp)")
 
                     # Ensure they remain adjacent: telomere element starts where anchor element ends
                     if telomere_element == 'variable':
@@ -738,9 +939,12 @@ def parse_blast_results(blast_file, min_pident=80, min_length=100):
     df['subject_coverage'] = (df['length'] / df['slen']) * 100
 
     # Ensure proper strand orientation (start < end)
+    # IMPORTANT: BLAST coordinates are 1-based inclusive, convert to 0-based half-open [start, end)
+    # - Start: subtract 1 to convert from 1-based to 0-based
+    # - End: keep as-is (1-based inclusive end = 0-based exclusive end)
     df['strand'] = df.apply(lambda row: '+' if row['sstart'] < row['send'] else '-', axis=1)
-    df['start'] = df[['sstart', 'send']].min(axis=1)
-    df['end'] = df[['sstart', 'send']].max(axis=1)
+    df['start'] = df[['sstart', 'send']].min(axis=1) - 1  # Convert to 0-based
+    df['end'] = df[['sstart', 'send']].max(axis=1)        # Already correct for half-open
 
     return df
 
@@ -1184,11 +1388,11 @@ def write_bed_simplified(chr_end_regions, output_file, chr_end_xprime_split=None
                         write_start = region['start'] + 1
                     elif region_type == 'x_prime':
                         name = f"{chr_end}_x_prime"
-                        write_start = region['start']
+                        write_start = region['start'] + 1
                     else:
-                        # Anchors: keep start as-is (already correct)
+                        # Anchors: increment start by 1 for 1-based output (to match reference convention)
                         name = f"{chr_end}_{region_type}"
-                        write_start = region['start']
+                        write_start = region['start'] + 1
 
                     # Length calculation: end - start + 1 for 1-based inclusive
                     length = region['end'] - write_start + 1
@@ -1264,15 +1468,17 @@ def write_bed_simplified(chr_end_regions, output_file, chr_end_xprime_split=None
                     # L arm: telomere at low coordinates, anchor closer to middle
                     # Structure: TELO---[Y']---[X_var]---[X_core]---[space]---[ANCHOR]---middle
                     # Space is between X prime end (core end) and anchor start
+                    # Note: internal end is 1-based inclusive, internal start is 0-based
+                    # For 1-based inclusive output: end+1 = next position, 0-based start = position before next feature
                     space_start = xprime_end + 1
-                    space_end = anchor_start - 1
+                    space_end = anchor_start  # 0-based start = 1-based position before anchor
                     strand = '+'
                 else:
                     # R arm: telomere at high coordinates, anchor closer to middle
                     # Structure: middle---[ANCHOR]---[space]---[X_core]---[X_var]---[Y']---TELO
                     # Space is between anchor end and X prime start (core start)
                     space_start = anchor_end + 1
-                    space_end = xprime_start - 1
+                    space_end = xprime_start  # 0-based start = 1-based position before xprime
                     strand = '+'
 
                 # Only write if there's actually a gap (space_end > space_start)
@@ -1305,11 +1511,13 @@ def write_bed_simplified(chr_end_regions, output_file, chr_end_xprime_split=None
                     # R arm: telomere at high coordinates
                     # Structure: x_var -> ITS_0-1 -> Y_Prime_1 -> ITS_1-2 -> Y_Prime_2 -> ... -> telomere
                     # Y_Prime_1 is at lowest coordinate (first in sorted list)
+                    # Note: internal end is 1-based inclusive, internal start is 0-based
+                    # For 1-based inclusive output: end+1 = next position, 0-based start = position before next feature
 
                     # ITS_0-1: between x_variable end and Y_Prime_1 start
                     if x_var_end is not None and sorted_yprimes:
                         its_start = x_var_end + 1
-                        its_end = sorted_yprimes[0]['start'] - 1
+                        its_end = sorted_yprimes[0]['start']  # 0-based start = 1-based position before Y prime
                         if its_end >= its_start:
                             its_length = its_end - its_start + 1
                             its_name = f"ITS_{chr_end}_Y_Prime_0-1"
@@ -1319,7 +1527,7 @@ def write_bed_simplified(chr_end_regions, output_file, chr_end_xprime_split=None
                     # ITS between consecutive Y primes
                     for i in range(len(sorted_yprimes) - 1):
                         its_start = sorted_yprimes[i]['end'] + 1
-                        its_end = sorted_yprimes[i + 1]['start'] - 1
+                        its_end = sorted_yprimes[i + 1]['start']  # 0-based start = 1-based position before next Y prime
                         if its_end >= its_start:
                             its_length = its_end - its_start + 1
                             # Y_Prime numbers: i+1 and i+2 (since first Y prime is Y_Prime_1)
@@ -1332,6 +1540,8 @@ def write_bed_simplified(chr_end_regions, output_file, chr_end_xprime_split=None
                     # Structure: telomere -> Y_Prime_N -> ITS_(N-1)-N -> ... -> Y_Prime_1 -> ITS_0-1 -> x_var
                     # Y_Prime_1 is at highest coordinate (last in sorted list)
                     # Numbering is reversed: sorted_yprimes[0] = Y_Prime_N, sorted_yprimes[-1] = Y_Prime_1
+                    # Note: internal end is 1-based inclusive, internal start is 0-based
+                    # For 1-based inclusive output: end+1 = next position, 0-based start = position before next feature
 
                     n_yprimes = len(sorted_yprimes)
 
@@ -1339,7 +1549,7 @@ def write_bed_simplified(chr_end_regions, output_file, chr_end_xprime_split=None
                     if x_var_start is not None and sorted_yprimes:
                         # Y_Prime_1 is the last in sorted list (highest coordinate)
                         its_start = sorted_yprimes[-1]['end'] + 1
-                        its_end = x_var_start - 1
+                        its_end = x_var_start  # 0-based start = 1-based position before x_var
                         if its_end >= its_start:
                             its_length = its_end - its_start + 1
                             its_name = f"ITS_{chr_end}_Y_Prime_0-1"
@@ -1349,7 +1559,7 @@ def write_bed_simplified(chr_end_regions, output_file, chr_end_xprime_split=None
                     # ITS between consecutive Y primes (in coordinate order, but named by Y prime numbers)
                     for i in range(len(sorted_yprimes) - 1):
                         its_start = sorted_yprimes[i]['end'] + 1
-                        its_end = sorted_yprimes[i + 1]['start'] - 1
+                        its_end = sorted_yprimes[i + 1]['start']  # 0-based start = 1-based position before next Y prime
                         if its_end >= its_start:
                             its_length = its_end - its_start + 1
                             # For L arm, Y prime numbering is reversed:
@@ -1563,8 +1773,21 @@ def main():
         default=50,
         help='Minimum feature size to maintain after boundary trimming (default: 50bp)'
     )
+    parser.add_argument(
+        '--debug-boundaries',
+        action='store_true',
+        help='Enable detailed debugging output for boundary adjustment. Shows base-by-base decisions for expand/trim operations.'
+    )
 
     args = parser.parse_args()
+
+    # Set boundary debugging if requested
+    if args.debug_boundaries:
+        set_boundary_debug(True)
+        print("=" * 80)
+        print("BOUNDARY ADJUSTMENT DEBUGGING ENABLED")
+        print("=" * 80)
+        print()
 
     # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
@@ -1836,6 +2059,8 @@ def main():
         # Load reference sequences
         ref_sequences = load_reference_sequences(args.reference)
         print(f"         - Loaded {len(ref_sequences)} chromosome sequences")
+        if args.debug_boundaries:
+            print(f"         - Chromosome names in reference: {sorted(ref_sequences.keys())}")
 
         # Adjust boundaries - trim telomeric bases from feature ends
         chr_end_regions, chr_end_xprime_split = adjust_all_feature_boundaries(

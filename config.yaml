@@ -1,16 +1,20 @@
 # config.yaml
-base_name: "dorado_fast5_7575_day0_PromethION_no_tag_yes_rejection"
-anchor_set: "test_anchors"
-adapter_seq_file: "offical_nanopore_adapter_seq+trunc.txt"
-bam_dir: "../samples_dorado_basecalled2"
-strain: "7575"  # Use 7575 strain references
+base_name: "dorado_7302_day3_PromethION_no_tag_yes_rejection"
+day0_base_name: "dorado_7302_day0_PromethION_no_tag_yes_rejection"
+anchor_set: "telomerase_shutoff_anchors"
+bam_dir: "samples_dorado_basecalled"
+strain: "7302"
+
+# BLAST parameter
+min_raw_gapped_score: 5000
 
 # Paths to references
 references:
-  anchors: "references/test_anchors.fasta"
-  adapters: "references/offical_nanopore_adapter_seq+trunc.txt"
-  probe: "references/probe.fasta"
+  anchors: "references/telomerase_shutoff_anchors.fasta"
+  adapters: "references/nanopore_sqk-slk114_adapter_sequence_truncated.txt"
+  probe: "references/y_prime_probe.fasta"
 
-  repeatmasker_y_primes: "references/repeatmasker_{strain}_all_y_primes.fasta"
-  x_element_pairings_dir: "references/pairings_for_x_element_ends/{strain}_pairings"
-  spacer_pairings_dir: "references/pairings_for_spacers/{strain}_pairings"
+  # Strain-specific (used by recombination steps 10-12)
+  y_prime_lib: "references/extracted_yprimes_{strain}.fasta"
+  spacer_lib_dir: "references/pairings_for_spacers/{strain}_pairings"
+  x_element_lib_dir: "references/pairings_for_x_element_ends/{strain}_pairings"

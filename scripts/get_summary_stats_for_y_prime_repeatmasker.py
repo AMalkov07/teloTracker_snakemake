@@ -15,8 +15,8 @@ strain_id = sys.argv[3]
 
 print(f'Opening {file_name}...')
 
-repeatmasker_results_dir = f'{file_name}/read_repeatmasker_results/'
-repeatmasker_results_dir_list = os.listdir(f'{file_name}/read_repeatmasker_results/')
+repeatmasker_results_dir = f'results/{file_name}/read_repeatmasker_results/'
+repeatmasker_results_dir_list = os.listdir(f'results/{file_name}/read_repeatmasker_results/')
 
 all_results_files = [f'{repeatmasker_results_dir}/{f}' for f in repeatmasker_results_dir_list if f.startswith('dorado') and f.endswith('results.ssv')]
 
@@ -143,11 +143,11 @@ def its_annotation(chr_end):
     
 df_all_repeatmakser_results['ITS_length'] = df_all_repeatmakser_results['chr_end'].apply(lambda x: its_annotation(x))
 
-df_all_repeatmakser_results.to_csv(f'{file_name}_repeatmasker.tsv', sep='\t')
+df_all_repeatmakser_results.to_csv(f'results/{file_name}/{file_name}_repeatmasker.tsv', sep='\t')
 
 
 # Get the previous master tsv results into a dataframe
-filter_file = f'outputs/{file_name}_post_y_prime_probe.tsv'
+filter_file = f'results/{file_name}/{file_name}_post_y_prime_probe.tsv'
 df_filter = pd.read_csv(filter_file, sep='\t') 
 
 df_filter = df_filter.dropna(subset=["repeat_length"])
@@ -157,7 +157,7 @@ df_filter = df_filter[df_filter['Adapter_After_Telomere'] == True]
 
 df_combined_repeatmakser_results = df_all_repeatmakser_results.merge(df_filter, left_on='read_id', right_on='read_id', how='inner', suffixes=(None, '_filter'))
 
-df_combined_repeatmakser_results.to_csv(f'{file_name}_combined_repeatmasker.tsv', sep='\t')
+df_combined_repeatmakser_results.to_csv(f'results/{file_name}/{file_name}_combined_repeatmasker.tsv', sep='\t')
 
 
 ##########################   Filter and analyze below only the reads that gained Y's   ##########################
@@ -244,18 +244,18 @@ df_gained_y_combined_repeatmakser_results["y_prime_color_multiplier"] = df_gaine
 
 # Saves to .tsv and prints the gained Y' dataframe with all the new columns 
 
-df_gained_y_combined_repeatmakser_results.to_csv(f'{file_name}_gained_y_repeatmasker.tsv', sep='\t')
+df_gained_y_combined_repeatmakser_results.to_csv(f'results/{file_name}/{file_name}_gained_y_repeatmasker.tsv', sep='\t')
 
 ###########   Get Total Reads sequenced   ###########
 
 # Get the previous master tsv results into a dataframe
-all_reads_file = f'{file_name}/{file_name}_adapter_trimming_check.stats'
+all_reads_file = f'results/{file_name}/{file_name}_adapter_trimming_check.stats'
 with open(all_reads_file, 'r') as f:
     first_line = f.readline()
     sequencing_run_total_reads = int(first_line.split('\t')[1])
 
 # Get the best/top read anchor location for all reads tsv into a dataframe
-achored_file = f'{file_name}/top_matches_{file_name}_blasted_{anchor_set}.tsv'
+achored_file = f'results/{file_name}/top_matches_{file_name}_blasted_{anchor_set}.tsv'
 df_anchored = pd.read_csv(achored_file, sep='\t') 
 
 total_anchored_reads = len(df_anchored["anchor_name"])
@@ -414,7 +414,7 @@ tandem_y_prime_percentages = ((tandem_y_prime_counts / tandem_y_prime_counts.sum
 #print(tandem_y_prime_percentages)    
     
 
-with open(f'repeatmasker_summary_stats/{file_name}_repeatmasker_stats.txt', "w") as f:
+with open(f'results/{file_name}/{file_name}_repeatmasker_stats.txt', "w") as f:
     f.write(f'\t\t\tAnalysis for {file_name}\n\n')
     
     f.write(f'All ends\n')

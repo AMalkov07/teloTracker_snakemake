@@ -4,11 +4,22 @@ dorado_6991_day0_repeat2_PromethION_no_tag_yes_rejection_2/
 not_needed/
 previous_tests/
 results/
+samples_dorado_basecalled/
 samples_dorado_basecalled2/
 telomere_figures/
+TeloTracker/
+teloTracker_snakemake/
+
+# Allow day0 reference files needed by the pipeline
+!results/dorado_7302_day0_PromethION_no_tag_yes_rejection/
+!results/dorado_7302_day0_PromethION_no_tag_yes_rejection/assembly_7302/
+!results/dorado_7302_day0_PromethION_no_tag_yes_rejection/assembly_7302/assembly_7302_dorado_reference.fasta
+!results/dorado_7302_day0_PromethION_no_tag_yes_rejection/pretelomeric_labels/
+!results/dorado_7302_day0_PromethION_no_tag_yes_rejection/pretelomeric_labels/pretelomeric_regions_7302_simp.bed
 
 # Output files
 curr_snake_output.txt
+*.o[0-9]*
 
 # Snakemake working directory
 .snakemake/
