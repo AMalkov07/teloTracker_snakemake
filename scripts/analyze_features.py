@@ -415,16 +415,35 @@ def get_reference_y_prime_order(features, name_to_info):
     result = []
     for f in yp_features:
         y_id = ''
+        feat_name = f['name']
+        # Extract chr end and position from BED feature name
+        # e.g. "chr4R_Y_Prime_3" -> chr_end="chr4R", pos="3"
+        m = re.match(r'(chr\d+[LR])_Y_Prime_(\d+)', feat_name)
+        if not m:
+            result.append({'feature_name': feat_name, 'id': feat_name, 'start': f['start'], 'end': f['end']})
+            continue
+        feat_chr_end = m.group(1)  # e.g. "chr4R"
+        feat_pos = m.group(2)      # e.g. "3"
+
         for seq_name, info in name_to_info.items():
-            feat_name = f['name']
             origin = info.get('origin', '')
-            if feat_name.replace('_Y_Prime_', '') in origin or origin in feat_name:
-                y_id = info.get('id', '')
+            # origin is like "Y_Prime_chr12R2,3,4,5;chr4R1,2,3,4,6,7" or "Y_Prime_chr4R5"
+            # Parse each semicolon-separated group for chr_end + position list
+            origin_body = origin.replace('Y_Prime_', '')
+            for group in origin_body.split(';'):
+                # group is like "chr4R1,2,3,4,6,7" or "chr12R2,3,4,5"
+                gm = re.match(r'(chr\d+[LR])([\d,]+)', group)
+                if gm and gm.group(1) == feat_chr_end:
+                    positions = gm.group(2).split(',')
+                    if feat_pos in positions:
+                        y_id = info.get('id', '')
+                        break
+            if y_id:
                 break
+
         if not y_id:
-            id_match = re.search(r'(ID\d+)', f['name'])
-            y_id = id_match.group(1) if id_match else f['name']
-        result.append({'feature_name': f['name'], 'id': y_id, 'start': f['start'], 'end': f['end']})
+            y_id = feat_name  # fallback: use the full feature name
+        result.append({'feature_name': feat_name, 'id': y_id, 'start': f['start'], 'end': f['end']})
     return result
 
 
