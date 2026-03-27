@@ -311,26 +311,53 @@ def analyze_chunks(read_id, chunk_hits, expected_chr_end, feature_name):
         second_source = max(remaining, key=remaining.get)
         second_avg_identity = sum(source_identities[second_source]) / len(source_identities[second_source])
 
-    # Detect switch point: walk chunks and find where source changes
+    # Detect switch point: require MIN_CONSECUTIVE_SWITCH consecutive chunks
+    # matching a non-expected source before calling a switch.  A real
+    # recombination produces a clean split (first half = original source,
+    # second half = new source).  Isolated mismatched chunks are noise.
+    MIN_CONSECUTIVE_SWITCH = 3
     switch_chunk = -1
+    switch_source = ''
     sources_in_order = [(pos, info['source']) for pos, info in chunk_hits]
-    if len(set(s for _, s in sources_in_order)) > 1:
-        first_source = sources_in_order[0][1]
-        for i, (pos, src) in enumerate(sources_in_order):
-            if src != first_source:
-                switch_chunk = i
-                break
+
+    # Walk chunks looking for a run of MIN_CONSECUTIVE_SWITCH from a new source
+    run_start = -1
+    run_source = ''
+    run_len = 0
+    for i, (pos, src) in enumerate(sources_in_order):
+        if src != expected_chr_end:
+            if src == run_source:
+                run_len += 1
+            else:
+                run_start = i
+                run_source = src
+                run_len = 1
+            if run_len >= MIN_CONSECUTIVE_SWITCH and switch_chunk < 0:
+                switch_chunk = run_start
+                switch_source = run_source
+        else:
+            run_source = ''
+            run_len = 0
+
+    # If a switch was found, verify: majority of chunks after switch_chunk
+    # should match the new source (tolerance for noise)
+    if switch_chunk >= 0:
+        post_switch = sources_in_order[switch_chunk:]
+        n_match_new = sum(1 for _, s in post_switch if s == switch_source)
+        if n_match_new < len(post_switch) * 0.5:
+            switch_chunk = -1  # not a clean split, likely noise
+            switch_source = ''
 
     # Determine recombination status
-    all_match_expected = all(info['source'] == expected_chr_end for _, info in chunk_hits)
-    if all_match_expected:
+    most_match_expected = (source_counts.get(expected_chr_end, 0) / n_chunks) >= 0.90
+    if most_match_expected and switch_chunk < 0:
         recomb_status = 'no_change'
     elif switch_chunk >= 0:
         recomb_status = 'switch_detected'
     elif best_source != expected_chr_end:
         recomb_status = 'full_switch'
     else:
-        recomb_status = 'partial_match'
+        recomb_status = 'no_change'
 
     # Confidence: Factor 2 (separation between best and second-best)
     if second_avg_identity > 0:
@@ -589,7 +616,7 @@ def reconcile_features(spacer_result, x_element_result, y_prime_result, supp_con
             'confidence_factors': 'no_recombination',
         }
 
-    # Collect source candidates
+    # Collect source candidates (only non-self sources count)
     sources = {}
     if spacer_has_recomb and spacer_source and spacer_source != chr_end:
         sources['spacer'] = spacer_source
@@ -597,6 +624,19 @@ def reconcile_features(spacer_result, x_element_result, y_prime_result, supp_con
         sources['x_element'] = x_source
     if supp_chr_ends:
         sources['supplementary'] = supp_chr_ends[0]
+
+    # If all "recombination" signals point back to self, there is no
+    # actual recombination — the chunk analysis found noise, not a switch.
+    if not sources and not y_has_recomb:
+        return {
+            'recombination_source': '',
+            'recombination_detected': False,
+            'overall_confidence': 0.90,
+            'cross_feature_consistent': True,
+            'cross_feature_detail': 'feature_signals_match_self',
+            'is_complex_event': False,
+            'confidence_factors': 'self_source_only',
+        }
 
     unique_sources = set(sources.values())
     all_agree = len(unique_sources) <= 1
