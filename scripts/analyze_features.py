@@ -4,7 +4,7 @@ Step 11: Combined feature analysis — chunk-based recombination detection.
 For each read:
   1. Spacer chunk analysis:  250bp chunks BLASTed against combined spacer library
   2. X element chunk analysis: 250bp chunks BLASTed against combined X element library
-  3. Y prime analysis: BLAST full read against Y prime library, position-by-position comparison
+  3. Y prime analysis: RepeatMasker against Y prime library, position-by-position comparison
   4. Cross-feature reconciliation + confidence scoring
 
 All analyses run on EVERY read — no gating by alignment classification or Y prime status.
@@ -59,8 +59,6 @@ DISTINCTIVENESS = {
 COMPLEXITY_PENALTY = 0.3       # multiplied when cross-feature results are inconsistent
 PARTIAL_AGREEMENT_FACTOR = 0.7 # when features partially agree
 
-MIN_YPRIME_HIT_LEN = 500      # minimum BLAST hit length for Y prime
-MAX_YPRIME_MERGE_GAP = 500    # max gap to merge adjacent Y prime hits
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -430,66 +428,97 @@ def get_reference_y_prime_order(features, name_to_info):
     return result
 
 
-def blast_y_primes(read_seqs, y_prime_lib, tmp_dir):
-    """BLAST all reads against Y prime library. Returns per-read Y prime hits."""
+def repeatmasker_y_primes(read_seqs, y_prime_lib, tmp_dir, threads=4):
+    """Run RepeatMasker on all reads against the Y prime library.
+
+    RepeatMasker is more accurate than BLAST for Y prime ID assignment,
+    especially for Short Y primes in the same size class (e.g., ID1 vs ID4).
+
+    Returns per-read Y prime hits: {read_id: [hit_dict, ...]}
+    Each hit_dict has: read_id, y_prime_name, match_start, match_end,
+                       sw_score, divergence_pct
+    """
+    import subprocess
+
     reads_fasta = os.path.join(tmp_dir, 'all_reads.fasta')
     with open(reads_fasta, 'w') as fh:
         for read_id, seq in read_seqs.items():
             fh.write(f'>{read_id}\n{seq}\n')
 
-    blast_df = run_blast(reads_fasta, y_prime_lib, tmp_dir, label='y_prime',
-                         min_pident=80.0, evalue=1e-10)
+    rm_dir = os.path.join(tmp_dir, 'repeatmasker_y')
+    os.makedirs(rm_dir, exist_ok=True)
 
-    if blast_df.empty:
+    # Run RepeatMasker with the same parameters as the GitHub TeloTracker
+    cmd = [
+        'RepeatMasker',
+        reads_fasta,
+        '-lib', y_prime_lib,
+        '-s',                   # slow/sensitive search
+        '-pa', str(threads),
+        '--cutoff', '1000',
+        '-no_is',               # skip bacterial insertion element check
+        '-norna',               # skip RNA repeat check
+        '-dir', rm_dir,
+    ]
+    subprocess.run(cmd, check=True, capture_output=True)
+
+    # Parse the .out file
+    out_file = os.path.join(rm_dir, os.path.basename(reads_fasta) + '.out')
+    if not os.path.exists(out_file):
         return {}
 
-    # Convert to internal format
-    rows = []
-    for _, h in blast_df.iterrows():
-        rows.append({
-            'read_id': h['qseqid'],
-            'y_prime_name': h['sseqid'],
-            'match_start': min(int(h['qstart']), int(h['qend'])),
-            'match_end': max(int(h['qstart']), int(h['qend'])),
-            'bitscore': int(h['bitscore']),
-            'pident': h['pident'],
-        })
-
-    df = pd.DataFrame(rows)
-
-    # Merge adjacent hits from same Y prime
-    merged = []
-    for (rid, yname), grp in df.groupby(['read_id', 'y_prime_name']):
-        grp = grp.sort_values('match_start')
-        current = grp.iloc[0].to_dict()
-        for i in range(1, len(grp)):
-            row = grp.iloc[i]
-            if row['match_start'] - current['match_end'] <= MAX_YPRIME_MERGE_GAP:
-                current['match_end'] = row['match_end']
-                current['bitscore'] += row['bitscore']
-            else:
-                merged.append(current)
-                current = row.to_dict()
-        merged.append(current)
-
-    # Filter short hits
-    merged = [m for m in merged if m['match_end'] - m['match_start'] >= MIN_YPRIME_HIT_LEN]
-
-    # Deduplicate overlapping hits (keep best score)
     per_read = {}
-    for hit in merged:
-        per_read.setdefault(hit['read_id'], []).append(hit)
+    with open(out_file) as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith('SW') or line.startswith('-'):
+                continue
+            parts = line.split()
+            if len(parts) < 15:
+                continue
+            # RepeatMasker .out columns (0-indexed):
+            # 0:SW_score 1:div% 2:del% 3:ins% 4:read_id
+            # 5:match_start 6:match_end 7:leftover 8:strand
+            # 9:y_prime_name 10:y_prime_group
+            # 11:match_start_on_yprime 12:match_end_on_yprime
+            # 13:leftover_on_yprime 14:match_id
+            y_prime_name = parts[9]
+            if 'Y_Prime' not in y_prime_name:
+                continue
 
+            # Reconstruct the full name as used in the library FASTA headers
+            # e.g. "Y_Prime_chr8L1" + "#" + "Short/Solo/ID1_Gray"
+            y_prime_group = parts[10] if len(parts) > 10 else ''
+            full_name = f'{y_prime_name}#{y_prime_group}' if y_prime_group else y_prime_name
+
+            read_id = parts[4]
+            match_start = int(parts[5])
+            match_end = int(parts[6])
+            sw_score = int(parts[0])
+            div_pct = float(parts[1])
+
+            hit = {
+                'read_id': read_id,
+                'y_prime_name': full_name,
+                'match_start': match_start,
+                'match_end': match_end,
+                'sw_score': sw_score,
+                'divergence_pct': div_pct,
+            }
+            per_read.setdefault(read_id, []).append(hit)
+
+    # Deduplicate overlapping hits (keep best SW score)
     deduped = {}
     for rid, hits in per_read.items():
-        hits.sort(key=lambda h: h['bitscore'], reverse=True)
+        hits.sort(key=lambda h: h['sw_score'], reverse=True)
         kept = []
         for hit in hits:
             overlaps = False
             for k in kept:
                 ov_start = max(hit['match_start'], k['match_start'])
                 ov_end = min(hit['match_end'], k['match_end'])
-                if ov_end > ov_start and (ov_end - ov_start) > 0.5 * (hit['match_end'] - hit['match_start']):
+                hit_len = hit['match_end'] - hit['match_start']
+                if hit_len > 0 and ov_end > ov_start and (ov_end - ov_start) > 0.5 * hit_len:
                     overlaps = True
                     break
             if not overlaps:
@@ -765,9 +794,9 @@ def main():
         else:
             print('  No X element library found -- skipping X element analysis')
 
-        # 3. Y prime BLAST
-        print('  BLASTing reads against Y prime library...')
-        y_prime_hits = blast_y_primes(read_seqs, args.y_prime_lib, tmp_dir)
+        # 3. Y prime RepeatMasker
+        print('  Running RepeatMasker on reads against Y prime library...')
+        y_prime_hits = repeatmasker_y_primes(read_seqs, args.y_prime_lib, tmp_dir, threads=args.threads)
         n_with_yp = sum(1 for hits in y_prime_hits.values() if hits)
         print(f'  Y prime: {n_with_yp} reads with hits')
 
