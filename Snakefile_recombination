@@ -26,7 +26,9 @@ DAY0_BASE = config.get("day0_base_name", BASE)
 DAY0_REF  = f"results/{DAY0_BASE}/assembly_{STRAIN}/assembly_{STRAIN}_dorado_reference.fasta"
 DAY0_BED  = f"results/{DAY0_BASE}/pretelomeric_labels/pretelomeric_regions_{STRAIN}_simp.bed"
 
-Y_PRIME_LIB    = config["references"]["y_prime_lib"].replace("{strain}", STRAIN)
+# Use curated Y prime library override if specified, otherwise use extracted version
+Y_PRIME_LIB    = config["references"].get("y_prime_lib_override",
+                    config["references"]["y_prime_lib"].replace("{strain}", STRAIN))
 SPACER_LIB_DIR = config["references"]["spacer_lib_dir"].replace("{strain}", STRAIN)
 X_ELEM_LIB_DIR = config["references"]["x_element_lib_dir"].replace("{strain}", STRAIN)
 ANCHOR_DB      = config["references"]["anchors"]
