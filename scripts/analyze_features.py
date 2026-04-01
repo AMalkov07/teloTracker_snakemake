@@ -408,9 +408,18 @@ def build_y_prime_info(y_prime_lib_fasta):
 
 
 def get_reference_y_prime_order(features, name_to_info):
-    """Get day0 Y prime order for this chr end from BED + library info."""
+    """Get day0 Y prime order for this chr end from BED + library info.
+
+    Sort by Y_Prime position number (1, 2, 3...) from the BED feature name,
+    NOT by genomic coordinate. Y_Prime_1 is always anchor-proximal regardless
+    of strand (L-arm features are on minus strand with reversed coordinates).
+    """
     yp_features = [f for f in features if f['feature_type'] == 'y_prime']
-    yp_features.sort(key=lambda f: f['start'])
+    # Sort by the position number in the name (e.g., chr14L_Y_Prime_3 -> 3)
+    def _yp_sort_key(f):
+        m = re.search(r'_Y_Prime_(\d+)', f['name'])
+        return int(m.group(1)) if m else 0
+    yp_features.sort(key=_yp_sort_key)
 
     result = []
     for f in yp_features:
