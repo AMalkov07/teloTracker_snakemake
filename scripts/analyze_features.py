@@ -524,6 +524,7 @@ def repeatmasker_y_primes(read_seqs, y_prime_lib, tmp_dir, threads=4):
             match_end = int(parts[6])
             sw_score = int(parts[0])
             div_pct = float(parts[1])
+            match_id = parts[14] if len(parts) > 14 else ''
 
             hit = {
                 'read_id': read_id,
@@ -532,12 +533,31 @@ def repeatmasker_y_primes(read_seqs, y_prime_lib, tmp_dir, threads=4):
                 'match_end': match_end,
                 'sw_score': sw_score,
                 'divergence_pct': div_pct,
+                'match_id': match_id,
             }
             per_read.setdefault(read_id, []).append(hit)
 
-    # Deduplicate overlapping hits (keep best SW score)
-    deduped = {}
+    # Merge fragments with the same match_id (RepeatMasker splits alignments
+    # across gaps but assigns them the same match_id). The GitHub TeloTracker
+    # deduplicates by unique(y_prime_id + match_id); we merge into one hit
+    # spanning the full range.
+    merged = {}
     for rid, hits in per_read.items():
+        by_match_id = {}
+        for hit in hits:
+            mid = (hit['y_prime_name'], hit['match_id'])
+            if mid not in by_match_id:
+                by_match_id[mid] = dict(hit)
+            else:
+                existing = by_match_id[mid]
+                existing['match_start'] = min(existing['match_start'], hit['match_start'])
+                existing['match_end'] = max(existing['match_end'], hit['match_end'])
+                existing['sw_score'] = max(existing['sw_score'], hit['sw_score'])
+        merged[rid] = list(by_match_id.values())
+
+    # Deduplicate overlapping hits from different library entries (keep best SW score)
+    deduped = {}
+    for rid, hits in merged.items():
         hits.sort(key=lambda h: h['sw_score'], reverse=True)
         kept = []
         for hit in hits:
