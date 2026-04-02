@@ -77,9 +77,11 @@ def load_bed_features(bed_file, chr_end):
 def telo_side_from_strand(chr_end, strand):
     """
     Determine which end of the read the telomere is on.
-    ('L' in chr_end and strand=='AC') or ('R' in chr_end and strand=='TG') → 'beginning'
+    AC reads always have telomere at the beginning (read position 0).
+    TG reads always have telomere at the end (read position N).
+    This matches the GitHub TeloTracker convention (make_y_prime_repeatmasker_tsv.py).
     """
-    if ('L' in chr_end and strand == 'AC') or ('R' in chr_end and strand == 'TG'):
+    if strand == 'AC':
         return 'beginning'
     return 'end'
 
