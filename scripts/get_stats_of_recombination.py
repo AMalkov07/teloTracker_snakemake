@@ -1,5 +1,85 @@
+import os
 import pandas as pd
+import re
 import sys
+
+
+def build_y_prime_order_dict(y_prime_lib_fasta, labeled_bed_path):
+    """Build y_prime_order_dict dynamically from Y prime library FASTA and BED file.
+
+    For each chr_end, determines the ordered tuple of Y prime group IDs
+    (anchor-proximal to telomere-proximal) by:
+    1. Parsing library FASTA headers to map (chr_end, position) -> ID
+    2. Parsing the BED file for Y_Prime features at each chr_end
+    3. Looking up each Y prime's group ID
+
+    Returns dict: chr_end -> tuple of ID strings, or None if no Y primes.
+    """
+    # Step 1: Parse library FASTA headers to build (chr_end, position) -> ID mapping
+    pos_to_id = {}  # (chr_end, position_str) -> ID
+    with open(y_prime_lib_fasta) as f:
+        for line in f:
+            if not line.startswith('>'):
+                continue
+            header = line.strip().lstrip('>')
+            if '#' not in header:
+                continue
+            prefix, metadata = header.split('#', 1)
+            parts = metadata.split('/')
+            if len(parts) < 3:
+                continue
+            id_color = parts[2]
+            y_id = id_color.split('_', 1)[0]  # e.g., 'ID2'
+
+            # Parse locations from prefix: Y_Prime_chr4R1,2,3,6,7;chr12R6,7
+            origin_body = prefix.replace('Y_Prime_', '')
+            for group in origin_body.split(';'):
+                gm = re.match(r'(chr\d+[LR])([\d,]+)', group)
+                if gm:
+                    chr_end = gm.group(1)
+                    positions = gm.group(2).split(',')
+                    for pos in positions:
+                        pos_to_id[(chr_end, pos)] = y_id
+
+    # Step 2: Parse BED file for Y_Prime features
+    chr_end_yprimes = {}  # chr_end -> [(position_num, ID)]
+    all_chr_ends = set()
+    with open(labeled_bed_path) as f:
+        for line in f:
+            fields = line.strip().split('\t')
+            if len(fields) < 4:
+                continue
+            feat_name = fields[3]
+            m = re.match(r'(chr\d+[LR])_', feat_name)
+            if m:
+                all_chr_ends.add(m.group(1))
+            # Match Y_Prime features: e.g., chr4R_Y_Prime_3
+            m = re.match(r'(chr\d+[LR])_Y_Prime_(\d+)', feat_name)
+            if not m:
+                continue
+            chr_end = m.group(1)
+            pos_num = int(m.group(2))
+            pos_str = str(pos_num)
+
+            y_id = pos_to_id.get((chr_end, pos_str), feat_name)
+            if chr_end not in chr_end_yprimes:
+                chr_end_yprimes[chr_end] = []
+            chr_end_yprimes[chr_end].append((pos_num, y_id))
+
+    # Step 3: Build the order dict
+    all_possible = [f'chr{n}{s}' for n in range(1, 17) for s in ('L', 'R')]
+    all_chr_ends.update(all_possible)
+
+    y_prime_order_dict = {}
+    for ce in sorted(all_chr_ends):
+        if ce not in chr_end_yprimes or not chr_end_yprimes[ce]:
+            y_prime_order_dict[ce] = None
+        else:
+            sorted_yps = sorted(chr_end_yprimes[ce], key=lambda x: x[0])
+            y_prime_order_dict[ce] = tuple(y_id for _, y_id in sorted_yps)
+
+    return y_prime_order_dict
+
 
 def calculate_y_prime_change(read_id, chr_end):
 
@@ -95,116 +175,20 @@ for base_name in input_base_name:
     df_input = df_input[df_input['Adapter_After_Telomere'] == True]
 
 
-    if '6991' == strain_id: # WildType
-        y_prime_order_dict = {
-            "chr1L": None,
-            "chr1R": None,
-            "chr2L": ("ID4",),
-            "chr2R": None,
-            "chr3L": None,
-            "chr3R": None,
-            "chr4L": None,
-            "chr4R": ("ID2", "ID2", "ID2", "ID2", "ID2", "ID2", "ID2"),
-            "chr5L": ("ID6",),
-            "chr5R": ("ID1",),
-            "chr6L": ("ID4",),
-            "chr6R": None,
-            "chr7L": None,
-            "chr7R": ("ID5",),
-            "chr8L": ("ID1",),
-            "chr8R": ("ID1",),
-            "chr9L": ("ID6",),
-            "chr9R": None,
-            "chr10L": ("ID6",),
-            "chr10R": None,
-            "chr11L": None,
-            "chr11R": None,
-            "chr12L": ("ID1",),
-            "chr12R": ("ID1", "ID2", "ID2", "ID2", "ID2", "ID2", "ID2"),
-            "chr13L": ("ID1",),
-            "chr13R": None,
-            "chr14L": ("ID5", "ID2", "ID3", "ID3", "ID3"),
-            "chr14R": ("ID6",),
-            "chr15L": None,
-            "chr15R": ("ID2",),
-            "chr16L": ("ID5",),
-            "chr16R": ("ID1",)
-        }
+    # Build Y prime order dict dynamically from library FASTA + BED
+    y_prime_lib_fasta = f'references/extracted_yprimes_{strain_id}.fasta'
+    labeled_bed_path = f'results/{base_name}/pretelomeric_labels/pretelomeric_regions_{strain_id}_simp.bed'
 
-    elif '7172' == strain_id: # mph1
-        y_prime_order_dict = {
-            "chr1L": None,
-            "chr1R": None,
-            "chr2L": ("ID4",),
-            "chr2R": None,
-            "chr3L": None,
-            "chr3R": None,
-            "chr4L": None,
-            "chr4R": ("ID2", "ID2", "ID2", "ID2", "ID2", "ID2", "ID2"),
-            "chr5L": ("ID6",),
-            "chr5R": ("ID1",),
-            "chr6L": ("ID4",),
-            "chr6R": None,
-            "chr7L": None,
-            "chr7R": ("ID5",),
-            "chr8L": ("ID1",),
-            "chr8R": ("ID1",),
-            "chr9L": ("ID6",),
-            "chr9R": None,
-            "chr10L": ("ID6",),
-            "chr10R": None,
-            "chr11L": None,
-            "chr11R": None,
-            "chr12L": ("ID1",),
-            "chr12R": ("ID1", "ID2", "ID2", "ID2", "ID2", "ID2", "ID2", "ID2"),
-            "chr13L": ("ID1",),
-            "chr13R": None,
-            "chr14L": ("ID5", "ID2", "ID3"),
-            "chr14R": ("ID6",),
-            "chr15L": None,
-            "chr15R": ("ID2",),
-            "chr16L": ("ID5", "ID2", "ID2"),
-            "chr16R": ("ID1",)
-        }
+    # Fall back to 6991 reference BED if strain-specific BED not found
+    if not os.path.exists(labeled_bed_path):
+        labeled_bed_path = 'references/6991_final_features.bed'
+        print(f'  WARNING: Strain-specific BED not found, falling back to {labeled_bed_path}')
 
-    elif '7302' == strain_id: # mph1
-        y_prime_order_dict = {
-            "chr1L": None,
-            "chr1R": None,
-            "chr2L": ("ID4",),
-            "chr2R": None,
-            "chr3L": None,
-            "chr3R": None,
-            "chr4L": None,
-            "chr4R": ("ID2", "ID2", "ID2", "ID2", "ID2", "ID2", "ID2"),
-            "chr5L": ("ID6",),
-            "chr5R": ("ID1",),
-            "chr6L": ("ID4",),
-            "chr6R": None,
-            "chr7L": None,
-            "chr7R": ("ID5",),
-            "chr8L": ("ID1",),
-            "chr8R": ("ID1",),
-            "chr9L": ("ID6",),
-            "chr9R": None,
-            "chr10L": ("ID6",),
-            "chr10R": None,
-            "chr11L": None,
-            "chr11R": None,
-            "chr12L": ("ID1",),
-            "chr12R": ("ID1", "ID2", "ID2", "ID2", "ID2", "ID2"),
-            "chr13L": ("ID7", "ID2", "ID7", "ID2"),
-            "chr13R": None,
-            "chr14L": ("ID5", "ID2", "ID3", "ID3", "ID3"),
-            "chr14R": ("ID6",),
-            "chr15L": None,
-            "chr15R": ("ID2",),
-            "chr16L": ("ID5",),
-            "chr16R": ("ID1",)
-        }
+    if not os.path.exists(y_prime_lib_fasta):
+        raise FileNotFoundError(f'Y prime library not found: {y_prime_lib_fasta}')
 
-    else:
-        raise ValueError(f'Unknown strain_id: {strain_id}')
+    y_prime_order_dict = build_y_prime_order_dict(y_prime_lib_fasta, labeled_bed_path)
+    print(f'  Built Y prime order dict for {sum(1 for v in y_prime_order_dict.values() if v is not None)} chr_ends with Y primes')
 
     df_y_repeatmasker['y_prime_id_and_color'] = df_y_repeatmasker['y_prime_group'].apply(lambda x: x.split('/')[2])
     df_y_repeatmasker['y_prime_id'] = df_y_repeatmasker['y_prime_id_and_color'].apply(lambda x: x.split('_')[0])

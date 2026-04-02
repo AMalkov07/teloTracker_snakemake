@@ -8,6 +8,11 @@ strain: "7302"
 # BLAST parameter
 min_raw_gapped_score: 5000
 
+# Y prime clustering threshold (percent identity for grouping)
+# Higher values = more groups (finer resolution), but risk misassignment with ONT error
+# Lower values = fewer groups (coarser), but more reliable assignment
+yprime_identity_threshold: 97.0
+
 # Paths to references
 references:
   anchors: "references/telomerase_shutoff_anchors.fasta"

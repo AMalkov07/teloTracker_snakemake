@@ -1,0 +1,45 @@
+# pipeline_config.yaml — TeloTracker single-config file
+# Edit the values below, then run:
+#   python run_pipeline.py --config pipeline_config.yaml
+
+# ── Required ──────────────────────────────────────────────────────────────────
+
+# Base name of your day-0 sample (no file extension, no .bam)
+base_name: "dorado_7302_day0_PromethION_no_tag_yes_rejection"
+
+# Yeast strain identifier
+strain: "7302"
+
+# Directory containing input BAM/FASTQ files
+bam_dir: "samples_dorado_basecalled"
+
+# ── Dorado (required for create_ref) ─────────────────────────────────────────
+
+# "docker" uses a Singularity .sif image; "local" uses dorado from PATH
+dorado_mode: "docker"
+
+# Full path to the Dorado Singularity image (only needed when dorado_mode: docker)
+dorado_image: "/path/to/dorado.sif"
+
+# Basecaller model that was used to generate the reads
+dorado_model: "dna_r10.4.1_e8.2_400bps_sup@v5.2.0"
+
+# ── Optional / Defaults ───────────────────────────────────────────────────────
+
+threads: 56
+anchor_set: "test_anchors"
+
+# Y prime clustering: percent identity threshold for grouping
+# Y primes above this threshold are considered indistinguishable
+yprime_identity_threshold: 97.0
+
+# Uncomment to supply a custom reference FASTA for the label_regions step
+# (defaults to the output of create_ref.sh)
+# reference_fasta: "path/to/custom_reference.fasta"
+
+# ── Recombination Analysis — Step 3 ──────────────────────────────────────────
+
+# List all future time-point samples to analyze with telomere_analysis_complete.sh
+timepoint_samples:
+  - "dorado_7302_day3_PromethION_no_tag_yes_rejection"
+  - "dorado_7302_day6_PromethION_no_tag_yes_rejection"

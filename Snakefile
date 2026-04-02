@@ -387,25 +387,30 @@ rule make_y_prime_repeatmasker_tsv:
 rule get_stats_of_recombination:
     input:
         good_end_y = f"results/{BASE}/{BASE}_good_end_y_repeatmasker.tsv",
-        y_prime_probe = f"results/{BASE}/{BASE}_post_y_prime_probe.tsv"
+        y_prime_probe = f"results/{BASE}/{BASE}_post_y_prime_probe.tsv",
+        y_prime_lib = REPEATMASKER_YPRIMES_FASTA,
+        features_bed = FEATURES_BED
     output:
         recomb = f"results/{BASE}/{BASE}_y_prime_recombination.tsv"
     params:
         strain = STRAIN
     shell:
         """
-        python scripts/get_stats_of_recombination.py \
+        python scripts/snakemake/get_stats_of_recombination.py \
             {input.good_end_y} \
             {input.y_prime_probe} \
             {params.strain} \
-            {output.recomb}
+            {output.recomb} \
+            {input.y_prime_lib} \
+            {input.features_bed}
         """
 
 checkpoint make_pairings_from_y_primes_all_ends:
     input:
         good_end_y = f"results/{BASE}/{BASE}_good_end_y_repeatmasker.tsv",
         chr_reads = expand(f"results/{BASE}/chr_anchor_included_individual_files/{BASE}_blasted_{ANCHOR}_{{cs}}_anchor_reads.fasta",
-                          cs=CHROM_SIDES)
+                          cs=CHROM_SIDES),
+        y_prime_lib = REPEATMASKER_YPRIMES_FASTA
     output:
         pairings_dir = directory(f"results/{BASE}/paired_by_y_prime_reads/")
     params:
@@ -415,13 +420,14 @@ checkpoint make_pairings_from_y_primes_all_ends:
     shell:
         """
         mkdir -p {output.pairings_dir}
-        python scripts/make_pairings_from_y_primes_all_ends.py \
+        python scripts/snakemake/make_pairings_from_y_primes_all_ends.py \
             {input.good_end_y} \
             results/{params.base_name}/chr_anchor_included_individual_files/ \
             {output.pairings_dir} \
             {params.strain} \
             {params.anchor} \
-            {params.base_name}
+            {params.base_name} \
+            {input.y_prime_lib}
         """
 
 def get_pairing_names(wildcards):

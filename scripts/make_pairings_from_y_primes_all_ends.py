@@ -2,8 +2,58 @@
 
 import pandas as pd
 import os
+import re
 import sys
 from Bio import SeqIO
+
+
+def build_chr_end_first_y_prime_id_dict(y_prime_lib_fasta):
+    """Build mapping of chr_end -> first Y prime ID from library FASTA.
+
+    Parses headers like:
+        >Y_Prime_chr4R1,2,3,6,7;chr12R6,7#Long/Tandem/ID2_Red
+    For each chr_end, finds the Y prime entry that contains position 1.
+    Chr_ends with no Y primes map to None.
+    """
+    pos1_id = {}  # chr_end -> ID for position 1
+    all_chr_ends_with_yprimes = set()
+
+    with open(y_prime_lib_fasta) as f:
+        for line in f:
+            if not line.startswith('>'):
+                continue
+            header = line.strip().lstrip('>')
+            if '#' not in header:
+                continue
+            prefix, metadata = header.split('#', 1)
+            parts = metadata.split('/')
+            if len(parts) < 3:
+                continue
+            id_color = parts[2]
+            y_id = id_color.split('_', 1)[0]
+
+            origin_body = prefix.replace('Y_Prime_', '')
+            for group in origin_body.split(';'):
+                gm = re.match(r'(chr\d+[LR])([\d,]+)', group)
+                if gm:
+                    chr_end = gm.group(1)
+                    positions = gm.group(2).split(',')
+                    all_chr_ends_with_yprimes.add(chr_end)
+                    if '1' in positions:
+                        pos1_id[chr_end] = y_id
+
+    # Build full dict for all 32 chr_ends
+    result = {}
+    for n in range(1, 17):
+        for s in ('L', 'R'):
+            ce = f'chr{n}{s}'
+            result[ce] = pos1_id.get(ce, None)
+
+    # Also derive y_prime_0_ends
+    all_possible = set(f'chr{n}{s}' for n in range(1, 17) for s in ('L', 'R'))
+    y_prime_0_ends = sorted(all_possible - all_chr_ends_with_yprimes)
+
+    return result, y_prime_0_ends
 
 
 print("Starting make_pairings_from_y_primes.py")
@@ -30,77 +80,13 @@ for base_name in input_base_name:
 
     df = pd.read_csv(df_file, sep='\t')
 
+    # Build chr_end -> first Y prime ID mapping dynamically from library FASTA
+    y_prime_lib_fasta = f'references/extracted_yprimes_{strain_id}.fasta'
+    if not os.path.exists(y_prime_lib_fasta):
+        raise FileNotFoundError(f'Y prime library not found: {y_prime_lib_fasta}')
 
-    chr_end_first_y_prime_id_dict = {}
-
-    if '6991' == strain_id: # WildType
-        y_prime_0_ends = ['chr1L', 'chr1R', 'chr2R', 'chr3L', 'chr3R', 'chr4L', 'chr6R',
-                    'chr7L','chr9R', 'chr10R', 'chr11L', 'chr11R', 'chr13R', 'chr15L']
-        chr_end_first_y_prime_id_dict = {
-            'chr1L': None, 'chr1R': None,
-            'chr2L': 'ID4', 'chr2R': None,
-            'chr3L': None, 'chr3R': None,
-            'chr4L': None, 'chr4R': 'ID2',
-            'chr5L': 'ID6', 'chr5R': 'ID1',
-            'chr6L': 'ID4', 'chr6R': None,
-            'chr7L': None, 'chr7R': 'ID5',
-            'chr8L': 'ID1', 'chr8R': 'ID1',
-            'chr9L': 'ID6', 'chr9R': None,
-            'chr10L': 'ID6', 'chr10R': None,
-            'chr11L': None, 'chr11R': None,
-            'chr12L': 'ID1', 'chr12R': 'ID1',
-            'chr13L': 'ID1', 'chr13R': None,        
-            'chr14L': 'ID5', 'chr14R': 'ID6',
-            'chr15L': None, 'chr15R': 'ID2',
-            'chr16L': 'ID5', 'chr16R': 'ID1'
-            }
-        
-    elif '7172' == strain_id: # mph1
-        y_prime_0_ends = ['chr1L', 'chr1R', 'chr2R', 'chr3L', 'chr3R', 'chr4L', 'chr6R',
-                    'chr7L','chr9R', 'chr10R', 'chr11L', 'chr11R', 'chr13R', 'chr15L']
-        chr_end_first_y_prime_id_dict = {
-            'chr1L': None, 'chr1R': None,
-            'chr2L': 'ID4', 'chr2R': None,
-            'chr3L': None, 'chr3R': None,
-            'chr4L': None, 'chr4R': 'ID2',
-            'chr5L': 'ID6', 'chr5R': 'ID1',
-            'chr6L': 'ID4', 'chr6R': None,
-            'chr7L': None, 'chr7R': 'ID5',
-            'chr8L': 'ID1', 'chr8R': 'ID1',
-            'chr9L': 'ID6', 'chr9R': None,
-            'chr10L': 'ID6', 'chr10R': None,
-            'chr11L': None, 'chr11R': None,
-            'chr12L': 'ID1', 'chr12R': 'ID1',
-            'chr13L': 'ID1', 'chr13R': None,        
-            'chr14L': 'ID5', 'chr14R': 'ID6',
-            'chr15L': None, 'chr15R': 'ID2',
-            'chr16L': 'ID5', 'chr16R': 'ID1'
-            }    
-        
-    elif '7302' == strain_id: # mph1
-        y_prime_0_ends = ['chr1L', 'chr1R', 'chr2R', 'chr3L', 'chr3R', 'chr4L', 'chr6R',
-                    'chr7L','chr9R', 'chr10R', 'chr11L', 'chr11R', 'chr13R', 'chr15L']
-        chr_end_first_y_prime_id_dict = {
-            'chr1L': None, 'chr1R': None,
-            'chr2L': 'ID4', 'chr2R': None,
-            'chr3L': None, 'chr3R': None,
-            'chr4L': None, 'chr4R': 'ID2',
-            'chr5L': 'ID6', 'chr5R': 'ID1',
-            'chr6L': 'ID4', 'chr6R': None,
-            'chr7L': None, 'chr7R': 'ID5',
-            'chr8L': 'ID1', 'chr8R': 'ID1',
-            'chr9L': 'ID6', 'chr9R': None,
-            'chr10L': 'ID6', 'chr10R': None,
-            'chr11L': None, 'chr11R': None,
-            'chr12L': 'ID1', 'chr12R': 'ID1',
-            'chr13L': 'ID7', 'chr13R': None,        
-            'chr14L': 'ID5', 'chr14R': 'ID6',
-            'chr15L': None, 'chr15R': 'ID2',
-            'chr16L': 'ID5', 'chr16R': 'ID1'
-            }
-        
-    else:
-        raise ValueError(f'Unknown strain_id: {strain_id}')
+    chr_end_first_y_prime_id_dict, y_prime_0_ends = build_chr_end_first_y_prime_id_dict(y_prime_lib_fasta)
+    print(f'  Built first Y prime ID dict for {sum(1 for v in chr_end_first_y_prime_id_dict.values() if v is not None)} chr_ends')
 
     def calculate_y_prime_change(df_read):
         #print(df_read)
