@@ -124,45 +124,53 @@ def find_unique_yprimes(yprimes_df, sequences):
     """
     print("Extracting and deduplicating Y prime sequences...")
 
-    # Track Y primes per chr_end for numbering
-    chr_end_counts = defaultdict(int)
-
     # Store sequences with their metadata
     sequence_info = defaultdict(lambda: {'locations': [], 'identities': [], 'length': 0,
                                           'y_prime_id': None, 'color': None})
 
+    # Group Y primes by chr_end and assign position numbers correctly.
+    # Position 1 is always anchor-proximal. For L-arm (minus strand) chr_ends,
+    # the anchor is at high genomic coordinates, so we must sort descending.
+    # For R-arm (plus strand), the anchor is at low coordinates, so ascending.
+    chr_end_groups = defaultdict(list)
     for _, row in yprimes_df.iterrows():
-        chr_end = row['chr_end']
-        chrom = row['chr']
-        start = int(row['start'])
-        end = int(row['end'])
-        strand = row['strand']
-        length = int(row['length'])
-        pident = float(row['pident'])
+        chr_end_groups[row['chr_end']].append(row)
 
-        # Get source column to extract Y' prime ID
-        source = row.get('source', '')
+    for chr_end, rows in chr_end_groups.items():
+        # Determine arm from chr_end name (e.g., "chr13L" -> "L")
+        arm = chr_end[-1]
+        if arm == 'L':
+            # L-arm: anchor at high coordinates, position 1 = highest start
+            sorted_rows = sorted(rows, key=lambda r: int(r['start']), reverse=True)
+        else:
+            # R-arm: anchor at low coordinates, position 1 = lowest start
+            sorted_rows = sorted(rows, key=lambda r: int(r['start']))
 
-        # Increment position counter for this chr_end
-        chr_end_counts[chr_end] += 1
-        position_num = chr_end_counts[chr_end]
+        for position_num, row in enumerate(sorted_rows, start=1):
+            chrom = row['chr']
+            start = int(row['start'])
+            end = int(row['end'])
+            strand = row['strand']
+            length = int(row['length'])
+            pident = float(row['pident'])
+            source = row.get('source', '')
 
-        # Extract sequence
-        seq = extract_sequence(sequences, chrom, start, end, strand)
-        if seq is None:
-            continue
+            # Extract sequence
+            seq = extract_sequence(sequences, chrom, start, end, strand)
+            if seq is None:
+                continue
 
-        # Store with location info
-        sequence_info[seq]['locations'].append((chr_end, position_num, pident, length))
-        sequence_info[seq]['identities'].append(pident)
-        sequence_info[seq]['length'] = length
+            # Store with location info
+            sequence_info[seq]['locations'].append((chr_end, position_num, pident, length))
+            sequence_info[seq]['identities'].append(pident)
+            sequence_info[seq]['length'] = length
 
-        # Parse and store Y' prime ID from source (use first match's ID)
-        if sequence_info[seq]['y_prime_id'] is None and source:
-            y_prime_id, color = parse_yprime_id_from_source(source)
-            if y_prime_id:
-                sequence_info[seq]['y_prime_id'] = y_prime_id
-                sequence_info[seq]['color'] = color
+            # Parse and store Y' prime ID from source (use first match's ID)
+            if sequence_info[seq]['y_prime_id'] is None and source:
+                y_prime_id, color = parse_yprime_id_from_source(source)
+                if y_prime_id:
+                    sequence_info[seq]['y_prime_id'] = y_prime_id
+                    sequence_info[seq]['color'] = color
 
     # Calculate average identity for each unique sequence
     for seq in sequence_info:
