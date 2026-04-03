@@ -68,6 +68,7 @@ def parse_args():
     p = argparse.ArgumentParser(description='Combined feature analysis — chunk-based')
     p.add_argument('--reads-fasta',    required=True)
     p.add_argument('--alignment-tsv',  required=True, help='Step 10 supplementary alignment TSV')
+    p.add_argument('--anchor-tsv',     default='', help='Per-chr-end anchor BLAST TSV with match_start/end_on_read')
     p.add_argument('--day0-bed',       required=True)
     p.add_argument('--day0-ref',       default='', help='Day0 reference FASTA (for spacer quick check)')
     p.add_argument('--y-prime-lib',    required=True)
@@ -908,6 +909,25 @@ def main():
     else:
         print('  No day0 reference provided -- spacer quick check disabled')
 
+    # Load anchor positions from anchor BLAST TSV
+    anchor_info = {}  # read_id -> {'anchor_start': int, 'anchor_end': int} on chopped read
+    if args.anchor_tsv and os.path.exists(args.anchor_tsv):
+        df_anchor = pd.read_csv(args.anchor_tsv, sep='\t')
+        for _, arow in df_anchor.iterrows():
+            rid = arow['read_id']
+            anchor_len = int(arow['match_end_on_read']) - int(arow['match_start_on_read']) + 1
+            wanted = arow['wanted_section_of_read']
+            if wanted == 'after_match_end_on_read':
+                # telo_side=end: chopped = original[match_start:], anchor at start
+                anchor_info[rid] = {'anchor_start': 0, 'anchor_end': anchor_len}
+            elif wanted == 'before_match_start_on_read':
+                # telo_side=beginning: chopped = original[:match_end], anchor at end
+                chopped_len = int(arow['match_end_on_read']) - 1
+                anchor_info[rid] = {'anchor_start': chopped_len - anchor_len, 'anchor_end': chopped_len}
+        print(f'  Loaded anchor positions for {len(anchor_info)} reads')
+    else:
+        print('  No anchor TSV provided -- anchor positions unavailable')
+
     # === Per-read analysis ===
     print('  Analyzing features per read...')
     rows = []
@@ -941,11 +961,38 @@ def main():
         reconciliation = reconcile_features(
             spacer_result, x_result, y_result, supp_info.get(read_id, []), args.chr_end)
 
+        # Derive anchor and spacer positions from anchor BLAST + X element/Y prime positions
+        read_len = len(read_seqs[read_id])
+        a_info = anchor_info.get(read_id, {})
+        anchor_start = a_info.get('anchor_start', -1)
+        anchor_end = a_info.get('anchor_end', -1)
+
+        x_start = x_result.get('x_element_start', -1)
+        x_end = x_result.get('x_element_end', -1)
+        yp_start = y_result.get('y_prime_start', -1)
+        yp_end = y_result.get('y_prime_end', -1)
+
+        # Spacer is between anchor end and x_element start (or y_prime start if no x_element)
+        if telo_side == 'end':
+            # Read order: [anchor | spacer | x_element | y_prime | telomere]
+            sp_start = anchor_end if anchor_end >= 0 else 0
+            sp_end = x_start if x_start >= 0 else (yp_start if yp_start >= 0 else read_len)
+        else:
+            # Read order: [telomere | y_prime | x_element | spacer | anchor]
+            sp_start = x_end if x_end >= 0 else (yp_end if yp_end >= 0 else 0)
+            sp_end = anchor_start if anchor_start >= 0 else read_len
+
+        spacer_result['spacer_start'] = sp_start
+        spacer_result['spacer_end'] = sp_end
+        spacer_result['spacer_size'] = max(0, sp_end - sp_start)
+
         row = {
             'read_id': read_id,
             'chr_end': args.chr_end,
-            'read_length': len(read_seqs[read_id]),
+            'read_length': read_len,
             'telo_side': telo_side,
+            'anchor_start': anchor_start,
+            'anchor_end': anchor_end,
         }
         row.update(spacer_result)
         row.update(x_result)

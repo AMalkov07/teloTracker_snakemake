@@ -313,6 +313,7 @@ rule recombination_analyze:
     input:
         reads       = f"{TELO_DIR}/{BASE}_{{chr_end}}_telomere_reads.fasta",
         alignment   = f"{RECOMB_DIR}/{BASE}_{{chr_end}}_alignment.tsv",
+        anchor_tsv  = f"{CHR_DIR}/{BASE}_blasted_{ANCHOR}_{{chr_end}}_anchor_reads.tsv",
         day0_bed    = DAY0_BED,
         day0_ref    = DAY0_REF,
         y_prime_lib = Y_PRIME_LIB,
@@ -329,6 +330,7 @@ rule recombination_analyze:
         python scripts/analyze_features.py \
             --reads-fasta       {input.reads} \
             --alignment-tsv     {input.alignment} \
+            --anchor-tsv        {input.anchor_tsv} \
             --day0-bed          {input.day0_bed} \
             --day0-ref          {input.day0_ref} \
             --y-prime-lib       {input.y_prime_lib} \
