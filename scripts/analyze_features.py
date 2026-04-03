@@ -961,30 +961,28 @@ def main():
         reconciliation = reconcile_features(
             spacer_result, x_result, y_result, supp_info.get(read_id, []), args.chr_end)
 
-        # Derive anchor and spacer positions from anchor BLAST + X element/Y prime positions
+        # Anchor position from anchor BLAST
         read_len = len(read_seqs[read_id])
         a_info = anchor_info.get(read_id, {})
         anchor_start = a_info.get('anchor_start', -1)
         anchor_end = a_info.get('anchor_end', -1)
 
-        x_start = x_result.get('x_element_start', -1)
-        x_end = x_result.get('x_element_end', -1)
-        yp_start = y_result.get('y_prime_start', -1)
-        yp_end = y_result.get('y_prime_end', -1)
-
-        # Spacer is between anchor end and x_element start (or y_prime start if no x_element)
-        if telo_side == 'end':
-            # Read order: [anchor | spacer | x_element | y_prime | telomere]
-            sp_start = anchor_end if anchor_end >= 0 else 0
-            sp_end = x_start if x_start >= 0 else (yp_start if yp_start >= 0 else read_len)
-        else:
-            # Read order: [telomere | y_prime | x_element | spacer | anchor]
-            sp_start = x_end if x_end >= 0 else (yp_end if yp_end >= 0 else 0)
-            sp_end = anchor_start if anchor_start >= 0 else read_len
-
-        spacer_result['spacer_start'] = sp_start
-        spacer_result['spacer_end'] = sp_end
-        spacer_result['spacer_size'] = max(0, sp_end - sp_start)
+        # Spacer start/end/size come from analyze_chunks (BLAST hit positions).
+        # Fall back to deriving from anchor/x_element if no spacer BLAST hits.
+        if spacer_result.get('spacer_start', -1) < 0 or spacer_result.get('spacer_size', 0) == 0:
+            x_start = x_result.get('x_element_start', -1)
+            x_end = x_result.get('x_element_end', -1)
+            yp_start = y_result.get('y_prime_start', -1)
+            yp_end = y_result.get('y_prime_end', -1)
+            if telo_side == 'end':
+                sp_start = anchor_end if anchor_end >= 0 else 0
+                sp_end = x_start if x_start >= 0 else (yp_start if yp_start >= 0 else read_len)
+            else:
+                sp_start = x_end if x_end >= 0 else (yp_end if yp_end >= 0 else 0)
+                sp_end = anchor_start if anchor_start >= 0 else read_len
+            spacer_result['spacer_start'] = sp_start
+            spacer_result['spacer_end'] = sp_end
+            spacer_result['spacer_size'] = max(0, sp_end - sp_start)
 
         row = {
             'read_id': read_id,
