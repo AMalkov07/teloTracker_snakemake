@@ -38,6 +38,7 @@ import pandas as pd
 
 # Feature colors
 FEATURE_COLORS = {
+    'anchor': '#4A4A4A',
     'spacer': '#D3D3D3',
     'x_element': '#2196F3',
     'y_prime': '#E53935',
@@ -45,6 +46,7 @@ FEATURE_COLORS = {
 }
 
 FEATURE_DISPLAY_NAMES = {
+    'anchor': 'Anchor',
     'spacer': 'Spacer',
     'x_element': 'X element',
     'y_prime': "Y'",
@@ -86,6 +88,14 @@ def build_feature_regions(row):
     read_length = row['read_length']
     telo_side = row['telo_side']
     chr_end = row['chr_end']
+
+    # Anchor
+    anchor_start = row.get('anchor_start', -1)
+    anchor_end = row.get('anchor_end', -1)
+    if anchor_start >= 0 and anchor_end > anchor_start:
+        regions.append((anchor_start, anchor_end, 'anchor',
+                        f"Anchor ({anchor_end - anchor_start}bp)",
+                        False, None))
 
     # Spacer
     spacer_start = row.get('spacer_start', -1)
@@ -292,7 +302,7 @@ def main():
 
     # Legend
     legend_handles = []
-    for feat_type in ['spacer', 'x_element', 'y_prime', 'telomere']:
+    for feat_type in ['anchor', 'spacer', 'x_element', 'y_prime', 'telomere']:
         display = FEATURE_DISPLAY_NAMES.get(feat_type, feat_type)
         legend_handles.append(mpatches.Patch(
             color=FEATURE_COLORS[feat_type], label=display, alpha=0.85))
