@@ -3,8 +3,8 @@
 Visualize reads from the recombination pipeline, showing features as colored boxes
 on a read-length line graph.
 
-Features (spacer, X element, ITS, Y prime, telomere) are mapped from the day0
-reference BED onto each read via BAM alignment coordinates.
+Feature positions (spacer, x_element, y_prime) are read directly from the
+features TSV output by analyze_features.py. No BAM or BED files needed.
 
 Usage:
     # Single read by ID
@@ -12,7 +12,6 @@ Usage:
         --recomb-dir recombination/ \
         --chr-end chr14R \
         --read-id 721f2dad-6d96-4bb8-85cd-82b227e96b36 \
-        --bed results/.../pretelomeric_regions_7302_simp.bed \
         -o output.png
 
     # 10 random reads from a chr_end
@@ -20,7 +19,6 @@ Usage:
         --recomb-dir recombination/ \
         --chr-end chr14R \
         --n-reads 10 \
-        --bed results/.../pretelomeric_regions_7302_simp.bed \
         -o output.png
 """
 
@@ -35,40 +33,32 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import FancyBboxPatch
-import numpy as np
 import pandas as pd
-import pysam
 
 
 # Feature colors
 FEATURE_COLORS = {
-    'anchor': '#4A4A4A',
-    'space_between_anchor': '#D3D3D3',
-    'x_core_element': '#2196F3',
-    'x_variable_element': '#64B5F6',
+    'spacer': '#D3D3D3',
+    'x_element': '#2196F3',
     'y_prime': '#E53935',
-    'ITS': '#FFA726',
-    'Telomere_Repeat': '#4CAF50',
-    'telomere_unmapped': '#81C784',
+    'telomere': '#81C784',
 }
 
 FEATURE_DISPLAY_NAMES = {
-    'anchor': 'Anchor',
-    'space_between_anchor': 'Spacer',
-    'x_core_element': 'X core',
-    'x_variable_element': 'X variable',
+    'spacer': 'Spacer',
+    'x_element': 'X element',
     'y_prime': "Y'",
-    'ITS': 'ITS',
-    'Telomere_Repeat': 'Telomere',
-    'telomere_unmapped': 'Telomere',
+    'telomere': 'Telomere',
 }
+
+RECOMB_BORDER_COLOR = '#FFD600'
+RECOMB_HATCH = '///'
 
 
 def parse_args():
     p = argparse.ArgumentParser(description='Visualize recombination pipeline reads')
     p.add_argument('--recomb-dir', required=True, help='Recombination output directory')
     p.add_argument('--chr-end', required=True, help='Chromosome end (e.g., chr14R)')
-    p.add_argument('--bed', required=True, help='Pretelomeric regions BED file')
     p.add_argument('--read-id', default=None, help='Specific read ID to visualize')
     p.add_argument('--n-reads', type=int, default=10, help='Number of random reads (if no --read-id)')
     p.add_argument('-o', '--output', default='read_visualization.png', help='Output image path')
@@ -76,166 +66,8 @@ def parse_args():
     return p.parse_args()
 
 
-def load_bed_features(bed_path, chr_end):
-    """Load features for a chr_end from BED file."""
-    features = []
-    with open(bed_path) as f:
-        for line in f:
-            fields = line.strip().split('\t')
-            if len(fields) < 6:
-                continue
-            feat_name = fields[3]
-            if not feat_name.startswith(chr_end + '_'):
-                # Also match ITS entries like ITS_chr14R_Y_Prime_0-1
-                if not (feat_name.startswith('ITS_') and chr_end in feat_name):
-                    continue
-
-            chrom = fields[0]
-            start = int(fields[1])
-            end = int(fields[2])
-            strand = fields[4]
-            length = int(fields[5])
-
-            # Determine feature type
-            if 'anchor' in feat_name and 'space' not in feat_name:
-                feat_type = 'anchor'
-            elif 'space_between_anchor' in feat_name:
-                feat_type = 'space_between_anchor'
-            elif 'x_core_element' in feat_name:
-                feat_type = 'x_core_element'
-            elif 'x_variable_element' in feat_name:
-                feat_type = 'x_variable_element'
-            elif 'Y_Prime' in feat_name and 'ITS' not in feat_name:
-                feat_type = 'y_prime'
-            elif 'ITS' in feat_name:
-                feat_type = 'ITS'
-            elif 'Telomere_Repeat' in feat_name:
-                feat_type = 'Telomere_Repeat'
-            else:
-                feat_type = feat_name
-
-            features.append({
-                'chrom': chrom, 'start': start, 'end': end,
-                'name': feat_name, 'strand': strand, 'length': length,
-                'type': feat_type
-            })
-
-    return features
-
-
-def map_features_to_read(bam_path, read_id, features, chr_end):
-    """Map reference feature coordinates to read coordinates using BAM alignment.
-
-    Returns list of (read_start, read_end, feature_dict) tuples.
-    """
-    # Find the reference contig name
-    chrom_num = re.match(r'chr(\d+)', chr_end).group(1)
-
-    mapped = []
-    with pysam.AlignmentFile(bam_path, 'rb') as bam:
-        target_ref = None
-        for ref_name in bam.references:
-            if f'chr{chrom_num}' in ref_name:
-                target_ref = ref_name
-                break
-
-        if target_ref is None:
-            return [], 0, 'end'
-
-        for read in bam.fetch():
-            if read.query_name != read_id:
-                continue
-            if read.is_unmapped:
-                continue
-
-            read_length = read.query_length or len(read.query_sequence)
-
-            # Determine telo_side from alignment orientation
-            # For R-arm: telomere at high coords, anchor at low
-            # For L-arm: telomere at low coords, anchor at high
-            arm = chr_end[-1]
-
-            # Get aligned pairs for this read on the target reference
-            # Try primary and supplementary alignments
-            all_pairs = []
-            if read.reference_name == target_ref:
-                pairs = read.get_aligned_pairs()
-                all_pairs.extend(pairs)
-
-            if not all_pairs:
-                continue
-
-            # Build ref_pos -> read_pos mapping
-            ref_to_read = {}
-            for read_pos, ref_pos in all_pairs:
-                if read_pos is not None and ref_pos is not None:
-                    ref_to_read[ref_pos] = read_pos
-
-            if not ref_to_read:
-                continue
-
-            # Determine telo_side
-            ref_positions = sorted(ref_to_read.keys())
-            read_at_min_ref = ref_to_read[ref_positions[0]]
-            read_at_max_ref = ref_to_read[ref_positions[-1]]
-            if arm == 'R':
-                # R-arm: anchor at low ref coords
-                # If read pos increases with ref pos, telo_side=end
-                telo_side = 'end' if read_at_max_ref > read_at_min_ref else 'beginning'
-            else:
-                # L-arm: anchor at high ref coords
-                telo_side = 'beginning' if read_at_max_ref > read_at_min_ref else 'end'
-
-            # Map each feature
-            for feat in features:
-                if feat['chrom'] != target_ref.replace('_extended', ''):
-                    # Try matching with _extended suffix
-                    if feat['chrom'] + '_extended' != target_ref:
-                        continue
-
-                # Find read positions for feature start and end
-                feat_start_read = None
-                feat_end_read = None
-
-                # Search for closest mapped position to feature boundaries
-                for ref_pos in range(feat['start'], feat['end'] + 1):
-                    if ref_pos in ref_to_read:
-                        if feat_start_read is None:
-                            feat_start_read = ref_to_read[ref_pos]
-                        feat_end_read = ref_to_read[ref_pos]
-
-                if feat_start_read is not None and feat_end_read is not None:
-                    rstart = min(feat_start_read, feat_end_read)
-                    rend = max(feat_start_read, feat_end_read)
-                    if rend - rstart >= 5:  # minimum size
-                        mapped.append((rstart, rend, feat))
-
-            # Add telomere for the unmapped region at the telomere side
-            if telo_side == 'end':
-                # Telomere at the end of the read
-                last_feature_end = max((e for _, e, _ in mapped), default=0)
-                if last_feature_end < read_length - 50:
-                    mapped.append((last_feature_end, read_length, {
-                        'name': 'Telomere', 'type': 'telomere_unmapped',
-                        'length': read_length - last_feature_end
-                    }))
-            else:
-                # Telomere at the beginning of the read
-                first_feature_start = min((s for s, _, _ in mapped), default=read_length)
-                if first_feature_start > 50:
-                    mapped.append((0, first_feature_start, {
-                        'name': 'Telomere', 'type': 'telomere_unmapped',
-                        'length': first_feature_start
-                    }))
-
-            return mapped, read_length, telo_side
-
-    return [], 0, 'end'
-
-
-def get_read_ids(recomb_dir, chr_end, base_pattern=None):
-    """Get all read IDs for a chr_end from the features TSV."""
-    # Find the features file
+def load_features_df(recomb_dir, chr_end):
+    """Load features TSV for a chr_end."""
     features_files = [f for f in os.listdir(recomb_dir)
                       if f.endswith(f'_{chr_end}_features.tsv')]
     if not features_files:
@@ -243,59 +75,100 @@ def get_read_ids(recomb_dir, chr_end, base_pattern=None):
         sys.exit(1)
 
     features_path = os.path.join(recomb_dir, features_files[0])
-    df = pd.read_csv(features_path, sep='\t')
-    return df
+    return pd.read_csv(features_path, sep='\t')
 
 
-RECOMB_BORDER_COLOR = '#FFD600'  # yellow border for recombination
-RECOMB_HATCH = '///'
+def build_feature_regions(row):
+    """Build list of (start, end, feature_type, label, is_recomb, recomb_source)
+    from a features TSV row."""
+
+    regions = []
+    read_length = row['read_length']
+    telo_side = row['telo_side']
+    chr_end = row['chr_end']
+
+    # Spacer
+    spacer_start = row.get('spacer_start', -1)
+    spacer_end = row.get('spacer_end', -1)
+    if spacer_start >= 0 and spacer_end > spacer_start:
+        recomb = row.get('spacer_recombination', 'no_change')
+        source = row.get('spacer_source', chr_end)
+        is_recomb = recomb in ('full_switch', 'switch_detected') and source != chr_end
+        regions.append((spacer_start, spacer_end, 'spacer',
+                        f"Spacer ({spacer_end - spacer_start}bp)",
+                        is_recomb, source if is_recomb else None))
+
+    # X element
+    x_start = row.get('x_element_start', -1)
+    x_end = row.get('x_element_end', -1)
+    if x_start >= 0 and x_end > x_start:
+        recomb = row.get('x_element_recombination', 'no_change')
+        source = row.get('x_element_source', chr_end)
+        is_recomb = recomb in ('full_switch', 'switch_detected') and source != chr_end
+        regions.append((x_start, x_end, 'x_element',
+                        f"X elem ({x_end - x_start}bp)",
+                        is_recomb, source if is_recomb else None))
+
+    # Y primes — parse individual positions from y_prime_positions field
+    yp_positions = row.get('y_prime_positions', '')
+    yp_status = row.get('y_prime_recombination_status', 'No Change')
+    yp_compatible = row.get('y_prime_compatible_ends', '')
+    yp_is_recomb = yp_status not in ('No Change', '')
+
+    if isinstance(yp_positions, str) and yp_positions:
+        for i, entry in enumerate(yp_positions.split(';')):
+            # Format: ID7:9209-16049
+            m = re.match(r'(\w+):(\d+)-(\d+)', entry)
+            if m:
+                yp_id = m.group(1)
+                yp_start = int(m.group(2))
+                yp_end = int(m.group(3))
+                label = f"Y'{i+1} {yp_id} ({yp_end - yp_start}bp)"
+                regions.append((yp_start, yp_end, 'y_prime', label,
+                                yp_is_recomb,
+                                yp_compatible if yp_is_recomb else None))
+    else:
+        # Fall back to overall y_prime_start/end if no per-Y-prime positions
+        yp_start = row.get('y_prime_start', -1)
+        yp_end = row.get('y_prime_end', -1)
+        if yp_start >= 0 and yp_end > yp_start:
+            yp_obs = row.get('y_prime_observed_array', '')
+            label = f"Y' {yp_obs} ({yp_end - yp_start}bp)"
+            regions.append((yp_start, yp_end, 'y_prime', label,
+                            yp_is_recomb,
+                            yp_compatible if yp_is_recomb else None))
+
+    # Telomere — infer from telo_side and the feature boundaries
+    if regions:
+        all_starts = [s for s, e, *_ in regions]
+        all_ends = [e for s, e, *_ in regions]
+        if telo_side == 'end':
+            telo_start = max(all_ends)
+            if telo_start < read_length - 50:
+                regions.append((telo_start, read_length, 'telomere',
+                                f"Telomere ({read_length - telo_start}bp)",
+                                False, None))
+        else:
+            telo_end = min(all_starts)
+            if telo_end > 50:
+                regions.append((0, telo_end, 'telomere',
+                                f"Telomere ({telo_end}bp)",
+                                False, None))
+
+    return regions
 
 
-def _feature_has_recombination(feat_type, chr_end, features_info):
-    """Check if a feature shows recombination based on the pipeline results.
-
-    Returns (is_recomb, source_label):
-        is_recomb: True if this feature came from a different end or changed
-        source_label: short string describing the source (e.g., "chr9L") or None
-    """
-    if feat_type == 'space_between_anchor':
-        recomb = features_info.get('spacer_recombination', 'no_change')
-        source = features_info.get('spacer_source', chr_end)
-        if recomb in ('full_switch', 'switch_detected') and source != chr_end:
-            return True, source
-    elif feat_type in ('x_core_element', 'x_variable_element'):
-        recomb = features_info.get('x_element_recombination', 'no_change')
-        source = features_info.get('x_element_source', chr_end)
-        if recomb in ('full_switch', 'switch_detected') and source != chr_end:
-            return True, source
-    elif feat_type == 'y_prime':
-        yp_status = features_info.get('y_prime_recombination_status', 'No Change')
-        if yp_status not in ('No Change', ''):
-            compatible = features_info.get('y_prime_compatible_ends', '')
-            return True, compatible if compatible else yp_status
-    return False, None
-
-
-def draw_read(ax, mapped_features, read_length, telo_side, read_id, chr_end, features_info,
+def draw_read(ax, regions, read_length, telo_side, read_id, features_info,
               y_pos=0, height=0.6):
-    """Draw a single read with feature boxes on the given axes.
+    """Draw a single read with feature boxes."""
+    chr_end = features_info.get('chr_end', '')
 
-    Features with detected recombination get a thick yellow border and
-    diagonal hatching, plus a label showing the suspected source.
-    """
-
-    # Draw the read backbone line
+    # Read backbone line
     ax.plot([0, read_length], [y_pos, y_pos], color='#888888', linewidth=1, zorder=1)
 
-    # Draw feature boxes
-    for rstart, rend, feat in sorted(mapped_features, key=lambda x: x[0]):
-        feat_type = feat['type']
+    for rstart, rend, feat_type, label, is_recomb, recomb_source in sorted(regions):
         color = FEATURE_COLORS.get(feat_type, '#9E9E9E')
-        display_name = FEATURE_DISPLAY_NAMES.get(feat_type, feat_type)
         width = rend - rstart
-
-        # Check if this feature shows recombination
-        is_recomb, recomb_source = _feature_has_recombination(feat_type, chr_end, features_info)
 
         edgecolor = RECOMB_BORDER_COLOR if is_recomb else 'black'
         linewidth = 2.5 if is_recomb else 0.5
@@ -308,7 +181,6 @@ def draw_read(ax, mapped_features, read_length, telo_side, read_id, chr_end, fea
         )
         ax.add_patch(box)
 
-        # Add hatching overlay for recombined features
         if is_recomb:
             hatch_box = FancyBboxPatch(
                 (rstart, y_pos - height / 2), width, height,
@@ -318,30 +190,24 @@ def draw_read(ax, mapped_features, read_length, telo_side, read_id, chr_end, fea
             )
             ax.add_patch(hatch_box)
 
-        # Label inside the box if wide enough
+        # Label inside box
         if width > read_length * 0.03:
-            label = display_name
-            # Add feature name details for Y primes
-            if feat_type == 'y_prime':
-                m = re.search(r'Y_Prime_(\d+)', feat.get('name', ''))
-                if m:
-                    label = f"Y'{m.group(1)}"
-            elif feat_type == 'ITS':
-                label = f"ITS ({width}bp)"
-
+            # Use short label for display
+            short_label = label.split('(')[0].strip()
             fontsize = 7 if width > read_length * 0.06 else 5.5
-            ax.text(rstart + width / 2, y_pos, label,
+            text_color = 'white' if feat_type not in ('spacer', 'telomere') else 'black'
+            ax.text(rstart + width / 2, y_pos, short_label,
                     ha='center', va='center', fontsize=fontsize,
-                    color='white' if feat_type not in ('space_between_anchor', 'ITS', 'telomere_unmapped') else 'black',
-                    fontweight='bold', zorder=3)
+                    color=text_color, fontweight='bold', zorder=3)
 
-        # Source annotation below recombined features
+        # Recombination source annotation
         if is_recomb and width > read_length * 0.02 and recomb_source:
-            ax.text(rstart + width / 2, y_pos - height / 2 - 0.08, f'→{recomb_source}',
+            ax.text(rstart + width / 2, y_pos - height / 2 - 0.08,
+                    f'{recomb_source}',
                     ha='center', va='top', fontsize=5, color='#B8860B',
                     fontweight='bold', fontstyle='italic', zorder=3)
 
-    # Read ID and info label
+    # Info text above read
     short_id = read_id[:16] + '...'
     spacer_src = features_info.get('spacer_source', '?')
     spacer_recomb = features_info.get('spacer_recombination', '?')
@@ -364,24 +230,7 @@ def draw_read(ax, mapped_features, read_length, telo_side, read_id, chr_end, fea
 def main():
     args = parse_args()
 
-    # Load features TSV for this chr_end
-    features_df = get_read_ids(args.recomb_dir, args.chr_end)
-
-    # Load reference BED features
-    bed_features = load_bed_features(args.bed, args.chr_end)
-    if not bed_features:
-        print(f"ERROR: No features found for {args.chr_end} in BED file")
-        sys.exit(1)
-
-    print(f"Loaded {len(bed_features)} reference features for {args.chr_end}")
-
-    # Find BAM file
-    bam_files = [f for f in os.listdir(args.recomb_dir)
-                 if f.endswith(f'_{args.chr_end}.bam')]
-    if not bam_files:
-        print(f"ERROR: No BAM file found for {args.chr_end} in {args.recomb_dir}")
-        sys.exit(1)
-    bam_path = os.path.join(args.recomb_dir, bam_files[0])
+    features_df = load_features_df(args.recomb_dir, args.chr_end)
 
     # Select reads
     if args.read_id:
@@ -394,25 +243,28 @@ def main():
 
     print(f"Visualizing {len(read_ids)} reads from {args.chr_end}")
 
-    # Map features and collect data for each read
+    # Build feature regions from TSV data
     read_data = []
     for rid in read_ids:
-        mapped, read_length, telo_side = map_features_to_read(
-            bam_path, rid, bed_features, args.chr_end)
-
         feat_row = features_df[features_df['read_id'] == rid]
-        if len(feat_row) > 0:
-            feat_info = feat_row.iloc[0].to_dict()
-        else:
-            feat_info = {}
+        if len(feat_row) == 0:
+            print(f"  WARNING: Read {rid[:16]}... not found in features TSV")
+            continue
 
-        if mapped:
-            read_data.append((rid, mapped, read_length, telo_side, feat_info))
+        row = feat_row.iloc[0]
+        feat_info = row.to_dict()
+        read_length = int(row['read_length'])
+        telo_side = row['telo_side']
+
+        regions = build_feature_regions(row)
+        if regions:
+            read_data.append((rid, regions, read_length, telo_side, feat_info))
         else:
-            print(f"  WARNING: Could not map features for read {rid[:16]}...")
+            print(f"  WARNING: No feature positions for read {rid[:16]}...")
 
     if not read_data:
-        print("ERROR: No reads could be mapped. Check BAM file and BED coordinates.")
+        print("ERROR: No reads with feature positions found.")
+        print("Make sure the features TSV contains spacer_start/end, x_element_start/end, y_prime_positions columns.")
         sys.exit(1)
 
     # Create figure
@@ -423,9 +275,9 @@ def main():
 
     max_read_len = max(rl for _, _, rl, _, _ in read_data)
 
-    for i, (rid, mapped, read_length, telo_side, feat_info) in enumerate(read_data):
+    for i, (rid, regions, read_length, telo_side, feat_info) in enumerate(read_data):
         y_pos = (n_reads - 1 - i) * row_height
-        draw_read(ax, mapped, read_length, telo_side, rid, args.chr_end, feat_info, y_pos=y_pos)
+        draw_read(ax, regions, read_length, telo_side, rid, feat_info, y_pos=y_pos)
 
     # Configure axes
     ax.set_xlim(-max_read_len * 0.02, max_read_len * 1.02)
@@ -436,19 +288,14 @@ def main():
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
 
-    # Title
     ax.set_title(f'Read Features — {args.chr_end} ({n_reads} reads)', fontsize=12, fontweight='bold')
 
     # Legend
     legend_handles = []
-    for feat_type in ['anchor', 'space_between_anchor', 'x_core_element', 'x_variable_element',
-                       'ITS', 'y_prime', 'Telomere_Repeat', 'telomere_unmapped']:
-        if feat_type in FEATURE_COLORS:
-            display = FEATURE_DISPLAY_NAMES.get(feat_type, feat_type)
-            legend_handles.append(mpatches.Patch(
-                color=FEATURE_COLORS[feat_type], label=display, alpha=0.85))
-
-    # Add recombination indicator to legend
+    for feat_type in ['spacer', 'x_element', 'y_prime', 'telomere']:
+        display = FEATURE_DISPLAY_NAMES.get(feat_type, feat_type)
+        legend_handles.append(mpatches.Patch(
+            color=FEATURE_COLORS[feat_type], label=display, alpha=0.85))
     recomb_patch = mpatches.Patch(
         facecolor='white', edgecolor=RECOMB_BORDER_COLOR, linewidth=2,
         hatch=RECOMB_HATCH, label='Recombination', alpha=0.7)

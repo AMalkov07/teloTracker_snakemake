@@ -280,9 +280,11 @@ def analyze_chunks(read_id, chunk_hits, expected_chr_end, feature_name):
     """
     if not chunk_hits:
         return {
-            f'{feature_name}_chunks_analyzed': 0,
+            f'{feature_name}_start': -1,
+            f'{feature_name}_end': -1,
+            f'{feature_name}_size': 0,
             f'{feature_name}_source': '',
-            f'{feature_name}_switch_chunk': -1,
+            f'{feature_name}_switch_pos': -1,
             f'{feature_name}_best_identity': 0.0,
             f'{feature_name}_second_best_identity': 0.0,
             f'{feature_name}_confidence': 0.0,
@@ -369,10 +371,22 @@ def analyze_chunks(read_id, chunk_hits, expected_chr_end, feature_name):
     if recomb_status == 'no_change':
         confidence = 0.95
 
+    # Compute feature region on the read from chunk positions
+    all_positions = [pos for pos, info in chunk_hits]
+    feat_start = min(all_positions)
+    feat_end = max(all_positions) + CHUNK_SIZE  # end of last chunk
+
+    # Switch position in read coordinates (bp, not chunk index)
+    switch_read_pos = -1
+    if switch_chunk >= 0 and switch_chunk < len(chunk_hits):
+        switch_read_pos = chunk_hits[switch_chunk][0]
+
     return {
-        f'{feature_name}_chunks_analyzed': n_chunks,
+        f'{feature_name}_start': feat_start,
+        f'{feature_name}_end': feat_end,
+        f'{feature_name}_size': feat_end - feat_start,
         f'{feature_name}_source': best_source if recomb_status != 'no_change' else expected_chr_end,
-        f'{feature_name}_switch_chunk': switch_chunk,
+        f'{feature_name}_switch_pos': switch_read_pos,
         f'{feature_name}_best_identity': round(best_avg_identity, 2),
         f'{feature_name}_second_best_identity': round(second_avg_identity, 2),
         f'{feature_name}_confidence': round(confidence, 4),
@@ -623,9 +637,28 @@ def analyze_y_primes(read_id, y_prime_hits, telo_side, ref_y_primes, name_to_inf
     # Find compatible reference ends
     compatible_ends = find_compatible_ends(observed_array, name_to_info)
 
+    # Per-Y-prime positions on the read (anchor-to-telomere order)
+    yp_positions = []
+    for hit in hits:
+        info = name_to_info.get(hit['y_prime_name'], {})
+        yp_id = info.get('id', hit['y_prime_name'])
+        yp_positions.append(f"{yp_id}:{hit['match_start']}-{hit['match_end']}")
+
+    # Overall Y prime region on the read
+    if hits:
+        yp_region_start = min(h['match_start'] for h in hits)
+        yp_region_end = max(h['match_end'] for h in hits)
+    else:
+        yp_region_start = -1
+        yp_region_end = -1
+
     return {
         'y_prime_count_on_read': len(hits),
         'y_prime_observed_array': ','.join(observed_array) if observed_array else '',
+        'y_prime_positions': ';'.join(yp_positions) if yp_positions else '',
+        'y_prime_start': yp_region_start,
+        'y_prime_end': yp_region_end,
+        'y_prime_size': yp_region_end - yp_region_start if hits else 0,
         'y_prime_recombination_status': status,
         'y_prime_divergence_idx': divergence_idx,
         'y_prime_expected_at_divergence': expected_at_div,
@@ -872,9 +905,11 @@ def main():
             quick_check_skipped = True
             n_quick_check_passed += 1
             spacer_result = {
-                'spacer_chunks_analyzed': 0,
+                'spacer_start': -1,
+                'spacer_end': -1,
+                'spacer_size': 0,
                 'spacer_source': args.chr_end,
-                'spacer_switch_chunk': -1,
+                'spacer_switch_pos': -1,
                 'spacer_best_identity': 100.0,
                 'spacer_second_best_identity': 0.0,
                 'spacer_confidence': 0.95,
