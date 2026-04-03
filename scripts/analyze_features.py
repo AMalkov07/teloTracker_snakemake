@@ -610,7 +610,19 @@ def analyze_y_primes(read_id, y_prime_hits, telo_side, ref_y_primes, name_to_inf
     downstream_consistent = True
     status = 'No Change'
 
-    if len(hits) < len(ref_y_primes):
+    if len(hits) == 0 and len(ref_y_primes) == 0:
+        status = 'No Change'
+    elif len(hits) == 0 and len(ref_y_primes) > 0:
+        divergence_idx = 0
+        expected_at_div = ref_y_primes[0]['id']
+        found_at_div = 'None'
+        status = "Y' Loss"
+    elif len(hits) > 0 and len(ref_y_primes) == 0:
+        divergence_idx = 0
+        expected_at_div = 'None'
+        found_at_div = observed_array[0]
+        status = "Y' Gain"
+    elif len(hits) < len(ref_y_primes):
         divergence_idx = len(hits)
         if divergence_idx < len(ref_y_primes):
             expected_at_div = ref_y_primes[divergence_idx]['id']
@@ -632,6 +644,10 @@ def analyze_y_primes(read_id, y_prime_hits, telo_side, ref_y_primes, name_to_inf
                 status = "1st Y' Change" if i == 0 else "Y' Recombination"
                 break
         if status == 'No Change' and len(observed_array) > len(ref_y_primes):
+            # Divergence starts at the first extra Y prime beyond the reference
+            divergence_idx = len(ref_y_primes)
+            expected_at_div = 'None'
+            found_at_div = observed_array[divergence_idx] if divergence_idx < len(observed_array) else ''
             status = "Y' Gain"
 
     # Find compatible reference ends
