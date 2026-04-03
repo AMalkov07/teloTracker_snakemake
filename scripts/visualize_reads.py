@@ -247,9 +247,42 @@ def get_read_ids(recomb_dir, chr_end, base_pattern=None):
     return df
 
 
-def draw_read(ax, mapped_features, read_length, telo_side, read_id, features_info,
+RECOMB_BORDER_COLOR = '#FFD600'  # yellow border for recombination
+RECOMB_HATCH = '///'
+
+
+def _feature_has_recombination(feat_type, chr_end, features_info):
+    """Check if a feature shows recombination based on the pipeline results.
+
+    Returns (is_recomb, source_label):
+        is_recomb: True if this feature came from a different end or changed
+        source_label: short string describing the source (e.g., "chr9L") or None
+    """
+    if feat_type == 'space_between_anchor':
+        recomb = features_info.get('spacer_recombination', 'no_change')
+        source = features_info.get('spacer_source', chr_end)
+        if recomb in ('full_switch', 'switch_detected') and source != chr_end:
+            return True, source
+    elif feat_type in ('x_core_element', 'x_variable_element'):
+        recomb = features_info.get('x_element_recombination', 'no_change')
+        source = features_info.get('x_element_source', chr_end)
+        if recomb in ('full_switch', 'switch_detected') and source != chr_end:
+            return True, source
+    elif feat_type == 'y_prime':
+        yp_status = features_info.get('y_prime_recombination_status', 'No Change')
+        if yp_status not in ('No Change', ''):
+            compatible = features_info.get('y_prime_compatible_ends', '')
+            return True, compatible if compatible else yp_status
+    return False, None
+
+
+def draw_read(ax, mapped_features, read_length, telo_side, read_id, chr_end, features_info,
               y_pos=0, height=0.6):
-    """Draw a single read with feature boxes on the given axes."""
+    """Draw a single read with feature boxes on the given axes.
+
+    Features with detected recombination get a thick yellow border and
+    diagonal hatching, plus a label showing the suspected source.
+    """
 
     # Draw the read backbone line
     ax.plot([0, read_length], [y_pos, y_pos], color='#888888', linewidth=1, zorder=1)
@@ -261,13 +294,29 @@ def draw_read(ax, mapped_features, read_length, telo_side, read_id, features_inf
         display_name = FEATURE_DISPLAY_NAMES.get(feat_type, feat_type)
         width = rend - rstart
 
+        # Check if this feature shows recombination
+        is_recomb, recomb_source = _feature_has_recombination(feat_type, chr_end, features_info)
+
+        edgecolor = RECOMB_BORDER_COLOR if is_recomb else 'black'
+        linewidth = 2.5 if is_recomb else 0.5
+
         box = FancyBboxPatch(
             (rstart, y_pos - height / 2), width, height,
             boxstyle="round,pad=0",
-            facecolor=color, edgecolor='black', linewidth=0.5,
+            facecolor=color, edgecolor=edgecolor, linewidth=linewidth,
             alpha=0.85, zorder=2
         )
         ax.add_patch(box)
+
+        # Add hatching overlay for recombined features
+        if is_recomb:
+            hatch_box = FancyBboxPatch(
+                (rstart, y_pos - height / 2), width, height,
+                boxstyle="round,pad=0",
+                facecolor='none', edgecolor=edgecolor, linewidth=0.5,
+                hatch=RECOMB_HATCH, alpha=0.4, zorder=2.5
+            )
+            ax.add_patch(hatch_box)
 
         # Label inside the box if wide enough
         if width > read_length * 0.03:
@@ -285,6 +334,12 @@ def draw_read(ax, mapped_features, read_length, telo_side, read_id, features_inf
                     ha='center', va='center', fontsize=fontsize,
                     color='white' if feat_type not in ('space_between_anchor', 'ITS', 'telomere_unmapped') else 'black',
                     fontweight='bold', zorder=3)
+
+        # Source annotation below recombined features
+        if is_recomb and width > read_length * 0.02 and recomb_source:
+            ax.text(rstart + width / 2, y_pos - height / 2 - 0.08, f'→{recomb_source}',
+                    ha='center', va='top', fontsize=5, color='#B8860B',
+                    fontweight='bold', fontstyle='italic', zorder=3)
 
     # Read ID and info label
     short_id = read_id[:16] + '...'
@@ -370,7 +425,7 @@ def main():
 
     for i, (rid, mapped, read_length, telo_side, feat_info) in enumerate(read_data):
         y_pos = (n_reads - 1 - i) * row_height
-        draw_read(ax, mapped, read_length, telo_side, rid, feat_info, y_pos=y_pos)
+        draw_read(ax, mapped, read_length, telo_side, rid, args.chr_end, feat_info, y_pos=y_pos)
 
     # Configure axes
     ax.set_xlim(-max_read_len * 0.02, max_read_len * 1.02)
@@ -392,6 +447,12 @@ def main():
             display = FEATURE_DISPLAY_NAMES.get(feat_type, feat_type)
             legend_handles.append(mpatches.Patch(
                 color=FEATURE_COLORS[feat_type], label=display, alpha=0.85))
+
+    # Add recombination indicator to legend
+    recomb_patch = mpatches.Patch(
+        facecolor='white', edgecolor=RECOMB_BORDER_COLOR, linewidth=2,
+        hatch=RECOMB_HATCH, label='Recombination', alpha=0.7)
+    legend_handles.append(recomb_patch)
 
     ax.legend(handles=legend_handles, loc='upper right', fontsize=7,
               ncol=2, framealpha=0.9)
