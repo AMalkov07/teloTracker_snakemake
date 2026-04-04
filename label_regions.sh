@@ -185,22 +185,18 @@ if [ -f "${LABELED_TSV}" ]; then
     echo ""
     echo "Clustering Y prime sequences by pairwise identity..."
     CLUSTERED_YPRIME_FASTA="${OUTPUT_DIR}/extracted_yprimes_${STRAIN_ID}_clustered.fasta"
-    CLUSTER_MAPPING_TSV="${OUTPUT_DIR}/yprime_cluster_mapping_${STRAIN_ID}.tsv"
-    DIAGNOSTIC_DIR="${OUTPUT_DIR}/yprime_diagnostic_${STRAIN_ID}"
+    CLUSTER_OUTPUT_DIR="${OUTPUT_DIR}/yprime_clustering_${STRAIN_ID}"
 
-    python "${SCRIPTS_DIR}/cluster_yprimes.py" \
-        --input-fasta "${YPRIME_OUTPUT_FASTA}" \
+    python "${SCRIPTS_DIR}/cluster_yprimes_paper_method.py" \
+        "${YPRIME_OUTPUT_FASTA}" \
         --output-fasta "${CLUSTERED_YPRIME_FASTA}" \
-        --output-tsv "${CLUSTER_MAPPING_TSV}" \
-        --identity-threshold 97.0 \
-        --threads "${THREADS}" \
-        --diagnostic-report "${DIAGNOSTIC_DIR}"
+        --output-dir "${CLUSTER_OUTPUT_DIR}" \
+        --threads "${THREADS}"
 
     # Replace extracted FASTA with clustered version
     mv "${CLUSTERED_YPRIME_FASTA}" "${YPRIME_OUTPUT_FASTA}"
     echo "Y prime sequences clustered: ${YPRIME_OUTPUT_FASTA}"
-    echo "Cluster mapping: ${CLUSTER_MAPPING_TSV}"
-    echo "Diagnostic report: ${DIAGNOSTIC_DIR}/"
+    echo "Clustering results: ${CLUSTER_OUTPUT_DIR}/"
 else
     echo "WARNING: Labeled TSV not found, skipping Y prime extraction"
 fi
