@@ -320,7 +320,13 @@ def calc_similarity_matrix(blast_df, seq_names, seq_lengths):
     where alignment_span = alignment_length + max(unaligned_query, unaligned_subject)
     """
     n = len(seq_names)
-    name_to_idx = {name: i for i, name in enumerate(seq_names)}
+    # Map both full header and first-word to index (BLAST uses first word only)
+    name_to_idx = {}
+    for i, name in enumerate(seq_names):
+        name_to_idx[name] = i
+        first_word = name.split()[0]
+        if first_word not in name_to_idx:
+            name_to_idx[first_word] = i
     sim_matrix = np.zeros((n, n))
     np.fill_diagonal(sim_matrix, 100.0)
 
