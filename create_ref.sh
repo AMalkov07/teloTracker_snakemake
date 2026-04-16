@@ -61,7 +61,7 @@ echo "Step 0: Running Snakemake pipeline to generate inputs"
 echo "========================================================================"
 
 # Run Snakemake until y_prime_analysis rule completes
-snakemake -s Snakefile_recombination --until through_y_prime_analysis -c 56
+snakemake -s Snakefile_recombination --until through_y_prime_analysis -c "${THREADS}"
 
 # Check if Snakemake completed successfully
 if [ $? -ne 0 ]; then
