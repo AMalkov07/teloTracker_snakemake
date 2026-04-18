@@ -1,588 +1,362 @@
-import os
-import glob
+"""
+TeloTracker Snakemake Pipeline — Steps 0-12
 
-# Load configuration
+Steps 0-6:  Core analysis (based on new TeloTracker telomere_analysis.sh)
+Steps 10-12: Recombination detection (chunk-based, all features analyzed)
+
+Run:
+  snakemake --cores N                         # full pipeline
+  snakemake through_y_prime_analysis --cores N # steps 0-6 only
+  snakemake recombination_summary --cores N    # full through step 12
+"""
+
 configfile: "config.yaml"
 
-# Variables from config
-BASE = config["base_name"]
+# ---------------------------------------------------------------------------
+# Config variables
+# ---------------------------------------------------------------------------
+
+BASE   = config["base_name"]
 ANCHOR = config["anchor_set"]
-INPUT_DIR = config['bam_dir']
-BAM_IN = f"{INPUT_DIR}/{BASE}.bam"
-FASTQ_INPUT = f"{INPUT_DIR}/{BASE}.fastq"
-FASTA_IN = f"results/{BASE}/{BASE}.fasta"
-# Use strain from config if provided, otherwise extract from base name
-STRAIN = config.get("strain", BASE.split('_')[1] if 'dorado_' in BASE else BASE.split('_')[0])
+STRAIN = config["strain"]
+BAM_DIR = config.get("bam_dir", "samples_dorado_basecalled")
+MIN_GAPPED_SCORE = config.get("min_raw_gapped_score", 5000)
 
-# Define the 16 yeast chromosomes and their two sides (L and R)
-CHROMS = [str(i) for i in range(1, 17)]
-SIDES = ["L", "R"]
+DAY0_BASE = config.get("day0_base_name", BASE)
+DAY0_REF  = f"results/{DAY0_BASE}/assembly_{STRAIN}/assembly_{STRAIN}_dorado_reference.fasta"
+DAY0_BED  = f"results/{DAY0_BASE}/pretelomeric_labels/pretelomeric_regions_{STRAIN}_simp.bed"
 
-# This creates a list like ['chr1L', 'chr1R', 'chr2L', ..., 'chr17R']
-CHROM_SIDES = [f"chr{c}{s}" for c in CHROMS for s in SIDES]
+# Use curated Y prime library override if specified, otherwise use extracted version
+Y_PRIME_LIB    = config["references"].get("y_prime_lib_override",
+                    config["references"]["y_prime_lib"].replace("{strain}", STRAIN))
+SPACER_LIB_DIR = config["references"]["spacer_lib_dir"].replace("{strain}", STRAIN)
+X_ELEM_LIB_DIR = config["references"]["x_element_lib_dir"].replace("{strain}", STRAIN)
+ANCHOR_DB      = config["references"]["anchors"]
+ADAPTER_FILE   = config["references"]["adapters"]
+PROBE_DB       = config["references"]["probe"]
 
-# Paths to label_regions.sh outputs (created by running label_regions.sh before this pipeline)
-# These are located in the assembly directory created by create_ref.sh
-ASSEMBLY_DIR = f"results/{BASE}/assembly_{STRAIN}"
-PRETELOMERIC_LABELS_DIR = f"{ASSEMBLY_DIR}/pretelomeric_labels"
-REPEATMASKER_YPRIMES_FASTA = f"{PRETELOMERIC_LABELS_DIR}/extracted_yprimes_{STRAIN}.fasta"
-FEATURES_BED = f"{PRETELOMERIC_LABELS_DIR}/pretelomeric_regions_{STRAIN}_simp.bed"
+# Output directories
+RESULTS     = f"results/{BASE}"
+BLAST_DIR   = f"{RESULTS}/blast"
+CHR_DIR     = f"{RESULTS}/blast/chr_anchor_reads"
+YP_BLAST    = f"{RESULTS}/blast/y_prime_probe"
+PCHOP_DIR   = f"{RESULTS}/porechop"
+GRAPH_DIR   = f"{RESULTS}/graphs"
+TELO_DIR    = f"{RESULTS}/telomere_filtered_reads"
+RECOMB_DIR  = f"{RESULTS}/recombination"
+
+CHROM_ENDS = [f"chr{n}{s}" for n in range(1, 17) for s in ("L", "R")]
+
+# ---------------------------------------------------------------------------
+# Detect input file (BAM, FASTQ, or FASTQ.GZ)
+# ---------------------------------------------------------------------------
+
+import os, sys
+
+_bam_path   = os.path.join(BAM_DIR, BASE + ".bam")
+_fastq_path = os.path.join(BAM_DIR, BASE + ".fastq")
+_fqgz_path  = os.path.join(BAM_DIR, BASE + ".fastq.gz")
+
+if os.path.exists(_bam_path):
+    INPUT_FILE = _bam_path
+    INPUT_TYPE = "bam"
+elif os.path.exists(_fastq_path):
+    INPUT_FILE = _fastq_path
+    INPUT_TYPE = "fastq"
+elif os.path.exists(_fqgz_path):
+    INPUT_FILE = _fqgz_path
+    INPUT_TYPE = "fastqgz"
+else:
+    print(f"ERROR: No input found at {_bam_path}, {_fastq_path}, or {_fqgz_path}", file=sys.stderr)
+    sys.exit(1)
+
+# ---------------------------------------------------------------------------
+# Target rules
+# ---------------------------------------------------------------------------
 
 rule all:
     input:
-        # Outputs from y_prime_analysis rule
-        f"results/{BASE}/{BASE}_post_y_prime_probe.tsv",
-        f"results/{BASE}/{BASE}_stats_y_prime.txt",
-        f"results/{BASE}/y_prime_blast/all_{BASE}_probe_matches.tsv",
-        f"results/{BASE}/figures_for_y_primes"  # Note: removed directory() - only valid for rule outputs
-        # --- Rules below require label_regions.sh to be run first ---
-        # Uncomment after running label_regions.sh to generate extracted_yprimes_{STRAIN}.fasta
-        # f"results/{BASE}/{BASE}_y_prime_recombination.tsv",
-        # X element and spacer pairing analysis - requires strain-specific reference pairings
-        # Uncomment when pairings_for_x_element_ends/{STRAIN}_pairings directory is created
-        # f"results/{BASE}/{BASE}_paired_x_element_ends_repeatmasker.tsv",
-        # f"results/{BASE}/{BASE}_good_x_element_ends_paired_repeatmasker.tsv",
-        # f"results/{BASE}/{BASE}_good_gained_y_x_element_ends_paired_repeatmasker.tsv",
-        # Spacer analysis - requires strain-specific reference pairings and BED files
-        # f"results/{BASE}/{BASE}_paired_spacer_repeatmasker.tsv",
-        # f"results/{BASE}/{BASE}_paired_good_spacer_repeatmasker.tsv",
-        # f"results/{BASE}/{BASE}_paired_good_gained_spacer_repeatmasker.tsv"
+        f"{RECOMB_DIR}/{BASE}_recombination_summary.tsv",
 
-# --- STEP 0: Automatic Detection ---
-# If the FASTA doesn't exist, we create rules to generate it from either BAM or FASTQ.
-if not os.path.exists(FASTA_IN):
-    # Check for input files in the input directory
-    bam_exists = os.path.exists(BAM_IN)
-    fastq_exists = os.path.exists(FASTQ_INPUT)
-
-    if bam_exists:
-        # BAM file found - convert BAM to FASTQ, then FASTQ to FASTA
-        rule prep_from_bam:
-            input:
-                bam = BAM_IN
-            output:
-                fastq = f"results/{BASE}/{BASE}.fastq",
-                fasta = FASTA_IN
-            threads: 16
-            shell:
-                """
-                samtools fastq -@ {threads} -T '*' {input.bam} > {output.fastq}
-                seqtk seq -A {output.fastq} > {output.fasta}
-                """
-    elif fastq_exists:
-        # FASTQ file found but no BAM - copy FASTQ and convert to FASTA
-        rule prep_from_fastq:
-            input:
-                fastq = FASTQ_INPUT
-            output:
-                fastq = f"results/{BASE}/{BASE}.fastq",
-                fasta = FASTA_IN
-            shell:
-                """
-                mkdir -p results/{BASE}
-                cp {input.fastq} {output.fastq}
-                seqtk seq -A {output.fastq} > {output.fasta}
-                """
-    else:
-        # Neither file found - raise an error
-        raise ValueError(
-            f"No input file found! Expected either:\n"
-            f"  - BAM file: {BAM_IN}\n"
-            f"  - FASTQ file: {FASTQ_INPUT}\n"
-            f"Please provide one of these input files."
-        )
-
-# New rule specifically for indexing
-rule index_fasta:
+rule through_y_prime_analysis:
     input:
-        fasta = FASTA_IN
-    output:
-        fai = f"{FASTA_IN}.fai"
-    shell:
-        "samtools faidx {input.fasta}"
+        f"{RESULTS}/{BASE}_post_y_prime_probe.tsv",
+        f"{GRAPH_DIR}/.plots_done",
 
+# ===========================================================================
+# CORE ANALYSIS (Steps 0-6)
+# ===========================================================================
 
-# --- STEP 1: Blast for Reads with Anchors ---
+# ---------------------------------------------------------------------------
+# Step 0a: Convert input to raw FASTQ
+# ---------------------------------------------------------------------------
+
+rule prep_raw_fastq:
+    input: INPUT_FILE
+    output: f"{RESULTS}/{BASE}_raw.fastq"
+    threads: 1
+    run:
+        if INPUT_TYPE == "bam":
+            shell("samtools fastq -T '*' {input} > {output}")
+        elif INPUT_TYPE == "fastqgz":
+            shell("zcat {input} > {output}")
+        else:
+            shell("cp {input} {output}")
+
+# ---------------------------------------------------------------------------
+# Step 0b: Filter reads (>= 2000bp, qscore >= 10)
+# ---------------------------------------------------------------------------
+
+rule filter_reads:
+    input: f"{RESULTS}/{BASE}_raw.fastq"
+    output: f"{RESULTS}/{BASE}.fastq"
+    threads: 1
+    shell: "python scripts/filter_reads.py {input} {output}"
+
+# ---------------------------------------------------------------------------
+# Step 0c: Convert filtered FASTQ to FASTA
+# ---------------------------------------------------------------------------
+
+rule convert_to_fasta:
+    input: f"{RESULTS}/{BASE}.fastq"
+    output: f"{RESULTS}/{BASE}.fasta"
+    threads: 1
+    shell: "sed -n '1~4s/^@/>/p;2~4p' {input} > {output}"
+
+# ---------------------------------------------------------------------------
+# Step 1: BLAST reads for chromosome anchors
+# ---------------------------------------------------------------------------
+
 rule blast_anchors:
     input:
-        # Snakemake handles the dependency whether it comes from 'prep_from_bam' 
-        # or an existing file on disk.
-        query = FASTA_IN,
-        db = config["references"]["anchors"]
-    output:
-        tsv = f"results/{BASE}/{BASE}_blasted_{ANCHOR}.tsv"
-    threads: 56
+        fasta = f"{RESULTS}/{BASE}.fasta",
+        db    = ANCHOR_DB,
+    output: f"{BLAST_DIR}/{BASE}_blasted_{ANCHOR}.tsv"
+    threads: workflow.cores
     shell:
         """
-        echo -e "read_id\ttotal_read_length\tread_bp_used_for_match\tmatch_start_on_read\tmatch_end_on_read\tanchor_name\ttotal_anchor_length\tmatch_start_on_anchor\tmatch_end_on_anchor\tpident\tbitscore\tevalue" > {output.tsv}
-        
-        blastn -query {input.query} -db {input.db} -task megablast \
-            -perc_identity 85 -min_raw_gapped_score 3000 -num_threads {threads} \
+        mkdir -p {BLAST_DIR}
+        echo -e "read_id\\ttotal_read_length\\tread_bp_used_for_match\\tmatch_start_on_read\\tmatch_end_on_read\\tanchor_name\\ttotal_anchor_length\\tmatch_start_on_anchor\\tmatch_end_on_anchor\\tpident\\tbitscore\\tevalue" > {output}
+        blastn -query {input.fasta} -db {input.db} \
+            -task dc-megablast -perc_identity 85 -min_raw_gapped_score {MIN_GAPPED_SCORE} \
+            -num_threads {threads} \
             -outfmt "6 qseqid qlen length qstart qend sseqid slen sstart send pident bitscore evalue" \
-            >> {output.tsv}
+            >> {output}
         """
 
-# --- STEP 2: Filter Blast Results ---
+# ---------------------------------------------------------------------------
+# Step 2: Filter BLAST results
+# ---------------------------------------------------------------------------
+
 rule filter_anchors:
-    input:
-        tsv = rules.blast_anchors.output.tsv
-    output:
-        # Adjust this filename if your python script produces something different
-        all_matches = f"results/{BASE}/all_matches_{BASE}_blasted_{ANCHOR}.tsv",
-        top_matches = f"results/{BASE}/top_matches_{BASE}_blasted_{ANCHOR}.tsv"
-    shell:
-        "python scripts/snakemake_scripts/filter_for_reads_with_anchors.py {input.tsv} {output.all_matches} {output.top_matches}"
+    input: f"{BLAST_DIR}/{BASE}_blasted_{ANCHOR}.tsv"
+    output: f"{BLAST_DIR}/top_matches_{BASE}_blasted_{ANCHOR}.tsv"
+    threads: 1
+    shell: "python scripts/filter_for_reads_with_anchors.py {BASE} {ANCHOR} {RESULTS}"
 
-# --- STEP 3: Split and Label ---
+# ---------------------------------------------------------------------------
+# Step 3: Split and label reads per chromosome end
+# ---------------------------------------------------------------------------
+
 rule split_and_label:
-    input:
-        tsv = rules.filter_anchors.output.top_matches,
-        fasta = FASTA_IN,
-        fai = f"{FASTA_IN}.fai"
-    output:
-        # Instead of directory(), we list all 34 expected files
-        reads = expand("results/{{BASE}}/chr_anchor_included_individual_files/{{BASE}}_blasted_{{ANCHOR}}_{cs}_anchor_reads.fasta", 
-                       cs=CHROM_SIDES)
+    input: f"{BLAST_DIR}/top_matches_{BASE}_blasted_{ANCHOR}.tsv"
+    output: expand(f"{CHR_DIR}/{BASE}_blasted_{ANCHOR}_{{ce}}_anchor_reads.fasta", ce=CHROM_ENDS)
+    threads: 1
     shell:
         """
-        mkdir -p results/{BASE}/chr_anchor_included_individual_files/
-        python scripts/snakemake_scripts/split_and_label_all_reads_include_anchor.py {input.tsv} {input.fasta} results/{BASE}/chr_anchor_included_individual_files/ {BASE} {ANCHOR}
+        python scripts/split_and_label_all_reads_include_anchor.py {BASE} {ANCHOR} {RESULTS}
+        for f in {output}; do touch -a "$f"; done
         """
+
+# ---------------------------------------------------------------------------
+# Step 4a: Concatenate per-chr-end reads
+# ---------------------------------------------------------------------------
 
 rule aggregate_chromosomes:
-    input:
-        # This tells Snakemake to wait until all chromosome files from Step 3 are complete
-        reads = expand(f"results/{BASE}/chr_anchor_included_individual_files/{BASE}_blasted_{ANCHOR}_{{cs}}_anchor_reads.fasta",
-                       cs=CHROM_SIDES)
-    output:
-        merged = f"results/{BASE}/{BASE}_all_chromosome_anchored_reads_pre_trim.fasta"
-    shell:
-        # Concatenate all chromosome-specific FASTA files
-        "cat {input.reads} > {output.merged}"
+    input: expand(f"{CHR_DIR}/{BASE}_blasted_{ANCHOR}_{{ce}}_anchor_reads.fasta", ce=CHROM_ENDS)
+    output: f"{RESULTS}/{BASE}_all_chr_anchored_reads.fasta"
+    threads: 1
+    shell: "cat {input} > {output}"
+
+# ---------------------------------------------------------------------------
+# Step 4b: Porechop adapter trimming
+# ---------------------------------------------------------------------------
 
 rule porechop_trim:
-    input:
-        fasta = rules.aggregate_chromosomes.output.merged,
-        adapters = config["references"]["adapters"]
+    input: f"{RESULTS}/{BASE}_all_chr_anchored_reads.fasta"
     output:
-        fastq = f"results/{BASE}/porechop_trim/all_chromosome_anchored_read_trimmed.fastq",
-        fasta = f"results/{BASE}/porechop_trim/all_chromosome_anchored_read_trimmed.fasta",
-        log = f"results/{BASE}/{BASE}_all_chrs_split_to_telomere_porechopped.log"
-    threads: 56
+        fastq = f"{PCHOP_DIR}/{BASE}_trimmed.fastq",
+        fasta = f"{PCHOP_DIR}/{BASE}_trimmed.fasta",
+        log   = f"{PCHOP_DIR}/{BASE}_porechop.log",
+    threads: workflow.cores
     shell:
         """
-        # Run Porechop
+        mkdir -p {PCHOP_DIR}
         porechop_abi -t {threads} --format fastq -ddb -v 3 --no_split \
-            -cap {input.adapters} -i {input.fasta} \
-            -o {output.fastq} > {output.log}
-
-        # Convert FASTQ to FASTA using sed as per original script
+            -cap {ADAPTER_FILE} \
+            -i {input} -o {output.fastq} > {output.log}
         sed -n '1~4s/^@/>/p;2~4p' {output.fastq} > {output.fasta}
         """
 
-# --- STEP 6: Create Sequencing Summary ---
-# (Optimized: replaced Python script with seqkit for 10-100x speed improvement)
-rule sequence_summary:
+# ---------------------------------------------------------------------------
+# Step 4c: Adapter check + telomere trimming
+# ---------------------------------------------------------------------------
+
+rule parse_porechop_and_trim:
     input:
-        fasta = FASTA_IN
+        log   = f"{PCHOP_DIR}/{BASE}_porechop.log",
+        fasta = f"{RESULTS}/{BASE}.fasta",
     output:
-        summary = f"results/{BASE}/{BASE}_sequencing_summary.tsv"
+        adapter_tsv = f"{RESULTS}/{BASE}_adapter_trimming_check.tsv",
+        telo_tsv    = f"{RESULTS}/{BASE}_post_telo_trimming.tsv",
+    threads: 1
     shell:
         """
-        echo -e "read_id\\tsequence_length_template" > {output.summary}
-        seqkit fx2tab -n -l -i {input.fasta} >> {output.summary}
+        python scripts/check_for_adapters.py {BASE} {input.log} {RESULTS}
+        python scripts/compare_adapter_callers_dorado.py {BASE} {ANCHOR} {RESULTS} {input.fasta}
+        python scripts/fine_telomere_trimming.py {BASE} {ANCHOR} {RESULTS}
         """
 
-# --- STEP 7: Parse Porechop Logs ---
-# (From check_for_adapters.py)
-rule parse_porechop_log:
-    input:
-        log = f"results/{BASE}/{BASE}_all_chrs_split_to_telomere_porechopped.log"
-    output:
-        tsv = f"results/{BASE}/{BASE}_porechopped_results.tsv"
-    shell:
-        "python scripts/snakemake_scripts/check_for_adapters.py {BASE} {input.log} {output.tsv}"
-
-# --- STEP 8: Compare Callers (QC Stats) ---
-# (From compare_adapter_callers_dorado.py)
-rule compare_callers:
-    input:
-        summary = rules.sequence_summary.output.summary,
-        porechop = rules.parse_porechop_log.output.tsv,
-        blast_raw = f"results/{BASE}/{BASE}_blasted_{ANCHOR}.tsv",
-        blast_top = f"results/{BASE}/top_matches_{BASE}_blasted_{ANCHOR}.tsv"
-    output:
-        stats = f"results/{BASE}/{BASE}_adapter_trimming_check.stats",
-        table = f"results/{BASE}/{BASE}_adapter_trimming_check.tsv"
-    shell:
-        """
-        python scripts/snakemake_scripts/compare_adapter_callers_dorado.py \
-            {input.summary} \
-            {input.porechop} \
-            {input.blast_raw} \
-            {input.blast_top} \
-            {output.stats} \
-            {output.table} \
-            {ANCHOR}
-        """
-
-# Create a dedicated rule for indexing the merged fasta file
-rule index_merged_fasta:
-    input:
-        rules.aggregate_chromosomes.output.merged
-    output:
-        fai = f"{rules.aggregate_chromosomes.output.merged}.fai"
-    shell:
-        "samtools faidx {input}"
-
-# --- STEP 9: Fine Telomere Trimming ---
-# (From fine_telomere_trimming.py)
-rule fine_trimming:
-    input:
-        fasta = rules.aggregate_chromosomes.output.merged,
-        fai = f"{rules.aggregate_chromosomes.output.merged}.fai",
-        adapter_info = rules.compare_callers.output.table,
-        best_anchor = f"results/{BASE}/top_matches_{BASE}_blasted_{ANCHOR}.tsv"
-    output:
-        main_tsv = f"results/{BASE}/{BASE}_post_telo_trimming.tsv",
-        fasta_trimmed = f"results/{BASE}/{BASE}_fine_trimmed.fasta",
-        trim_dir = directory(f"results/{BASE}/repeat_trim_files/")
-    shell:
-        """
-        mkdir -p {output.trim_dir}
-        python scripts/snakemake_scripts/fine_telomere_trimming.py \
-            {input.fasta} \
-            {input.adapter_info} \
-            {input.best_anchor} \
-            {output.main_tsv} \
-            {output.trim_dir} \
-            {BASE} \
-            {output.fasta_trimmed}
-        """
-
-# optional
-#rule make_probe_db:
-    #input:
-        #fasta = config["references"]["probe_fasta"]
-    #output:
-        ## BLAST creates several files; we track the main database file
-        #db_file = f"{config['references']['probe_fasta']}.nin"
-    #shell:
-        #"makeblastdb -in {input.fasta} -dbtype nucl"
+# ---------------------------------------------------------------------------
+# Step 5: BLAST anchored reads for Y' probe (per chr end)
+# ---------------------------------------------------------------------------
 
 rule blast_y_primes:
-    input:
-        # This relies on the individual FASTA files created in Step 3
-        query = "results/{BASE}/chr_anchor_included_individual_files/{BASE}_blasted_" + ANCHOR + "_{chrom_side}_anchor_reads.fasta",
-        # Assuming your probe database is in a references folder
-        db = config["references"]["probe"]
-    output:
-        tsv = "results/{BASE}/y_prime_blast/{BASE}_{chrom_side}_blasted_probe.tsv"
-    threads: 4  # Running 14 jobs at once (14 * 4 = 56 cores) is much faster than a loop!
+    input: f"{CHR_DIR}/{BASE}_blasted_{ANCHOR}_{{chr_end}}_anchor_reads.fasta"
+    output: f"{YP_BLAST}/{BASE}_{{chr_end}}_blasted_probe.tsv"
+    threads: workflow.cores
     shell:
         """
-        # Create the TSV header exactly like your original script
-        echo -e "read_id\\ttotal_read_length\\tread_bp_used_for_match\\tmatch_start_on_read\\tmatch_end_on_read\\tanchor_name\\ttotal_anchor_length\\tmatch_start_on_anchor\\tmatch_end_on_anchor\\tpident\\tbitscore\\tevalue" > {output.tsv}
-        
-        # Run BLAST
-        blastn -query {input.query} -db {input.db} -perc_identity 90 -num_threads {threads} \
+        mkdir -p {YP_BLAST}
+        echo -e "read_id\\ttotal_read_length\\tread_bp_used_for_match\\tmatch_start_on_read\\tmatch_end_on_read\\tanchor_name\\ttotal_anchor_length\\tmatch_start_on_anchor\\tmatch_end_on_anchor\\tpident\\tbitscore\\tevalue" > {output}
+        blastn -query {input} -db {PROBE_DB} \
+            -perc_identity 90 -num_threads {threads} \
             -outfmt "6 qseqid qlen length qstart qend sseqid slen sstart send pident bitscore evalue" \
-            >> {output.tsv}
+            >> {output} || true
         """
 
-rule aggregate_y_prime_blasts:
-    input:
-        # Wait for all 32 chromosome-side BLAST results
-        expand("results/{BASE}/y_prime_blast/{BASE}_{chrom_side}_blasted_probe.tsv",
-               BASE=BASE, chrom_side=CHROM_SIDES)
-    output:
-        # Create the probe directory as a marker that all blasts are done
-        probe_dir = directory(f"results/{BASE}/y_prime_blast")
-    shell:
-        "echo 'All Y prime BLAST jobs complete'"
+# ---------------------------------------------------------------------------
+# Step 6: Y prime analysis + plots
+# ---------------------------------------------------------------------------
 
 rule y_prime_analysis:
     input:
-        best_anchor = f"results/{BASE}/top_matches_{BASE}_blasted_{ANCHOR}.tsv",
-        telo_results = f"results/{BASE}/{BASE}_post_telo_trimming.tsv",
-        # Directly depend on all 32 blast files
-        probe_blasts = expand("results/{BASE}/y_prime_blast/{BASE}_{chrom_side}_blasted_probe.tsv",
-                             BASE=BASE, chrom_side=CHROM_SIDES)
+        probes = expand(f"{YP_BLAST}/{BASE}_{{ce}}_blasted_probe.tsv", ce=CHROM_ENDS),
+        telo   = f"{RESULTS}/{BASE}_post_telo_trimming.tsv",
+    output: f"{RESULTS}/{BASE}_post_y_prime_probe.tsv"
+    threads: 1
+    shell: "python scripts/y_prime_analysis.py {BASE} {RESULTS}"
+
+rule single_sample_plots:
+    input: f"{RESULTS}/{BASE}_post_y_prime_probe.tsv"
+    output: touch(f"{GRAPH_DIR}/.plots_done")
+    threads: 1
+    shell:
+        """
+        mkdir -p {GRAPH_DIR}
+        python scripts/single_sample_plots.py {BASE} {RESULTS}
+        """
+
+# ===========================================================================
+# RECOMBINATION ANALYSIS (Steps 10-12)
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Step 9.5: Filter reads to telomere-confirmed only
+# ---------------------------------------------------------------------------
+
+rule filter_telomere_reads:
+    input:
+        telo_tsv  = f"{RESULTS}/{BASE}_post_telo_trimming.tsv",
+        chr_reads = expand(f"{CHR_DIR}/{BASE}_blasted_{ANCHOR}_{{ce}}_anchor_reads.fasta", ce=CHROM_ENDS),
+    output: expand(f"{TELO_DIR}/{BASE}_{{ce}}_telomere_reads.fasta", ce=CHROM_ENDS)
+    threads: 1
+    shell:
+        """
+        python scripts/filter_telomere_reads.py \
+            --telo-tsv    {input.telo_tsv} \
+            --input-dir   {CHR_DIR} \
+            --output-dir  {TELO_DIR} \
+            --base-name   {BASE} \
+            --anchor-set  {ANCHOR}
+        """
+
+# ---------------------------------------------------------------------------
+# Step 10: minimap2 alignment (supplementary evidence only)
+# ---------------------------------------------------------------------------
+
+rule recombination_alignment:
+    input:
+        reads    = f"{TELO_DIR}/{BASE}_{{chr_end}}_telomere_reads.fasta",
+        day0_ref = DAY0_REF,
     output:
-        main_tsv = f"results/{BASE}/{BASE}_post_y_prime_probe.tsv",
-        stats = f"results/{BASE}/{BASE}_stats_y_prime.txt",
-        combined_probe = f"results/{BASE}/y_prime_blast/all_{BASE}_probe_matches.tsv",
-        figures = directory(f"results/{BASE}/figures_for_y_primes")
+        tsv = f"{RECOMB_DIR}/{BASE}_{{chr_end}}_alignment.tsv",
+        bam = f"{RECOMB_DIR}/{BASE}_{{chr_end}}.bam",
+    threads: workflow.cores
+    shell:
+        """
+        mkdir -p {RECOMB_DIR}
+        python scripts/run_alignment.py \
+            --reads-fasta {input.reads} \
+            --day0-ref    {input.day0_ref} \
+            --chr-end     {wildcards.chr_end} \
+            --output-tsv  {output.tsv} \
+            --output-bam  {output.bam} \
+            --threads     {threads}
+        """
+
+# ---------------------------------------------------------------------------
+# Step 11: Combined feature analysis (per chr end)
+# ---------------------------------------------------------------------------
+
+rule recombination_analyze:
+    input:
+        reads       = f"{TELO_DIR}/{BASE}_{{chr_end}}_telomere_reads.fasta",
+        alignment   = f"{RECOMB_DIR}/{BASE}_{{chr_end}}_alignment.tsv",
+        anchor_tsv  = f"{CHR_DIR}/{BASE}_blasted_{ANCHOR}_{{chr_end}}_anchor_reads.tsv",
+        day0_bed    = DAY0_BED,
+        day0_ref    = DAY0_REF,
+        y_prime_lib = Y_PRIME_LIB,
+    output:
+        tsv = f"{RECOMB_DIR}/{BASE}_{{chr_end}}_features.tsv",
     params:
-        base_name = BASE,
-        anchor_set = ANCHOR,
-        probe_dir = f"results/{BASE}/y_prime_blast"  # Pass as parameter instead
+        chr_end           = "{chr_end}",
+        strain            = STRAIN,
+        spacer_lib_dir    = SPACER_LIB_DIR,
+        x_element_lib_dir = X_ELEM_LIB_DIR,
+    threads: workflow.cores
     shell:
         """
-        python scripts/snakemake_scripts/y_prime_analysis.py {params.base_name} {params.anchor_set} \
-            --top-anchor-blast {input.best_anchor} \
-            --telomere-repeat-results {input.telo_results} \
-            --probe-blast-dir {params.probe_dir} \
-            --output-tsv {output.main_tsv} \
-            --output-stats {output.stats} \
-            --figure-dir {output.figures} \
-            --combined-probe-output {output.combined_probe}
+        python scripts/analyze_features.py \
+            --reads-fasta       {input.reads} \
+            --alignment-tsv     {input.alignment} \
+            --anchor-tsv        {input.anchor_tsv} \
+            --day0-bed          {input.day0_bed} \
+            --day0-ref          {input.day0_ref} \
+            --y-prime-lib       {input.y_prime_lib} \
+            --spacer-lib-dir    {params.spacer_lib_dir} \
+            --x-element-lib-dir {params.x_element_lib_dir} \
+            --chr-end           {params.chr_end} \
+            --strain            {params.strain} \
+            --output-tsv        {output.tsv} \
+            --threads           {threads}
         """
 
-rule repeatmasker_y_primes:
-    input:
-        query = "results/{base}/chr_anchor_included_individual_files/{base}_blasted_{anchor}_{chrom_side}_anchor_reads.fasta",
-        database = REPEATMASKER_YPRIMES_FASTA  # From label_regions.sh output
-    output:
-        out_file = "results/{base}/read_repeatmasker_results/{base}_blasted_{anchor}_{chrom_side}_anchor_reads.fasta.out",
-        filtered = "results/{base}/read_repeatmasker_results/{base}_{anchor}_{chrom_side}_filtered.out",
-        ssv = "results/{base}/read_repeatmasker_results/{base}_{anchor}_{chrom_side}_repeatmasker_results.ssv"
+# ---------------------------------------------------------------------------
+# Step 12: Summary across all chr ends
+# ---------------------------------------------------------------------------
+
+rule recombination_summary:
+    input: expand(f"{RECOMB_DIR}/{BASE}_{{ce}}_features.tsv", ce=CHROM_ENDS)
+    output: f"{RECOMB_DIR}/{BASE}_recombination_summary.tsv"
     params:
-        outdir = "results/{base}/read_repeatmasker_results/"
-    threads: 12
+        recomb_dir = RECOMB_DIR,
+        base_name  = BASE,
+    threads: 1
     shell:
         """
-        mkdir -p {params.outdir}
-        
-        RepeatMasker {input.query} -lib {input.database} -s -pa {threads} \
-            --cutoff 1000 -no_is -norna -gff -dir {params.outdir}
-        
-        # Create header
-        echo -e "SW_score\\tdivergence_percent\\tdeletion_percent\\tinsertion_percent\\tread_id\\tmatch_start_on_read\\tmatch_end_on_read\\tleftover_on_read\\tstrand\\ty_prime_id\\ty_prime_group\\tmatch_start_on_y_prime\\tmatch_end_on_y_prime\\tleftover_on_y_prime\\tmatch_id\\tsub_match" > {output.ssv}
-        
-        # Filter for Y_Prime and append
-        grep "Y_Prime" {output.out_file} > {output.filtered} || touch {output.filtered}
-        cat {output.filtered} >> {output.ssv}
-        """
-
-rule aggregate_repeatmasker_y_primes:
-    input:
-        expand("results/{base}/read_repeatmasker_results/{base}_{anchor}_{chrom_side}_repeatmasker_results.ssv",
-               base=BASE, anchor=ANCHOR, chrom_side=CHROM_SIDES)
-    output:
-        marker = touch(f"results/{BASE}/read_repeatmasker_results/.done")
-    shell:
-        "echo 'All RepeatMasker Y prime jobs complete'"
-
-rule make_y_prime_repeatmasker_tsv:
-    input:
-        repeatmasker_done = f"results/{BASE}/read_repeatmasker_results/.done",
-        y_prime_probe = f"results/{BASE}/{BASE}_post_y_prime_probe.tsv"
-    output:
-        all_repeatmasker = f"results/{BASE}/{BASE}_repeatmasker.tsv",
-        good_end = f"results/{BASE}/{BASE}_good_end_y_repeatmasker.tsv",
-        gained_y = f"results/{BASE}/{BASE}_gained_y_repeatmasker.tsv"
-    params:
-        repeatmasker_dir = f"results/{BASE}/read_repeatmasker_results/"
-    shell:
-        """
-        python scripts/make_y_prime_repeatmasker_tsv.py \
-            {params.repeatmasker_dir} \
-            {input.y_prime_probe} \
-            {output.all_repeatmasker} \
-            {output.good_end} \
-            {output.gained_y}
-        """
-
-rule get_stats_of_recombination:
-    input:
-        good_end_y = f"results/{BASE}/{BASE}_good_end_y_repeatmasker.tsv",
-        y_prime_probe = f"results/{BASE}/{BASE}_post_y_prime_probe.tsv",
-        y_prime_lib = REPEATMASKER_YPRIMES_FASTA,
-        features_bed = FEATURES_BED
-    output:
-        recomb = f"results/{BASE}/{BASE}_y_prime_recombination.tsv"
-    params:
-        strain = STRAIN
-    shell:
-        """
-        python scripts/snakemake/get_stats_of_recombination.py \
-            {input.good_end_y} \
-            {input.y_prime_probe} \
-            {params.strain} \
-            {output.recomb} \
-            {input.y_prime_lib} \
-            {input.features_bed}
-        """
-
-checkpoint make_pairings_from_y_primes_all_ends:
-    input:
-        good_end_y = f"results/{BASE}/{BASE}_good_end_y_repeatmasker.tsv",
-        chr_reads = expand(f"results/{BASE}/chr_anchor_included_individual_files/{BASE}_blasted_{ANCHOR}_{{cs}}_anchor_reads.fasta",
-                          cs=CHROM_SIDES),
-        y_prime_lib = REPEATMASKER_YPRIMES_FASTA
-    output:
-        pairings_dir = directory(f"results/{BASE}/paired_by_y_prime_reads/")
-    params:
-        strain = STRAIN,
-        anchor = ANCHOR,
-        base_name = BASE
-    shell:
-        """
-        mkdir -p {output.pairings_dir}
-        python scripts/snakemake/make_pairings_from_y_primes_all_ends.py \
-            {input.good_end_y} \
-            results/{params.base_name}/chr_anchor_included_individual_files/ \
-            {output.pairings_dir} \
-            {params.strain} \
-            {params.anchor} \
-            {params.base_name} \
-            {input.y_prime_lib}
-        """
-
-def get_pairing_names(wildcards):
-    """Get list of pairing file basenames (without .fasta extension) from checkpoint"""
-    checkpoint_output = checkpoints.make_pairings_from_y_primes_all_ends.get(**wildcards).output.pairings_dir
-    # List all .fasta files in the directory
-    pairing_files = glob.glob(f"{checkpoint_output}/*.fasta")
-    # Return basenames without .fasta extension
-    return [os.path.basename(f).replace('.fasta', '') for f in pairing_files]
-
-rule repeatmasker_x_elements:
-    input:
-        query = "results/{base}/paired_by_y_prime_reads/{pairing}.fasta",
-        database = f"references/pairings_for_x_element_ends/{STRAIN}_pairings/{STRAIN}_paired_{{pairing}}.fasta"
-    output:
-        out_file = "results/{base}/paired_x_element_ends_repeatmasker_results/{pairing}.fasta.out",
-        filtered = "results/{base}/paired_x_element_ends_repeatmasker_results/{pairing}_x_element_ends_filtered.out",
-        ssv = "results/{base}/paired_x_element_ends_repeatmasker_results/{base}_{pairing}_x_element_ends_repeatmasker_results.ssv"
-    params:
-        outdir = "results/{base}/paired_x_element_ends_repeatmasker_results/"
-    threads: 12
-    shell:
-        """
-        mkdir -p {params.outdir}
-        
-        RepeatMasker {input.query} -lib {input.database} -s -pa {threads} \
-            --cutoff 500 -no_is -norna -gff -dir {params.outdir}
-        
-        # Create header
-        echo -e "SW_score\\tdivergence_percent\\tdeletion_percent\\tinsertion_percent\\tread_id\\tmatch_start_on_read\\tmatch_end_on_read\\tleftover_on_read\\tstrand\\tx_element_ends\\tsection_number\\tmatch_start_on_chr_end_section\\tmatch_end_on_chr_end_section\\tleftover_on_chr_end_section\\tmatch_id\\tsub_match" > {output.ssv}
-        
-        # Filter for x_ends and append
-        grep "x_ends" {output.out_file} > {output.filtered} || touch {output.filtered}
-        cat {output.filtered} >> {output.ssv}
-        """
-
-def get_pairing_names_with_refs(wildcards):
-    """Get list of pairings that have corresponding reference databases"""
-    pairing_names = get_pairing_names(wildcards)
-    # Filter to only pairings that have reference files
-    valid_pairings = []
-    for pairing in pairing_names:
-        ref_file = f"references/pairings_for_x_element_ends/{STRAIN}_pairings/{STRAIN}_paired_{pairing}.fasta"
-        if os.path.exists(ref_file):
-            valid_pairings.append(pairing)
-        else:
-            print(f"Warning: No reference file for pairing {pairing}, skipping")
-    return valid_pairings
-
-def aggregate_x_element_inputs(wildcards):
-    """Aggregate all x_element RepeatMasker results based on checkpoint output"""
-    pairing_names = get_pairing_names_with_refs(wildcards)
-    return expand("results/{base}/paired_x_element_ends_repeatmasker_results/{base}_{pairing}_x_element_ends_repeatmasker_results.ssv",
-                  base=wildcards.base,
-                  pairing=pairing_names)
-
-rule aggregate_x_elements:
-    input:
-        aggregate_x_element_inputs
-    output:
-        marker = touch("results/{base}/paired_x_element_ends_repeatmasker_results/.done")
-    shell:
-        "echo 'All X element RepeatMasker jobs complete'"
-    
-rule make_x_element_ends_pairs_repeatmasker_tsv:
-    input:
-        x_elements_done = "results/{base}/paired_x_element_ends_repeatmasker_results/.done",
-        pairings_dir = "results/{base}/paired_by_y_prime_reads/",
-        y_prime_probe = "results/{base}/{base}_post_y_prime_probe.tsv"
-    output:
-        all_tsv = "results/{base}/{base}_paired_x_element_ends_repeatmasker.tsv",
-        good_tsv = "results/{base}/{base}_good_x_element_ends_paired_repeatmasker.tsv",
-        gained_tsv = "results/{base}/{base}_good_gained_y_x_element_ends_paired_repeatmasker.tsv"
-    params:
-        strain = STRAIN,
-        repeatmasker_dir = "results/{base}/paired_x_element_ends_repeatmasker_results/"
-    shell:
-        """
-        python scripts/make_x_element_ends_pairs_repeatmasker_tsv.py \
-            {params.repeatmasker_dir} \
-            {params.strain} \
-            {input.y_prime_probe} \
-            {output.all_tsv} \
-            {output.good_tsv} \
-            {output.gained_tsv}
-        """
-
-#######################################################################################
-# Step 12: Find 250bp tracts of spacer sequences
-#######################################################################################
-
-rule repeatmasker_spacers:
-    input:
-        query = "results/{base}/paired_by_y_prime_reads/{pairing}.fasta",
-        database = f"references/pairings_for_spacers/{STRAIN}_pairings/{STRAIN}_paired_{{pairing}}.fasta"
-    output:
-        out_file = "results/{base}/paired_spacer_repeatmasker_results/{pairing}.fasta.out",
-        filtered = "results/{base}/paired_spacer_repeatmasker_results/{pairing}_spacer_filtered.out",
-        ssv = "results/{base}/paired_spacer_repeatmasker_results/{base}_{pairing}_spacer_repeatmasker_results.ssv"
-    params:
-        outdir = "results/{base}/paired_spacer_repeatmasker_results/"
-    threads: 12
-    shell:
-        """
-        mkdir -p {params.outdir}
-
-        RepeatMasker {input.query} -lib {input.database} -s -pa {threads} \
-            --cutoff 500 -no_is -norna -gff -dir {params.outdir}
-
-        # Create header
-        echo -e "SW_score\\tdivergence_percent\\tdeletion_percent\\tinsertion_percent\\tread_id\\tmatch_start_on_read\\tmatch_end_on_read\\tleftover_on_read\\tstrand\\tchr_end_tract\\tsection_number\\tmatch_start_on_chr_end_section\\tmatch_end_on_chr_end_section\\tleftover_on_chr_end_section\\tmatch_id\\tsub_match" > {output.ssv}
-
-        # Filter for spacer sequences and append
-        grep "_from_repeat_to_plus_50kb" {output.out_file} > {output.filtered} || touch {output.filtered}
-        cat {output.filtered} >> {output.ssv}
-        """
-
-def aggregate_spacer_inputs(wildcards):
-    """Aggregate all spacer RepeatMasker results based on checkpoint output"""
-    pairing_names = get_pairing_names_with_refs(wildcards)
-    return expand("results/{base}/paired_spacer_repeatmasker_results/{base}_{pairing}_spacer_repeatmasker_results.ssv",
-                  base=wildcards.base,
-                  pairing=pairing_names)
-
-rule aggregate_spacers:
-    input:
-        aggregate_spacer_inputs
-    output:
-        marker = touch("results/{base}/paired_spacer_repeatmasker_results/.done")
-    shell:
-        "echo 'All spacer RepeatMasker jobs complete'"
-
-rule make_spacer_pairs_repeatmasker_tsv:
-    input:
-        spacers_done = "results/{base}/paired_spacer_repeatmasker_results/.done",
-        pairings_dir = "results/{base}/paired_by_y_prime_reads/",
-        y_prime_probe = "results/{base}/{base}_post_y_prime_probe.tsv",
-        anchors_bed = f"references/{STRAIN}_anchors_and_distances.bed",
-        features_bed = FEATURES_BED  # From label_regions.sh output (simplified BED)
-    output:
-        all_tsv = "results/{base}/{base}_paired_spacer_repeatmasker.tsv",
-        good_tsv = "results/{base}/{base}_paired_good_spacer_repeatmasker.tsv",
-        gained_tsv = "results/{base}/{base}_paired_good_gained_spacer_repeatmasker.tsv"
-    params:
-        strain = STRAIN,
-        repeatmasker_dir = "results/{base}/paired_spacer_repeatmasker_results/"
-    shell:
-        """
-        python scripts/make_spacer_pairs_repeatmasker_tsv.py \
-            {params.repeatmasker_dir} \
-            {params.strain} \
-            {input.anchors_bed} \
-            {input.features_bed} \
-            {input.y_prime_probe} \
-            {output.all_tsv} \
-            {output.good_tsv} \
-            {output.gained_tsv}
+        python scripts/aggregate_recombination.py \
+            --recombination-dir {params.recomb_dir} \
+            --base-name         {params.base_name} \
+            --output-summary    {output}
         """
