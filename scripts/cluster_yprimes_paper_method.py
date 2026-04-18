@@ -33,7 +33,7 @@ Usage:
 
 CUSTOM_CONDENSE_HOMOPOLYMERS = True     # True = condense, False = skip
 CUSTOM_DEDUP_THRESHOLD       = 99.9    # 99.9 = paper method, 100.0 = no dedup
-CUSTOM_LINKAGE               = 'average'  # 'average', 'complete', or 'single'
+CUSTOM_LINKAGE               = 'complete'  # 'average', 'complete', or 'single'
 CUSTOM_STOP_MODE             = 'threshold'  # 'silhouette' or 'threshold'
 CUSTOM_IDENTITY_THRESHOLD    = 97.0    # Only used when CUSTOM_STOP_MODE = 'threshold'
 
