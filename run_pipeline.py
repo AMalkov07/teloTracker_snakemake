@@ -214,12 +214,14 @@ def write_snakemake_config(cfg: dict, dest: Path = None):
 
 # Prepended to every patched shell script before execution so that
 # `conda activate` works even though subprocess bash is non-interactive
-# (shell functions aren't inherited from the parent). Runs above any
-# `set -u` / `set -e` in the script body so a missing conda.sh falls
-# through silently rather than aborting before we see the real error.
+# (shell functions aren't inherited from the parent — env vars are,
+# so `CONDA_SHLVL` alone is NOT a reliable "conda is ready" signal).
+# Check for the `conda` shell function itself. Runs above any `set -u`
+# / `set -e` so a missing conda.sh falls through silently rather than
+# aborting before we see the real error.
 CONDA_INIT_PROLOGUE = (
     "# Auto-injected by run_pipeline.py — initialize conda for non-interactive shells\n"
-    'if [ -z "${CONDA_SHLVL:-}" ]; then\n'
+    "if ! declare -F conda > /dev/null 2>&1; then\n"
     '    _conda_base="$(conda info --base 2>/dev/null)"\n'
     '    if [ -n "$_conda_base" ] && [ -f "$_conda_base/etc/profile.d/conda.sh" ]; then\n'
     "        # shellcheck disable=SC1091\n"
