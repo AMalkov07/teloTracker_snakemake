@@ -168,7 +168,11 @@ Wrap the wrapper in a tiny SGE script:
 #$ -j y
 #$ -cwd
 
+# qsub spawns a non-interactive shell that does NOT source .bashrc, so
+# `conda activate` is not defined until we source conda.sh explicitly.
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate consensus
+
 python run_pipeline.py --config pipeline_config.yaml
 ```
 
@@ -216,6 +220,12 @@ For the `recombination` step the wrapper doesn't touch a shell script — it jus
 
 ## Troubleshooting
 
+- **`CommandNotFoundError: Your shell has not been properly configured to use 'conda activate'`** — qsub (and subprocess bash) spawn non-interactive shells that don't source `.bashrc`, so the `conda` shell function isn't loaded. Fix by sourcing `conda.sh` in your qsub wrapper:
+  ```bash
+  source "$(conda info --base)/etc/profile.d/conda.sh"
+  conda activate consensus
+  ```
+  `run_pipeline.py` already injects the same `source` at the top of patched `create_ref.sh`/`label_regions.sh`, so you only need this in the outer qsub wrapper.
 - **"PyYAML is required"** — activate the `consensus` conda env first.
 - **"could not find 'VAR=' in ... to substitute"** — a variable name in the wrapper no longer matches the shell script (e.g. you renamed a bash var). The wrapper will warn but continue; the script will run with its default value.
 - **Snakemake fails at module load with `KeyError: ...`** — your `pipeline_config.yaml` is missing a key the Snakefile expects. Run with `--dry-run`, inspect the generated `config.yaml`, and verify it has `references.y_prime_lib`, `spacer_lib_dir`, `x_element_lib_dir`, etc.

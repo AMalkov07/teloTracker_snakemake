@@ -212,10 +212,30 @@ def write_snakemake_config(cfg: dict, dest: Path = None):
 # Script runner
 # ──────────────────────────────────────────────────────────────────────────────
 
+# Prepended to every patched shell script before execution so that
+# `conda activate` works even though subprocess bash is non-interactive
+# (shell functions aren't inherited from the parent). Runs above any
+# `set -u` / `set -e` in the script body so a missing conda.sh falls
+# through silently rather than aborting before we see the real error.
+CONDA_INIT_PROLOGUE = (
+    "# Auto-injected by run_pipeline.py — initialize conda for non-interactive shells\n"
+    'if [ -z "${CONDA_SHLVL:-}" ]; then\n'
+    '    _conda_base="$(conda info --base 2>/dev/null)"\n'
+    '    if [ -n "$_conda_base" ] && [ -f "$_conda_base/etc/profile.d/conda.sh" ]; then\n'
+    "        # shellcheck disable=SC1091\n"
+    '        . "$_conda_base/etc/profile.d/conda.sh"\n'
+    "    fi\n"
+    "fi\n"
+    "\n"
+)
+
+
 def run_script(patched_content: str, label: str, extra_args: list = None, dry_run: bool = False):
     """Write patched content to a temp file and execute it with bash."""
     extra_args = extra_args or []
     cmd_display = f"bash {label} {' '.join(extra_args)}".strip()
+
+    patched_content = CONDA_INIT_PROLOGUE + patched_content
 
     if dry_run:
         print(f"\n  [DRY RUN] Would execute: {cmd_display}")
