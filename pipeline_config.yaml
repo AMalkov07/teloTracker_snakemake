@@ -27,11 +27,19 @@ dorado_model: "dna_r10.4.1_e8.2_400bps_sup@v5.2.0"
 # ── Optional / Defaults ───────────────────────────────────────────────────────
 
 threads: 56
-anchor_set: "test_anchors"
+anchor_set: "telomerase_shutoff_anchors"
+
+# BLAST parameter — minimum raw gapped alignment score
+min_raw_gapped_score: 5000
 
 # Y prime clustering: percent identity threshold for grouping
-# Y primes above this threshold are considered indistinguishable
+# Higher = more groups (finer resolution, risk of misassignment with ONT error)
+# Lower  = fewer groups (coarser, more reliable)
 yprime_identity_threshold: 97.0
+
+# Override the automatically-extracted Y prime library with a curated one.
+# Uncomment and set if you want to use a specific FASTA.
+# y_prime_lib_override: "references/7302_features/repeatmasker_7302_all_y_primes.fasta"
 
 # Uncomment to supply a custom reference FASTA for the label_regions step
 # (defaults to the output of create_ref.sh)
@@ -39,7 +47,14 @@ yprime_identity_threshold: 97.0
 
 # ── Recombination Analysis — Step 3 ──────────────────────────────────────────
 
-# List all future time-point samples to analyze with telomere_analysis_complete.sh
+# Day-0 sample that has already had create_ref + label_regions run against it.
+# The recombination step uses its reference when analyzing later time points.
+# Defaults to base_name if omitted.
+# day0_base_name: "dorado_7302_day0_PromethION_no_tag_yes_rejection"
+
+# Time-point samples to analyze against the day-0 reference.
+# Each is run as: snakemake recombination_summary -c THREADS with the
+# appropriate base_name set in config.yaml.
 timepoint_samples:
   - "dorado_7302_day3_PromethION_no_tag_yes_rejection"
   - "dorado_7302_day6_PromethION_no_tag_yes_rejection"
