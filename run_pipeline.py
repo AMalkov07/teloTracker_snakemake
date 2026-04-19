@@ -13,11 +13,17 @@ Usage examples
   # Generate a sample config file to fill in:
   python run_pipeline.py --init-config
 
-  # Run all steps (create_ref -> label_regions -> recombination):
+  # Default: build the day-0 reference (create_ref -> label_regions):
   python run_pipeline.py --config pipeline_config.yaml
 
-  # Run only specific steps:
-  python run_pipeline.py --config pipeline_config.yaml --steps create_ref label_regions
+  # Run recombination analysis on later time points:
+  python run_pipeline.py --config pipeline_config.yaml --steps recombination
+
+  # Full pipeline in one shot (day0 + recombination):
+  python run_pipeline.py --config pipeline_config.yaml --steps all
+
+  # Run only a single step:
+  python run_pipeline.py --config pipeline_config.yaml --steps create_ref
 
   # Override any value on the command line:
   python run_pipeline.py --config pipeline_config.yaml --threads 32 --steps create_ref
@@ -26,8 +32,7 @@ Usage examples
   python run_pipeline.py \\
       --base-name dorado_7302_day0_PromethION_no_tag_yes_rejection \\
       --strain 7302 \\
-      --dorado-mode local \\
-      --steps create_ref label_regions
+      --dorado-mode local
 
   # Dry run to preview substitutions without executing:
   python run_pipeline.py --config pipeline_config.yaml --dry-run
@@ -491,11 +496,12 @@ def parse_args():
     parser.add_argument("--config", metavar="FILE",
                         help="Path to pipeline_config.yaml")
     parser.add_argument("--steps", nargs="+",
-                        choices=["create_ref", "label_regions", "recombination", "all"],
-                        default=["all"],
+                        choices=["create_ref", "label_regions", "recombination", "day0", "all"],
+                        default=["day0"],
                         metavar="STEP",
-                        help="Steps to run: create_ref, label_regions, recombination, all "
-                             "(default: all). Multiple steps can be listed.")
+                        help="Steps to run: create_ref, label_regions, recombination, day0, all "
+                             "(default: day0 = create_ref + label_regions). 'all' adds recombination. "
+                             "Multiple individual steps can also be listed.")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would be executed without running anything")
 
@@ -560,11 +566,15 @@ def main():
 
     cfg = merge_configs(file_cfg, args)
 
-    # Resolve steps
-    steps = list(args.steps)
-    if "all" in steps:
-        steps = ["create_ref", "label_regions", "recombination"]
-    # Deduplicate while preserving order
+    # Resolve steps — expand shortcuts, preserve order, deduplicate
+    steps = []
+    for s in args.steps:
+        if s == "all":
+            steps.extend(["create_ref", "label_regions", "recombination"])
+        elif s == "day0":
+            steps.extend(["create_ref", "label_regions"])
+        else:
+            steps.append(s)
     seen = set()
     steps = [s for s in steps if not (s in seen or seen.add(s))]
 

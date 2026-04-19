@@ -60,11 +60,14 @@ python run_pipeline.py --init-config
 
 # 2. Edit pipeline_config.yaml (base_name, strain, dorado_image, samples, etc.)
 
-# 3. Run everything:
+# 3. Build the day-0 reference (default: create_ref + label_regions):
 python run_pipeline.py --config pipeline_config.yaml
 
-# Or run specific steps:
-python run_pipeline.py --config pipeline_config.yaml --steps create_ref label_regions
+# 4. Later, run recombination analysis on future time points:
+python run_pipeline.py --config pipeline_config.yaml --steps recombination
+
+# Or do everything in one shot:
+python run_pipeline.py --config pipeline_config.yaml --steps all
 
 # Preview what would happen without executing:
 python run_pipeline.py --config pipeline_config.yaml --dry-run
@@ -80,7 +83,7 @@ python run_pipeline.py --config pipeline_config.yaml --dry-run
 |---|---|
 | `--config FILE` | Load settings from a YAML config file. |
 | `--init-config [FILE]` | Write a fresh `pipeline_config.yaml` template and exit. Default filename: `pipeline_config.yaml`. |
-| `--steps STEP ...` | Which step(s) to run. Choices: `create_ref`, `label_regions`, `recombination`, `all`. Default: `all`. |
+| `--steps STEP ...` | Which step(s) to run. Choices: `create_ref`, `label_regions`, `recombination`, `day0`, `all`. Default: `day0` (= `create_ref` + `label_regions`). `all` = `day0` + `recombination`. |
 | `--dry-run` | Print what would be executed — patched scripts, generated `config.yaml`, Snakemake command — without running anything. Use this first. |
 
 ### Per-parameter overrides (win over the config file)
