@@ -4,8 +4,13 @@ filter_reads.py — Filter FASTQ reads by minimum length and minimum qscore.
 
 Reads are kept only if:
   - Length >= MIN_LENGTH
-  - qs:f:<value> tag is present in the header AND value >= MIN_QSCORE
-  - Reads with no qs tag are skipped
+  - qs:f:<value> tag in the header is >= MIN_QSCORE (if the tag is present)
+
+Reads whose headers don't carry a qs:f: tag (e.g. older Dorado basecalls or
+FASTQs that lost the tag during a BAM conversion) are NOT filtered by qscore
+— they pass the qscore check and are still subject to the length filter.
+A summary of how many reads lacked the tag is printed at the end so the
+missing metadata isn't silent.
 
 Usage:
     python filter_reads.py <input.fastq> <output.fastq> [min_length] [min_qscore]
@@ -25,6 +30,7 @@ min_qscore  = float(sys.argv[4]) if len(sys.argv) > 4 else 10.0
 kept = 0
 skipped_length = 0
 skipped_qscore = 0
+missing_qs_tag = 0
 
 with open(input_file) as infile, open(output_file, "w") as outfile:
     while True:
@@ -39,7 +45,6 @@ with open(input_file) as infile, open(output_file, "w") as outfile:
         qs_value = None
         for tag in header.split():
             tag = tag.strip()
-            #print(f"DEBUG: Checking tag '{tag}'")
             if tag.startswith("qs:f:"):
                 try:
                     qs_value = float(tag[5:])
@@ -47,8 +52,10 @@ with open(input_file) as infile, open(output_file, "w") as outfile:
                     pass
                 break
 
-        # Filter by qscore
-        if qs_value < min_qscore:
+        # Filter by qscore (only when a tag was present)
+        if qs_value is None:
+            missing_qs_tag += 1
+        elif qs_value < min_qscore:
             skipped_qscore += 1
             continue
 
@@ -69,3 +76,7 @@ print(f"  Total reads:        {total}")
 print(f"  Kept:               {kept}")
 print(f"  Skipped (qscore):   {skipped_qscore}  [qs < {min_qscore}]")
 print(f"  Skipped (length):   {skipped_length}  [len < {min_length}bp]")
+if missing_qs_tag:
+    print(f"  WARNING: {missing_qs_tag} reads had no qs:f: tag in their header — "
+          f"they bypassed the qscore filter. Re-basecall with a Dorado version that "
+          f"emits qs tags if strict quality filtering is required.")
