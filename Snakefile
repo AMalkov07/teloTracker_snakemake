@@ -160,12 +160,14 @@ rule filter_anchors:
 
 rule split_and_label:
     input: f"{BLAST_DIR}/top_matches_{BASE}_blasted_{ANCHOR}.tsv"
-    output: expand(f"{CHR_DIR}/{BASE}_blasted_{ANCHOR}_{{ce}}_anchor_reads.fasta", ce=CHROM_ENDS)
+    output:
+        fasta = expand(f"{CHR_DIR}/{BASE}_blasted_{ANCHOR}_{{ce}}_anchor_reads.fasta", ce=CHROM_ENDS),
+        tsv   = expand(f"{CHR_DIR}/{BASE}_blasted_{ANCHOR}_{{ce}}_anchor_reads.tsv",   ce=CHROM_ENDS),
     threads: 1
     shell:
         """
         python scripts/split_and_label_all_reads_include_anchor.py {BASE} {ANCHOR} {RESULTS}
-        for f in {output}; do touch -a "$f"; done
+        for f in {output.fasta} {output.tsv}; do touch -a "$f"; done
         """
 
 # ---------------------------------------------------------------------------
