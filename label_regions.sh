@@ -18,7 +18,7 @@ BASE_NAME="dorado_7302_day0_PromethION_no_tag_yes_rejection"
 STRAIN_ID="7302"
 
 # Input: Reference FASTA file
-REFERENCE_DIR="results/${BASE_NAME}/assembly_${STRAIN_ID}"
+REFERENCE_DIR="results/${BASE_NAME}/_pipeline/assembly_${STRAIN_ID}"
 #REFERENCE_DIR="labeling_test"
 REFERENCE_FASTA="${REFERENCE_DIR}/assembly_${STRAIN_ID}_dorado_reference.fasta"
 #REFERENCE_FASTA="${REFERENCE_DIR}/${STRAIN_ID}.fasta"
@@ -34,7 +34,7 @@ PROBE_FASTA="${REFERENCES_DIR}/probe.fasta"  # Y prime probe for verification
 SCRIPTS_DIR="scripts"
 
 # Output configuration
-OUTPUT_DIR="results/${BASE_NAME}/pretelomeric_labels"
+OUTPUT_DIR="results/${BASE_NAME}/_pipeline/pretelomeric_labels"
 PREFIX="pretelomeric_regions_${STRAIN_ID}"
 
 # Thread configuration

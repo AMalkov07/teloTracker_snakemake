@@ -23,8 +23,8 @@ BAM_DIR = config.get("bam_dir", "samples_dorado_basecalled")
 MIN_GAPPED_SCORE = config.get("min_raw_gapped_score", 5000)
 
 DAY0_BASE = config.get("day0_base_name", BASE)
-DAY0_REF  = f"results/{DAY0_BASE}/assembly_{STRAIN}/assembly_{STRAIN}_dorado_reference.fasta"
-DAY0_BED  = f"results/{DAY0_BASE}/pretelomeric_labels/pretelomeric_regions_{STRAIN}_simp.bed"
+DAY0_REF  = f"results/{DAY0_BASE}/_pipeline/assembly_{STRAIN}/assembly_{STRAIN}_dorado_reference.fasta"
+DAY0_BED  = f"results/{DAY0_BASE}/_pipeline/pretelomeric_labels/pretelomeric_regions_{STRAIN}_simp.bed"
 
 # Use curated Y prime library override if specified, otherwise use extracted version
 Y_PRIME_LIB    = config["references"].get("y_prime_lib_override",
@@ -36,7 +36,7 @@ ADAPTER_FILE   = config["references"]["adapters"]
 PROBE_DB       = config["references"]["probe"]
 
 # Output directories
-RESULTS     = f"results/{BASE}"
+RESULTS     = f"results/{BASE}/_pipeline"
 BLAST_DIR   = f"{RESULTS}/blast"
 CHR_DIR     = f"{RESULTS}/blast/chr_anchor_reads"
 YP_BLAST    = f"{RESULTS}/blast/y_prime_probe"

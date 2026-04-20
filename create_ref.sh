@@ -18,11 +18,11 @@ BASE_NAME="dorado_fast5_7575_day0_PromethION_no_tag_yes_rejection"
 STRAIN_ID="7575"
 
 # Paths relative to Snakemake pipeline outputs
-INPUT_TSV="results/${BASE_NAME}/${BASE_NAME}_post_y_prime_probe.tsv"
-READS_FASTQ="results/${BASE_NAME}/${BASE_NAME}.fastq"
+INPUT_TSV="results/${BASE_NAME}/_pipeline/${BASE_NAME}_post_y_prime_probe.tsv"
+READS_FASTQ="results/${BASE_NAME}/_pipeline/${BASE_NAME}.fastq"
 
 # Output configuration
-OUTPUT_DIR="results/${BASE_NAME}/assembly_${STRAIN_ID}"
+OUTPUT_DIR="results/${BASE_NAME}/_pipeline/assembly_${STRAIN_ID}"
 PREFIX="assembly_${STRAIN_ID}"
 
 # Thread configuration

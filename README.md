@@ -85,6 +85,7 @@ python run_pipeline.py --config pipeline_config.yaml --dry-run
 | `--init-config [FILE]` | Write a fresh `pipeline_config.yaml` template and exit. Default filename: `pipeline_config.yaml`. |
 | `--steps STEP ...` | Which step(s) to run. Choices: `create_ref`, `label_regions`, `recombination`, `day0`, `all`. Default: `day0` (= `create_ref` + `label_regions`). `all` = `day0` + `recombination`. |
 | `--dry-run` | Print what would be executed — patched scripts, generated `config.yaml`, Snakemake command — without running anything. Use this first. |
+| `--no-organize` | Skip the post-step pass that creates sibling symlinks (`reference.fasta`, `labels.bed`, …) at the top of `results/<base_name>/` pointing into `_pipeline/`. See [Output layout](#output-layout). |
 
 ### Per-parameter overrides (win over the config file)
 
@@ -138,6 +139,42 @@ timepoint_samples:
   - "dorado_7302_day3_PromethION_no_tag_yes_rejection"
   - "dorado_7302_day6_PromethION_no_tag_yes_rejection"
 ```
+
+---
+
+## Output layout
+
+Every pipeline run writes into `results/<base_name>/`. To keep the top of that directory readable, the pipeline puts all its real output inside a `_pipeline/` subfolder and creates sibling **symlinks** at the top for the handful of files users actually care about:
+
+```
+results/<base_name>/
+├── _pipeline/                       ← every file produced by Snakemake + the shell scripts
+│   ├── assembly_<strain>/           (create_ref.sh output)
+│   ├── pretelomeric_labels/         (label_regions.sh output)
+│   ├── recombination/               (snakemake recombination_summary output)
+│   ├── blast/, porechop/, graphs/   (intermediates — feel free to ignore)
+│   └── ...                          (everything else the pipeline produces)
+├── reference.fasta                  → _pipeline/assembly_<strain>/assembly_<strain>_dorado_reference.fasta
+├── labels.bed                       → _pipeline/pretelomeric_labels/pretelomeric_regions_<strain>_simp.bed
+├── labels.gff3                      → _pipeline/pretelomeric_labels/pretelomeric_regions_<strain>.gff3
+├── quality_report.txt               → _pipeline/pretelomeric_labels/pretelomeric_regions_<strain>_quality_report.txt
+├── recombination_summary.tsv        → _pipeline/recombination/<base_name>_recombination_summary.tsv
+└── MANIFEST.md                      (short note about what's where)
+```
+
+Important:
+
+- **Deleting a symlink does not delete the underlying file.** The symlinks are just pointers; the real files live inside `_pipeline/`.
+- **A symlink only appears after its target has been produced.** If `create_ref.sh` has finished but `label_regions.sh` hasn't, you'll see `reference.fasta` but not `labels.bed`.
+- **`scripts/organize_outputs.py`** creates and refreshes these symlinks. It's run automatically after every step by `run_pipeline.py`; disable with `--no-organize` if you'd rather work with the raw `_pipeline/` layout.
+- **Migration from older runs:** if you have existing `results/<base>/` directories produced before this change, move them by hand:
+  ```bash
+  cd results/<base_name>
+  mkdir _pipeline
+  # shopt -s dotglob  # uncomment if you also want hidden files moved
+  mv * _pipeline/ 2>/dev/null
+  python ../../scripts/organize_outputs.py <base_name>
+  ```
 
 ---
 
@@ -247,5 +284,15 @@ For the `recombination` step the wrapper doesn't touch a shell script — it jus
 ├── consensus.yaml             # Conda environment spec
 ├── references/                # Anchors, probe, adapters, strain pairing libraries
 ├── scripts/                   # Python scripts called by Snakefile / label_regions
-└── samples_dorado_basecalled/ # Your input BAM/FASTQ files
+│   └── organize_outputs.py    # Creates sibling symlinks under results/<base>/
+├── samples_dorado_basecalled/ # Your input BAM/FASTQ files
+└── results/                   # Per-sample outputs — see "Output layout" above
+    └── <base_name>/
+        ├── _pipeline/         # Everything produced by the pipeline
+        ├── reference.fasta    # Symlinks to the user-facing finals
+        ├── labels.bed
+        ├── labels.gff3
+        ├── quality_report.txt
+        ├── recombination_summary.tsv
+        └── MANIFEST.md
 ```

@@ -272,6 +272,22 @@ def run_script(patched_content: str, label: str, extra_args: list = None, dry_ru
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Post-step organization
+# ──────────────────────────────────────────────────────────────────────────────
+
+def organize_outputs(base_name: str, strain: str, enabled: bool = True, dry_run: bool = False):
+    """Run scripts/organize_outputs.py to (re)create sibling symlinks + MANIFEST."""
+    if not enabled or dry_run:
+        return
+    script = PIPELINE_DIR / "scripts" / "organize_outputs.py"
+    cmd = [sys.executable, str(script), base_name, "--strain", strain, "--quiet"]
+    try:
+        subprocess.run(cmd, check=True, cwd=PIPELINE_DIR)
+    except subprocess.CalledProcessError as e:
+        print(f"  WARNING: organize_outputs exited with code {e.returncode} — symlinks may be incomplete")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Pipeline steps
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -333,7 +349,7 @@ def step_label_regions(cfg: dict, dry_run: bool = False):
     print(f"  threads:   {threads}")
 
     # Determine reference FASTA path
-    default_ref = PIPELINE_DIR / f"results/{base_name}/assembly_{strain}/assembly_{strain}_dorado_reference.fasta"
+    default_ref = PIPELINE_DIR / f"results/{base_name}/_pipeline/assembly_{strain}/assembly_{strain}_dorado_reference.fasta"
     custom_ref  = cfg.get("reference_fasta", "")
 
     if custom_ref:
@@ -526,6 +542,10 @@ def parse_args():
                              "Multiple individual steps can also be listed.")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would be executed without running anything")
+    parser.add_argument("--no-organize", action="store_true",
+                        help="Skip the post-step pass that creates sibling symlinks "
+                             "(reference.fasta, labels.bed, ...) at the top of "
+                             "results/<base>/ pointing into _pipeline/")
 
     # Core parameters
     grp = parser.add_argument_group("core parameters (override config file)")
@@ -610,14 +630,26 @@ def main():
     # Ensure we run from the pipeline root
     os.chdir(PIPELINE_DIR)
 
+    organize_enabled = not args.no_organize
+    day0_base = cfg.get("base_name", "")
+    strain = cfg.get("strain", "")
+    # create_ref.sh strips a trailing .bam, so strip here too for symlink-target resolution
+    if day0_base.endswith(".bam"):
+        day0_base = day0_base[:-4]
+
     if "create_ref" in steps:
         step_create_ref(cfg, dry_run=args.dry_run)
+        organize_outputs(day0_base, strain, enabled=organize_enabled, dry_run=args.dry_run)
 
     if "label_regions" in steps:
         step_label_regions(cfg, dry_run=args.dry_run)
+        organize_outputs(day0_base, strain, enabled=organize_enabled, dry_run=args.dry_run)
 
     if "recombination" in steps:
         step_recombination(cfg, dry_run=args.dry_run)
+        # Recombination runs once per time-point sample; organize each one.
+        for sample in (cfg.get("timepoint_samples") or [day0_base]):
+            organize_outputs(sample, strain, enabled=organize_enabled, dry_run=args.dry_run)
 
     print("\n" + "=" * 70)
     print("Wrapper finished.")
