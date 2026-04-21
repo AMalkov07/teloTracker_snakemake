@@ -88,26 +88,25 @@ def parse_args():
 
 
 def print_coverage_diagnostic(chr_end, n_reads, threshold, reads_fasta):
-    """Emit a human-readable explanation to stderr when coverage is below threshold."""
+    """Emit a human-readable note to stderr when coverage is below threshold."""
     # reads_fasta is e.g. results/<base>/_pipeline/telomere_filtered_reads/<base>_<chr_end>_telomere_reads.fasta
     pipeline_dir = os.path.dirname(os.path.dirname(reads_fasta))
     base_dir     = os.path.dirname(pipeline_dir)
     base_name    = os.path.basename(base_dir) or '<base_name>'
 
-    bar = '=' * 72
+    bar = '-' * 72
     lines = [
         '',
         bar,
-        f'STOPPING: insufficient coverage for chr_end={chr_end}',
+        f'SKIPPING chr_end={chr_end}: insufficient coverage '
+        f'({n_reads} read(s) available, {threshold} required)',
         bar,
-        f'  Reads available after telomere filtering : {n_reads}',
-        f'  Minimum required                         : {threshold}',
+        '  Writing an empty features.tsv and a .skipped sidecar so the final',
+        '  recombination_summary.tsv will mark this chr_end as "skipped"',
+        '  instead of conflating it with chr_ends that ran but found no events.',
+        '  The pipeline will continue with the other chr_ends.',
         '',
-        '  Recombination analysis of this chr_end would produce unreliable',
-        '  results with so few reads, so the pipeline is aborting instead of',
-        '  silently emitting a near-empty features.tsv.',
-        '',
-        '  Files to inspect for upstream diagnosis:',
+        '  For upstream diagnosis of why this chr_end is under-covered:',
         f'    Reads that reached this step (possibly empty):',
         f'      {reads_fasta}',
         f'    Adapter-trimming log (look for over-aggressive trimming):',
@@ -123,12 +122,21 @@ def print_coverage_diagnostic(chr_end, n_reads, threshold, reads_fasta):
         '      match the reads in samples_dorado_basecalled/).',
         '    - Over-aggressive adapter trimming in porechop_abi.',
         '',
-        '  Override (not recommended for science): pass --min-reads-per-chr-end 0',
-        '  to analyze_features.py via the Snakemake rule to force-run anyway.',
+        '  To force-run undercovered chr_ends, pass --min-reads-per-chr-end 0',
+        '  to analyze_features.py (not recommended for science).',
         bar,
         '',
     ]
     print('\n'.join(lines), file=sys.stderr)
+
+
+def write_skipped_sidecar(output_tsv_path, chr_end, n_reads, threshold):
+    """Write <output_tsv>.skipped to signal the aggregator that this chr_end was
+    skipped due to low coverage (vs ran-but-found-no-events)."""
+    sidecar_path = output_tsv_path + '.skipped'
+    reason = f'insufficient_coverage: {n_reads} read(s) available, threshold is {threshold}'
+    with open(sidecar_path, 'w') as fh:
+        fh.write(reason + '\n')
 
 # ---------------------------------------------------------------------------
 # FASTA loading
@@ -912,7 +920,9 @@ def main():
 
     if n_reads < args.min_reads_per_chr_end:
         print_coverage_diagnostic(args.chr_end, n_reads, args.min_reads_per_chr_end, args.reads_fasta)
-        sys.exit(1)
+        write_results_tsv([], args.output_tsv)
+        write_skipped_sidecar(args.output_tsv, args.chr_end, n_reads, args.min_reads_per_chr_end)
+        return
 
     if n_reads == 0:
         # Only reachable when --min-reads-per-chr-end is 0 (explicit override).

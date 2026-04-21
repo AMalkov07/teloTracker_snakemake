@@ -45,12 +45,31 @@ def summarize(recombination_dir, base_name, output_summary):
         return
 
     summary_rows = []
+    skipped_rows = []
     for fpath in files:
         # Extract chr_end from filename
         basename = os.path.basename(fpath)
         # Pattern: {base_name}_{chr_end}_features.tsv
         suffix = basename.replace(f'{base_name}_', '').replace('_features.tsv', '')
         chr_end = suffix
+
+        # Was this chr_end skipped by analyze_features.py due to low coverage?
+        sidecar_path = fpath + '.skipped'
+        if os.path.exists(sidecar_path):
+            try:
+                with open(sidecar_path) as fh:
+                    reason = fh.read().strip()
+            except Exception:
+                reason = 'skipped (reason file unreadable)'
+            row = {
+                'chr_end': chr_end,
+                'total_reads': 0,
+                'status': 'skipped',
+                'skip_reason': reason,
+            }
+            summary_rows.append(row)
+            skipped_rows.append(row)
+            continue
 
         try:
             df = pd.read_csv(fpath, sep='\t')
@@ -62,6 +81,8 @@ def summarize(recombination_dir, base_name, output_summary):
             summary_rows.append({
                 'chr_end': chr_end,
                 'total_reads': 0,
+                'status': 'no_events',
+                'skip_reason': '',
             })
             continue
 
@@ -105,6 +126,8 @@ def summarize(recombination_dir, base_name, output_summary):
         summary_rows.append({
             'chr_end': chr_end,
             'total_reads': total,
+            'status': 'analyzed',
+            'skip_reason': '',
             'n_recombination': int(n_recomb),
             'n_no_recombination': int(n_no_recomb),
             'pct_recombination': round(100 * n_recomb / max(total, 1), 1),
@@ -123,9 +146,15 @@ def summarize(recombination_dir, base_name, output_summary):
 
     # Print overview
     total_reads = sum(r['total_reads'] for r in summary_rows)
-    total_recomb = sum(r['n_recombination'] for r in summary_rows)
+    total_recomb = sum(r.get('n_recombination', 0) for r in summary_rows)
     print(f'  Total: {total_reads} reads, {total_recomb} recombination events '
           f'({100 * total_recomb / max(total_reads, 1):.1f}%)')
+
+    # Call out any chr_ends that were skipped due to low coverage
+    if skipped_rows:
+        print(f'  SKIPPED: {len(skipped_rows)} of {len(summary_rows)} chr_ends had insufficient coverage:')
+        for r in skipped_rows:
+            print(f'    {r["chr_end"]:<8} {r["skip_reason"]}')
 
 
 def main():
