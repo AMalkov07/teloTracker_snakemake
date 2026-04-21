@@ -78,7 +78,57 @@ def parse_args():
     p.add_argument('--strain',         required=True)
     p.add_argument('--output-tsv',     required=True)
     p.add_argument('--threads',        type=int, default=4)
+    p.add_argument('--min-reads-per-chr-end', type=int, default=3,
+                   help='Minimum reads required for meaningful per-chr-end '
+                        'recombination analysis. If fewer reads survive telomere '
+                        'filtering for this chr_end, the script aborts with a '
+                        'coverage diagnostic instead of emitting near-empty output. '
+                        'Default: 3. Set to 0 to force-run on any input.')
     return p.parse_args()
+
+
+def print_coverage_diagnostic(chr_end, n_reads, threshold, reads_fasta):
+    """Emit a human-readable explanation to stderr when coverage is below threshold."""
+    # reads_fasta is e.g. results/<base>/_pipeline/telomere_filtered_reads/<base>_<chr_end>_telomere_reads.fasta
+    pipeline_dir = os.path.dirname(os.path.dirname(reads_fasta))
+    base_dir     = os.path.dirname(pipeline_dir)
+    base_name    = os.path.basename(base_dir) or '<base_name>'
+
+    bar = '=' * 72
+    lines = [
+        '',
+        bar,
+        f'STOPPING: insufficient coverage for chr_end={chr_end}',
+        bar,
+        f'  Reads available after telomere filtering : {n_reads}',
+        f'  Minimum required                         : {threshold}',
+        '',
+        '  Recombination analysis of this chr_end would produce unreliable',
+        '  results with so few reads, so the pipeline is aborting instead of',
+        '  silently emitting a near-empty features.tsv.',
+        '',
+        '  Files to inspect for upstream diagnosis:',
+        f'    Reads that reached this step (possibly empty):',
+        f'      {reads_fasta}',
+        f'    Adapter-trimming log (look for over-aggressive trimming):',
+        f'      {pipeline_dir}/porechop/{base_name}_porechop.log',
+        f'    Per-read telomere-repeat stats:',
+        f'      {pipeline_dir}/{base_name}_post_telo_trimming.tsv',
+        '',
+        '  Common causes:',
+        '    - Low telomeric read coverage for this chromosome end in the raw',
+        '      sequencing data (biological / experimental).',
+        '    - Reads too short after length filtering (filter_reads.py min-length).',
+        '    - Wrong anchor_set for this strain (chr-end anchor FASTA does not',
+        '      match the reads in samples_dorado_basecalled/).',
+        '    - Over-aggressive adapter trimming in porechop_abi.',
+        '',
+        '  Override (not recommended for science): pass --min-reads-per-chr-end 0',
+        '  to analyze_features.py via the Snakemake rule to force-run anyway.',
+        bar,
+        '',
+    ]
+    print('\n'.join(lines), file=sys.stderr)
 
 # ---------------------------------------------------------------------------
 # FASTA loading
@@ -488,22 +538,40 @@ def repeatmasker_y_primes(read_seqs, y_prime_lib, tmp_dir, threads=4):
         for read_id, seq in read_seqs.items():
             fh.write(f'>{read_id}\n{seq}\n')
 
+    if not read_seqs:
+        return {}
+
     rm_dir = os.path.join(tmp_dir, 'repeatmasker_y')
     os.makedirs(rm_dir, exist_ok=True)
 
-    # Run RepeatMasker with the same parameters as the GitHub TeloTracker
+    # RepeatMasker's `-pa N` spawns N parallel RM instances and partitions the
+    # input FASTA over them. When N exceeds the number of reads it can crash
+    # with SIGABRT (exit 134) because there's nothing to partition. Cap at
+    # read count.
+    pa = max(1, min(threads, len(read_seqs)))
+
     cmd = [
         'RepeatMasker',
         reads_fasta,
         '-lib', y_prime_lib,
         '-s',                   # slow/sensitive search
-        '-pa', str(threads),
+        '-pa', str(pa),
         '--cutoff', '1000',
         '-no_is',               # skip bacterial insertion element check
         '-norna',               # skip RNA repeat check
         '-dir', rm_dir,
     ]
-    subprocess.run(cmd, check=True, capture_output=True)
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode(errors='replace') if e.stderr else ''
+        stdout_tail = (e.stdout.decode(errors='replace') if e.stdout else '')[-1500:]
+        raise RuntimeError(
+            f"RepeatMasker failed (exit {e.returncode}) for {len(read_seqs)} read(s) with -pa {pa}.\n"
+            f"Command: {' '.join(cmd)}\n"
+            f"---- stderr ----\n{stderr}\n"
+            f"---- stdout (tail) ----\n{stdout_tail}"
+        ) from e
 
     # Parse the .out file
     out_file = os.path.join(rm_dir, os.path.basename(reads_fasta) + '.out')
@@ -842,7 +910,12 @@ def main():
     n_reads = len(read_seqs)
     print(f'  {n_reads} reads loaded')
 
+    if n_reads < args.min_reads_per_chr_end:
+        print_coverage_diagnostic(args.chr_end, n_reads, args.min_reads_per_chr_end, args.reads_fasta)
+        sys.exit(1)
+
     if n_reads == 0:
+        # Only reachable when --min-reads-per-chr-end is 0 (explicit override).
         print('  No reads -- writing empty output')
         write_results_tsv([], args.output_tsv)
         return
