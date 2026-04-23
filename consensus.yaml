@@ -427,4 +427,3 @@ dependencies:
       - polars==0.20.31
       - pyarrow==18.0.0
       - vbz-h5py-plugin==1.0.1
-prefix: /Users/amalkova/miniconda3/envs/consensus
