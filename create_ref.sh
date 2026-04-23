@@ -30,10 +30,10 @@ THREADS=56
 
 ###### Below does NOT need to be adjusted ######
 
-# Reference configuration
-REFERENCE="/Shared/malkova_lab/Ivan/nanopore_sequencing/reference_files/6991_only_to_anchors.fasta"
-ADAPTER_FILE="/Shared/malkova_lab/Ivan/nanopore_sequencing/offical_nanopore_adapter_seq+trunc.txt"
-SCRIPTS_DIR="/Shared/malkova_lab/Ivan/nanopore_sequencing/reference_files/scripts"
+# Reference configuration (paths relative to the repo root)
+REFERENCE="references/6991_only_to_anchors.fasta"
+ADAPTER_FILE="references/offical_nanopore_adapter_seq+trunc.txt"
+SCRIPTS_DIR="scripts"
 
 # Dorado configuration
 DORADO_MODE="docker"  # "docker" or "local"
