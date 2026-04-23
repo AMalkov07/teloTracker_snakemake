@@ -61,6 +61,15 @@ DISTINCTIVENESS = {
 COMPLEXITY_PENALTY = 0.3       # multiplied when cross-feature results are inconsistent
 PARTIAL_AGREEMENT_FACTOR = 0.7 # when features partially agree
 
+# Minimum percent-identity advantage a chunk's best non-expected hit must have
+# over its best-to-expected hit before the chunk is counted as "switched".
+# Prevents duplicated / near-duplicated regions (where best-hit BLAST ties
+# between chr_ends) from spuriously flipping chunks to a different source and
+# tripping the consecutive-chunk switch detector. Larger than the ~1-3% ONT
+# read error rate, smaller than the gap you'd see at a real recombination
+# breakpoint (typically 5-10%+).
+MIN_SWITCH_GAP_PCT = 3.0
+
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -237,17 +246,24 @@ def batch_blast_chunks(chunks, library_fasta, tmp_dir, label):
     return pd.DataFrame(columns=['qseqid', 'sseqid', 'pident', 'bitscore', 'length'])
 
 
-def parse_chunk_results(blast_df):
+def parse_chunk_results(blast_df, expected_chr_end=None):
     """Parse batch BLAST results into per-read, per-chunk best hits.
 
     Returns dict: {read_id: [(chunk_start, info_dict), ...]} sorted by chunk_start.
+
+    When expected_chr_end is provided, info also carries 'expected_pident' — the
+    highest pident of any hit to the expected chr_end for that chunk. The
+    analyze_chunks() gap rule uses this to decide whether a chunk's best hit to
+    a different chr_end is enough of a signal to count as a "switched" chunk.
     """
     if blast_df.empty:
         return {}
 
-    # First pass: collect best hit per (read, chunk)
+    # First pass: collect best hit per (read, chunk) + track best pident seen
+    # for the expected chr_end separately.
     best_hits = {}
     second_hits = {}
+    best_expected_pident = {}  # (read, chunk) -> best pident with source==expected
     for _, row in blast_df.iterrows():
         qid = row['qseqid']
         parts = qid.rsplit('__chunk_', 1)
@@ -257,6 +273,11 @@ def parse_chunk_results(blast_df):
         chunk_start = int(parts[1])
         source = _subject_to_chr_end(row['sseqid'])
         key = (read_id, chunk_start)
+
+        if expected_chr_end and source == expected_chr_end:
+            prev = best_expected_pident.get(key, -1.0)
+            if row['pident'] > prev:
+                best_expected_pident[key] = row['pident']
 
         if key not in best_hits or row['bitscore'] > best_hits[key]['bitscore']:
             # Demote current best to second
@@ -275,13 +296,14 @@ def parse_chunk_results(blast_df):
                     'bitscore': row['bitscore'],
                 }
 
-    # Merge best + second into final structure
+    # Merge best + second + expected into final structure
     results = {}
     for (read_id, chunk_start), info in best_hits.items():
         sec = second_hits.get((read_id, chunk_start), {})
         info['second_source'] = sec.get('source', '')
         info['second_pident'] = sec.get('pident', 0.0)
         info['second_bitscore'] = sec.get('bitscore', 0)
+        info['expected_pident'] = best_expected_pident.get((read_id, chunk_start), 0.0)
         results.setdefault(read_id, []).append((chunk_start, info))
 
     # Sort by chunk_start
@@ -352,11 +374,26 @@ def analyze_chunks(read_id, chunk_hits, expected_chr_end, feature_name):
             f'{feature_name}_recombination': 'no_data',
         }
 
-    # Count chunks matching each source
-    source_counts = {}
-    source_identities = {}
+    # Apply the minimum-gap rule: a chunk whose best hit is NOT to the expected
+    # chr_end only counts as "switched" if the best-hit pident beats the
+    # best-to-expected pident by at least MIN_SWITCH_GAP_PCT. Chunks whose best
+    # is another chr_end but within the gap are relabeled as matching expected,
+    # so that duplicated/near-duplicated regions (where BLAST ties between
+    # chr_ends) don't trip the consecutive-chunk switch detector.
+    effective_sources = []  # list of (pos, source_after_gap_rule)
     for pos, info in chunk_hits:
         src = info['source']
+        if src != expected_chr_end:
+            expected_pid = info.get('expected_pident', 0.0)
+            if (info['pident'] - expected_pid) < MIN_SWITCH_GAP_PCT:
+                src = expected_chr_end
+        effective_sources.append((pos, src))
+
+    # Count chunks matching each (effective) source
+    source_counts = {}
+    source_identities = {}
+    for i, (pos, info) in enumerate(chunk_hits):
+        src = effective_sources[i][1]
         source_counts[src] = source_counts.get(src, 0) + 1
         source_identities.setdefault(src, []).append(info['pident'])
 
@@ -379,7 +416,7 @@ def analyze_chunks(read_id, chunk_hits, expected_chr_end, feature_name):
     MIN_CONSECUTIVE_SWITCH = 3
     switch_chunk = -1
     switch_source = ''
-    sources_in_order = [(pos, info['source']) for pos, info in chunk_hits]
+    sources_in_order = effective_sources
 
     # Walk chunks looking for a run of MIN_CONSECUTIVE_SWITCH from a new source
     run_start = -1
@@ -1151,7 +1188,7 @@ def main():
         if spacer_lib:
             print('  BLASTing chunks against spacer library...')
             spacer_blast = batch_blast_chunks(all_chunks, spacer_lib, tmp_dir, 'spacer')
-            spacer_hits = parse_chunk_results(spacer_blast)
+            spacer_hits = parse_chunk_results(spacer_blast, expected_chr_end=args.chr_end)
             print(f'  Spacer: {len(spacer_blast)} hits, {len(spacer_hits)} reads with matches')
         else:
             print('  No spacer library found -- skipping spacer analysis')
