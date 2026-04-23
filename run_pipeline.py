@@ -386,7 +386,7 @@ def step_label_regions(cfg: dict, dry_run: bool = False):
 
 def step_recombination(cfg: dict, dry_run: bool = False):
     print("\n" + "=" * 70)
-    print("STEP 3: Recombination Analysis  (snakemake recombination_summary)")
+    print("STEP 3: Recombination Analysis  (snakemake recombination_summary + single-sample plots)")
     print("=" * 70)
 
     samples = cfg.get("timepoint_samples") or []
@@ -418,18 +418,24 @@ def step_recombination(cfg: dict, dry_run: bool = False):
         per_sample_cfg["base_name"] = sample
         per_sample_cfg["day0_base_name"] = day0_base
 
+        # Run both targets in one snakemake invocation so the per-sample plots
+        # (telomere length distributions, Y' deltas) get built alongside the
+        # recombination analysis. Snakemake unions the DAGs and only runs the
+        # rules actually needed for each target.
+        cmd = ["snakemake", "recombination_summary", "through_y_prime_analysis",
+               "-c", str(threads)]
+
         if dry_run:
             print(f"  [DRY RUN] Would write config.yaml with base_name={sample}, day0_base_name={day0_base}")
-            print(f"  [DRY RUN] Would run: snakemake recombination_summary -c {threads}")
+            print(f"  [DRY RUN] Would run: {' '.join(cmd)}")
             continue
 
         write_snakemake_config(per_sample_cfg)
-        cmd = ["snakemake", "recombination_summary", "-c", str(threads)]
         print(f"  Executing: {' '.join(cmd)}")
         try:
             subprocess.run(cmd, check=True, cwd=PIPELINE_DIR)
         except subprocess.CalledProcessError as e:
-            print(f"\nERROR: snakemake recombination_summary failed for {sample} (exit code {e.returncode})")
+            print(f"\nERROR: snakemake recombination_summary/through_y_prime_analysis failed for {sample} (exit code {e.returncode})")
             sys.exit(e.returncode)
 
 
