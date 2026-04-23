@@ -541,13 +541,21 @@ def repeatmasker_y_primes(read_seqs, y_prime_lib, tmp_dir, threads=4):
     """
     import subprocess
 
+    if not read_seqs:
+        return {}
+
+    # RepeatMasker's FastaDB rejects sequence identifiers longer than 50
+    # characters (aborts with exit 25, "sequence identifier which is too long").
+    # Some upstream reads carry compound IDs like "<uuid1>;<uuid2>" (73 chars).
+    # Write the FASTA with synthetic short names (r0, r1, ...) and map back
+    # when parsing hits. The mapping is local to this invocation.
+    id_to_short = {rid: f'r{i}' for i, rid in enumerate(read_seqs.keys())}
+    short_to_id = {short: rid for rid, short in id_to_short.items()}
+
     reads_fasta = os.path.join(tmp_dir, 'all_reads.fasta')
     with open(reads_fasta, 'w') as fh:
         for read_id, seq in read_seqs.items():
-            fh.write(f'>{read_id}\n{seq}\n')
-
-    if not read_seqs:
-        return {}
+            fh.write(f'>{id_to_short[read_id]}\n{seq}\n')
 
     rm_dir = os.path.join(tmp_dir, 'repeatmasker_y')
     os.makedirs(rm_dir, exist_ok=True)
@@ -610,7 +618,9 @@ def repeatmasker_y_primes(read_seqs, y_prime_lib, tmp_dir, threads=4):
             y_prime_group = parts[10] if len(parts) > 10 else ''
             full_name = f'{y_prime_name}#{y_prime_group}' if y_prime_group else y_prime_name
 
-            read_id = parts[4]
+            short_read_id = parts[4]
+            # Translate the synthetic short id back to the original read_id.
+            read_id = short_to_id.get(short_read_id, short_read_id)
             match_start = int(parts[5])
             match_end = int(parts[6])
             sw_score = int(parts[0])
