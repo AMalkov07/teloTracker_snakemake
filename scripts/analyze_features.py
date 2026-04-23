@@ -1,10 +1,12 @@
 """
-Step 11: Combined feature analysis — chunk-based recombination detection.
+Step 11: Combined feature analysis — recombination detection.
 
 For each read:
-  1. Spacer chunk analysis:  250bp chunks BLASTed against combined spacer library
-  2. X element chunk analysis: 250bp chunks BLASTed against combined X element library
-  3. Y prime analysis: RepeatMasker against Y prime library, position-by-position comparison
+  1. Spacer chunk analysis:    250bp chunks BLASTed against combined spacer library
+  2. X element whole-region:   read BLASTed against the clustered x-element library;
+                               best-hit cluster ID compared to the expected cluster
+  3. Y prime analysis:         RepeatMasker against Y prime library, position-by-
+                               position ID comparison
   4. Cross-feature reconciliation + confidence scoring
 
 All analyses run on EVERY read — no gating by alignment classification or Y prime status.
@@ -16,7 +18,7 @@ Usage:
       --day0-bed          <day0 BED features file> \
       --y-prime-lib       references/extracted_yprimes_{strain}.fasta \
       --spacer-lib-dir    references/pairings_for_spacers/{strain}_pairings/ \
-      --x-element-lib-dir references/pairings_for_x_element_ends/{strain}_pairings/ \
+      --x-element-lib     references/clustered_x_elements_{strain}.fasta \
       --chr-end           chr4R  --strain 7302 \
       --output-tsv        results/{base}/recombination/{base}_{chr_end}_features.tsv \
       --threads           4
@@ -73,7 +75,7 @@ def parse_args():
     p.add_argument('--day0-ref',       default='', help='Day0 reference FASTA (for spacer quick check)')
     p.add_argument('--y-prime-lib',    required=True)
     p.add_argument('--spacer-lib-dir',     required=True, help='Directory with spacer pairing FASTAs')
-    p.add_argument('--x-element-lib-dir',  required=True, help='Directory with X element pairing FASTAs')
+    p.add_argument('--x-element-lib',      required=True, help='Clustered x-element library FASTA (one entry per cluster)')
     p.add_argument('--chr-end',        required=True)
     p.add_argument('--strain',         required=True)
     p.add_argument('--output-tsv',     required=True)
@@ -529,6 +531,176 @@ def get_reference_y_prime_order(features, name_to_info):
     return result
 
 
+# ---------------------------------------------------------------------------
+# X-element analysis (whole-region BLAST against clustered library)
+# ---------------------------------------------------------------------------
+
+def parse_x_element_header(header):
+    """Parse a clustered x-element header like 'X_Element_chr9L;chr10L#ID3_Green'."""
+    h = header.lstrip('>').split()[0]
+    name_part, class_part = (h.split('#', 1) + [''])[:2]
+    cluster_id, color = '', ''
+    if class_part:
+        parts = class_part.split('_', 1)
+        cluster_id = parts[0]
+        color = parts[1] if len(parts) > 1 else ''
+    body = name_part.replace('X_Element_', '', 1)
+    members = [m for m in body.split(';') if m]
+    return {
+        'cluster_id': cluster_id,
+        'color': color,
+        'members': members,
+        'rep_chr_end': members[0] if members else '',
+        'full_name': h,
+    }
+
+
+def build_x_element_info(x_element_lib_fasta):
+    """Parse the clustered x-element library FASTA. Returns {full_name: info}."""
+    info_map = {}
+    if not x_element_lib_fasta or not os.path.exists(x_element_lib_fasta):
+        return info_map
+    with open(x_element_lib_fasta) as fh:
+        for line in fh:
+            if line.startswith('>'):
+                info = parse_x_element_header(line.strip())
+                info_map[info['full_name']] = info
+    return info_map
+
+
+def expected_x_cluster_id(x_cluster_info, expected_chr_end):
+    """Find the cluster ID whose member list contains the expected chr_end."""
+    for info in x_cluster_info.values():
+        if expected_chr_end in info['members']:
+            return info['cluster_id']
+    return ''
+
+
+def _empty_x_result(expected_chr_end):
+    return {
+        'x_element_start': -1,
+        'x_element_end': -1,
+        'x_element_size': 0,
+        'x_element_source': expected_chr_end,
+        'x_element_switch_pos': -1,
+        'x_element_best_identity': 0.0,
+        'x_element_second_best_identity': 0.0,
+        'x_element_confidence': 0.0,
+        'x_element_recombination': 'no_data',
+        'x_element_cluster_id': '',
+    }
+
+
+def analyze_x_element_whole_region(read_seqs, x_element_lib, expected_chr_end,
+                                   x_cluster_info, expected_cluster_id,
+                                   tmp_dir, threads=4):
+    """Whole-region BLAST of every read against the clustered x-element library.
+
+    For each read, pick the best hit by bitscore, extract the cluster ID from the
+    hit's header, and decide recombination by cluster-ID equality. Returns
+    {read_id: x_result_dict} mirroring the shape of analyze_chunks() output.
+    """
+    import subprocess
+
+    if not read_seqs or not x_element_lib or not os.path.exists(x_element_lib):
+        return {rid: _empty_x_result(expected_chr_end) for rid in read_seqs}
+
+    # Synthetic short names guard against the same header-length issue that bit
+    # RepeatMasker earlier; BLAST also handles long IDs but keeps things tidy.
+    id_to_short = {rid: f'r{i}' for i, rid in enumerate(read_seqs.keys())}
+    short_to_id = {v: k for k, v in id_to_short.items()}
+
+    reads_fa = os.path.join(tmp_dir, 'x_reads.fa')
+    with open(reads_fa, 'w') as fh:
+        for rid, seq in read_seqs.items():
+            fh.write(f'>{id_to_short[rid]}\n{seq}\n')
+
+    db = os.path.join(tmp_dir, 'xdb')
+    subprocess.run(['makeblastdb', '-in', x_element_lib, '-dbtype', 'nucl', '-out', db],
+                   check=True, capture_output=True)
+    blast_out = os.path.join(tmp_dir, 'x_hits.tsv')
+    subprocess.run(['blastn', '-query', reads_fa, '-db', db,
+                    '-outfmt', '6 qseqid sseqid pident length qstart qend bitscore',
+                    '-evalue', '1e-10', '-max_target_seqs', '5',
+                    '-num_threads', str(threads), '-out', blast_out],
+                   check=True, capture_output=True)
+
+    # Map sseqid (first word of library header) -> cluster info
+    subj_to_info = {}
+    for full_header, info in x_cluster_info.items():
+        subj_to_info[full_header.split()[0]] = info
+
+    from collections import defaultdict
+    per_read_hits = defaultdict(list)
+    with open(blast_out) as fh:
+        for line in fh:
+            parts = line.rstrip('\n').split('\t')
+            if len(parts) < 7:
+                continue
+            q, s, pid, alen, qs, qe, bs = parts
+            rid = short_to_id.get(q)
+            if rid is None:
+                continue
+            info = subj_to_info.get(s)
+            if info is None:
+                continue
+            per_read_hits[rid].append({
+                'pident': float(pid),
+                'length': int(alen),
+                'qstart': int(qs),
+                'qend': int(qe),
+                'bitscore': float(bs),
+                'cluster_id': info['cluster_id'],
+                'members': info['members'],
+                'rep_chr_end': info['rep_chr_end'],
+            })
+
+    results = {}
+    for rid in read_seqs:
+        hits = sorted(per_read_hits.get(rid, []), key=lambda h: -h['bitscore'])
+        if not hits:
+            results[rid] = _empty_x_result(expected_chr_end)
+            continue
+
+        best = hits[0]
+        second_pid = 0.0
+        for h in hits[1:]:
+            if h['cluster_id'] != best['cluster_id']:
+                second_pid = h['pident']
+                break
+
+        observed_cluster = best['cluster_id']
+        same_cluster = (observed_cluster == expected_cluster_id) if expected_cluster_id else False
+
+        if same_cluster:
+            recomb = 'no_change'
+            source = expected_chr_end
+        else:
+            recomb = 'full_switch'
+            source = best['members'][0] if best['members'] else best['rep_chr_end']
+
+        gap = max(best['pident'] - second_pid, 0.0)
+        # Scale to [0,1]: stronger ID + bigger gap between clusters -> higher confidence.
+        confidence = min(1.0, (best['pident'] / 100.0) * (0.5 + gap / 20.0))
+
+        qs_v, qe_v = best['qstart'], best['qend']
+        x_start, x_end = min(qs_v, qe_v), max(qs_v, qe_v)
+
+        results[rid] = {
+            'x_element_start': x_start,
+            'x_element_end': x_end,
+            'x_element_size': x_end - x_start,
+            'x_element_source': source,
+            'x_element_switch_pos': -1,
+            'x_element_best_identity': round(best['pident'], 2),
+            'x_element_second_best_identity': round(second_pid, 2),
+            'x_element_confidence': round(confidence, 4),
+            'x_element_recombination': recomb,
+            'x_element_cluster_id': observed_cluster,
+        }
+    return results
+
+
 def repeatmasker_y_primes(read_seqs, y_prime_lib, tmp_dir, threads=4):
     """Run RepeatMasker on all reads against the Y prime library.
 
@@ -955,15 +1127,24 @@ def main():
             contigs = str(row.get('supplementary_contigs', ''))
             supp_info[rid] = contigs.split(';') if contigs and contigs != 'nan' else []
 
+    # Load clustered x-element library metadata once (cheap)
+    x_cluster_info = build_x_element_info(args.x_element_lib)
+    expected_x_id = expected_x_cluster_id(x_cluster_info, args.chr_end)
+    if x_cluster_info:
+        print(f'  X-element library: {len(x_cluster_info)} clusters; '
+              f'expected cluster for {args.chr_end}: '
+              f"{expected_x_id or '(chr_end not found in library)'}")
+    else:
+        print('  No x-element library found -- x-element analysis disabled')
+
     with tempfile.TemporaryDirectory() as tmp_dir:
         # === Batch preprocessing ===
         print('  Chunking reads...')
         all_chunks = chunk_reads(read_seqs)
         print(f'  {len(all_chunks)} chunks from {n_reads} reads')
 
-        # Build combined libraries from directories
+        # Build combined spacer library from directory (still chunked — spacers are long)
         spacer_lib = build_combined_library(args.spacer_lib_dir, tmp_dir, 'spacer')
-        x_element_lib = build_combined_library(args.x_element_lib_dir, tmp_dir, 'x_element')
 
         # 1. Spacer chunk BLAST
         spacer_hits = {}
@@ -975,15 +1156,17 @@ def main():
         else:
             print('  No spacer library found -- skipping spacer analysis')
 
-        # 2. X element chunk BLAST
-        x_hits = {}
-        if x_element_lib:
-            print('  BLASTing chunks against X element library...')
-            x_blast = batch_blast_chunks(all_chunks, x_element_lib, tmp_dir, 'x_element')
-            x_hits = parse_chunk_results(x_blast)
-            print(f'  X element: {len(x_blast)} hits, {len(x_hits)} reads with matches')
-        else:
-            print('  No X element library found -- skipping X element analysis')
+        # 2. X element whole-region BLAST against the clustered library.
+        #    Chunking was removed here: x-elements are short (~700bp) so a 250bp
+        #    chunk scheme is noisy; the clustered library already handles
+        #    chr_ends with indistinguishable x-elements.
+        print('  BLASTing whole reads against clustered x-element library...')
+        x_results_by_read = analyze_x_element_whole_region(
+            read_seqs, args.x_element_lib, args.chr_end,
+            x_cluster_info, expected_x_id, tmp_dir, threads=args.threads)
+        n_x_hits = sum(1 for r in x_results_by_read.values()
+                       if r.get('x_element_recombination') not in ('no_data', ''))
+        print(f'  X element: {n_x_hits} reads with hits')
 
         # 3. Y prime RepeatMasker
         print('  Running RepeatMasker on reads against Y prime library...')
@@ -1048,7 +1231,7 @@ def main():
         else:
             spacer_result = analyze_chunks(read_id, spacer_hits.get(read_id, []), args.chr_end, 'spacer')
             spacer_result['spacer_quick_check_skipped'] = False
-        x_result = analyze_chunks(read_id, x_hits.get(read_id, []), args.chr_end, 'x_element')
+        x_result = x_results_by_read.get(read_id) or _empty_x_result(args.chr_end)
         y_result = analyze_y_primes(read_id, y_prime_hits.get(read_id, []), telo_side, ref_y_primes, name_to_info)
 
         reconciliation = reconcile_features(

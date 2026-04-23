@@ -294,18 +294,23 @@ else
             echo "WARNING: Skipping spacer pairings - spacer sequences not available"
         fi
 
-        # Step 4: Create X element pairings
+        # Step 4: Cluster X elements so chr_ends with indistinguishable
+        # x-element sequences share a single cluster ID at analysis time.
         echo ""
-        echo "Step 4: Creating X element pairings for RepeatMasker..."
+        echo "Step 4: Clustering X elements..."
         if [ -f "${X_ELEMENT_SEQUENCES}" ]; then
-            python scripts/make_databases_of_pairings_for_x_elements.py \
-                "${STRAIN_ID}" \
-                "${EXTRACTED_YPRIMES}" \
+            CLUSTERED_X_FASTA="references/clustered_x_elements_${STRAIN_ID}.fasta"
+            X_CLUSTER_WORKDIR="${OUTPUT_DIR}/x_element_clustering_${STRAIN_ID}"
+            mkdir -p "${X_CLUSTER_WORKDIR}"
+            python scripts/cluster_x_elements.py \
                 "${X_ELEMENT_SEQUENCES}" \
-                "references/pairings_for_x_element_ends/"
-            echo "Created: references/pairings_for_x_element_ends/${STRAIN_ID}_pairings/"
+                --output-fasta "${CLUSTERED_X_FASTA}" \
+                --output-dir "${X_CLUSTER_WORKDIR}" \
+                --threads "${THREADS}"
+            echo "Clustered x-element library: ${CLUSTERED_X_FASTA}"
+            echo "Cluster work dir:            ${X_CLUSTER_WORKDIR}"
         else
-            echo "WARNING: Skipping X element pairings - X element sequences not available"
+            echo "WARNING: Skipping X element clustering - X element sequences not available"
         fi
 
         # Copy extracted Y primes to references directory for easy access

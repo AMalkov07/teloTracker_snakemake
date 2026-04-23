@@ -46,15 +46,20 @@ import subprocess
 import sys
 import tempfile
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 from scipy.cluster.hierarchy import fcluster, linkage
 from scipy.spatial.distance import squareform
 from sklearn.metrics import silhouette_score
+
+# matplotlib + seaborn are only needed for the heatmap / silhouette figures.
+# Import lazily so this module is safe to import as a helper on minimal envs.
+def _lazy_plotting_imports():
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    return plt, sns
 
 
 # Colors for the heatmap figure
@@ -470,6 +475,7 @@ def find_clusters_threshold(distance_matrix, linkage_method='complete', threshol
 def create_figure_3a(sim_matrix, seq_names, cluster_labels, lengths, linkage_method,
                      output_path):
     """Create a Figure 3A-style clustermap."""
+    plt, sns = _lazy_plotting_imports()
     n_clusters = len(set(cluster_labels))
     color_map = {}
     for i, cl in enumerate(sorted(set(cluster_labels))):
@@ -729,6 +735,7 @@ def main():
 
     # Silhouette score plot
     if scores:
+        plt, _sns = _lazy_plotting_imports()
         fig_sil, ax_sil = plt.subplots(figsize=(8, 4))
         ks = sorted(scores.keys())
         sil_vals = [scores[k] for k in ks]

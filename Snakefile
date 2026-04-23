@@ -30,7 +30,7 @@ DAY0_BED  = f"results/{DAY0_BASE}/_pipeline/pretelomeric_labels/pretelomeric_reg
 Y_PRIME_LIB    = config["references"].get("y_prime_lib_override",
                     config["references"]["y_prime_lib"].replace("{strain}", STRAIN))
 SPACER_LIB_DIR = config["references"]["spacer_lib_dir"].replace("{strain}", STRAIN)
-X_ELEM_LIB_DIR = config["references"]["x_element_lib_dir"].replace("{strain}", STRAIN)
+X_ELEM_LIB     = config["references"]["x_element_lib"].replace("{strain}", STRAIN)
 ANCHOR_DB      = config["references"]["anchors"]
 ADAPTER_FILE   = config["references"]["adapters"]
 PROBE_DB       = config["references"]["probe"]
@@ -325,7 +325,7 @@ rule recombination_analyze:
         chr_end           = "{chr_end}",
         strain            = STRAIN,
         spacer_lib_dir    = SPACER_LIB_DIR,
-        x_element_lib_dir = X_ELEM_LIB_DIR,
+        x_element_lib     = X_ELEM_LIB,
     threads: workflow.cores
     shell:
         """
@@ -337,7 +337,7 @@ rule recombination_analyze:
             --day0-ref          {input.day0_ref} \
             --y-prime-lib       {input.y_prime_lib} \
             --spacer-lib-dir    {params.spacer_lib_dir} \
-            --x-element-lib-dir {params.x_element_lib_dir} \
+            --x-element-lib     {params.x_element_lib} \
             --chr-end           {params.chr_end} \
             --strain            {params.strain} \
             --output-tsv        {output.tsv} \

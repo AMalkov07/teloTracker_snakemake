@@ -201,7 +201,7 @@ def write_snakemake_config(cfg: dict, dest: Path = None):
         lines.append(f'  y_prime_lib_override: "{yp_override}"')
     lines.extend([
         '  spacer_lib_dir: "references/pairings_for_spacers/{strain}_pairings"',
-        '  x_element_lib_dir: "references/pairings_for_x_element_ends/{strain}_pairings"',
+        '  x_element_lib: "references/clustered_x_elements_{strain}.fasta"',
         "",
     ])
     dest.write_text("\n".join(lines))
