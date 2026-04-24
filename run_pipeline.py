@@ -369,9 +369,11 @@ def step_label_regions(cfg: dict, dry_run: bool = False):
 
     # Patch label_regions.sh
     subs = {
-        "BASE_NAME": base_name,
-        "STRAIN_ID": strain,
-        "THREADS":   str(threads),
+        "BASE_NAME":        base_name,
+        "STRAIN_ID":        strain,
+        "THREADS":          str(threads),
+        "YPRIME_LINKAGE":   cfg.get("yprime_linkage", "average"),
+        "YPRIME_STOP_MODE": cfg.get("yprime_stop_mode", "silhouette"),
     }
     patched = patch_script(PIPELINE_DIR / "label_regions.sh", subs)
 
@@ -481,7 +483,19 @@ min_raw_gapped_score: 5000
 # Y prime clustering: percent identity threshold for grouping
 # Higher = more groups (finer resolution, risk of misassignment with ONT error)
 # Lower  = fewer groups (coarser, more reliable)
+# Only consulted when yprime_stop_mode is "threshold".
 yprime_identity_threshold: 97.0
+
+# Y prime clustering: hierarchical linkage method
+#   complete = merge clusters only when EVERY cross-cluster pair is above threshold (strict)
+#   average  = merge when the MEAN cross-cluster pair is above threshold (recommended default)
+#   single   = merge if ANY cross-cluster pair is above threshold (most permissive)
+yprime_linkage: "average"
+
+# Y prime clustering: how to pick the cluster count
+#   silhouette = data-driven; picks k with the highest silhouette score (recommended default)
+#   threshold  = fixed cutoff from yprime_identity_threshold above
+yprime_stop_mode: "silhouette"
 
 # Override the automatically-extracted Y prime library with a curated one.
 # Uncomment and set if you want to use a specific FASTA.

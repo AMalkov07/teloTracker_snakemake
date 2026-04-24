@@ -40,6 +40,17 @@ PREFIX="pretelomeric_regions_${STRAIN_ID}"
 # Thread configuration
 THREADS=56
 
+# Y prime clustering configuration (consumed by cluster_yprimes_paper_method.py)
+#   YPRIME_LINKAGE:   'complete' | 'average' | 'single'
+#     complete = merge clusters only when every cross-cluster pair is >= threshold (strict)
+#     average  = merge when the mean cross-cluster pair is >= threshold (default)
+#     single   = merge if any cross-cluster pair is >= threshold (most permissive)
+#   YPRIME_STOP_MODE: 'silhouette' | 'threshold'
+#     silhouette = data-driven, picks the k with the highest silhouette score (default)
+#     threshold  = fixed 97% identity cutoff
+YPRIME_LINKAGE="average"
+YPRIME_STOP_MODE="silhouette"
+
 # BLAST parameters
 MIN_PIDENT=75.0        # Minimum percent identity (lowered for cross-strain comparison)
 MIN_LENGTH=100         # Minimum alignment length
@@ -190,8 +201,10 @@ if [ -f "${LABELED_TSV}" ]; then
     python "${SCRIPTS_DIR}/cluster_yprimes_paper_method.py" \
         "${YPRIME_OUTPUT_FASTA}" \
         --output-fasta "${CLUSTERED_YPRIME_FASTA}" \
-        --output-dir "${CLUSTER_OUTPUT_DIR}" \
-        --threads "${THREADS}"
+        --output-dir   "${CLUSTER_OUTPUT_DIR}" \
+        --linkage      "${YPRIME_LINKAGE}" \
+        --stop-mode    "${YPRIME_STOP_MODE}" \
+        --threads      "${THREADS}"
 
     # Replace extracted FASTA with clustered version
     mv "${CLUSTERED_YPRIME_FASTA}" "${YPRIME_OUTPUT_FASTA}"
