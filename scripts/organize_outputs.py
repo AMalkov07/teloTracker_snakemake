@@ -30,6 +30,9 @@ FINALS: Dict[str, str] = {
     "labels.gff3":               "pretelomeric_labels/pretelomeric_regions_{strain}.gff3",
     "quality_report.txt":        "pretelomeric_labels/pretelomeric_regions_{strain}_quality_report.txt",
     "recombination_summary.tsv": "recombination/{base}_recombination_summary.tsv",
+    # Real subdirectory under _pipeline/, surfaced at the top of results/<base>/
+    # via a directory symlink. ensure_symlink() handles both files and dirs.
+    "recombination_events":      "recombination_events",
 }
 
 

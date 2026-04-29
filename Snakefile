@@ -77,6 +77,8 @@ else:
 rule all:
     input:
         f"{RECOMB_DIR}/{BASE}_recombination_summary.tsv",
+        f"{RESULTS}/recombination_events/.events_extracted",
+        f"{GRAPH_DIR}/recombination_tracks/.plots_done",
 
 rule through_y_prime_analysis:
     input:
@@ -361,4 +363,45 @@ rule recombination_summary:
             --recombination-dir {params.recomb_dir} \
             --base-name         {params.base_name} \
             --output-summary    {output}
+        """
+
+# ---------------------------------------------------------------------------
+# Step 13a: Filter event-only TSVs (slim + full) for downstream investigation
+# ---------------------------------------------------------------------------
+
+rule extract_recombination_events:
+    input: expand(f"{RECOMB_DIR}/{BASE}_{{ce}}_features.tsv", ce=CHROM_ENDS)
+    output:
+        marker = f"{RESULTS}/recombination_events/.events_extracted",
+    params:
+        recomb_dir = RECOMB_DIR,
+        base_name  = BASE,
+        events_dir = f"{RESULTS}/recombination_events",
+    threads: 1
+    shell:
+        """
+        mkdir -p {params.events_dir}
+        python scripts/extract_recombination_events.py \
+            {params.recomb_dir} {params.base_name} {params.events_dir}
+        touch {output.marker}
+        """
+
+# ---------------------------------------------------------------------------
+# Step 13b: Per-chr_end track plots (only chr_ends with at least one event)
+# ---------------------------------------------------------------------------
+
+rule recombination_track_plots:
+    input: expand(f"{RECOMB_DIR}/{BASE}_{{ce}}_features.tsv", ce=CHROM_ENDS)
+    output:
+        marker = f"{GRAPH_DIR}/recombination_tracks/.plots_done",
+    params:
+        recomb_dir = RECOMB_DIR,
+        base_name  = BASE,
+        plots_dir  = f"{GRAPH_DIR}/recombination_tracks",
+    threads: 1
+    shell:
+        """
+        mkdir -p {params.plots_dir}
+        python scripts/plot_recombination_tracks.py \
+            {params.recomb_dir} {params.base_name} {params.plots_dir}
         """
