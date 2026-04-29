@@ -79,6 +79,11 @@ rule all:
         f"{RECOMB_DIR}/{BASE}_recombination_summary.tsv",
         f"{RESULTS}/recombination_events/.events_extracted",
         f"{GRAPH_DIR}/recombination_tracks/.plots_done",
+        # Pull in the same outputs as `through_y_prime_analysis` so a single
+        # `snakemake all` invocation also produces the single-sample plots
+        # without the wrapper having to name multiple targets.
+        f"{RESULTS}/{BASE}_post_y_prime_probe.tsv",
+        f"{GRAPH_DIR}/.plots_done",
 
 rule through_y_prime_analysis:
     input:
