@@ -85,6 +85,56 @@ def is_truthy(v) -> bool:
     return str(v).lower() == 'true'
 
 
+def display_segment_ends(row, rl):
+    """
+    Compute the four cumulative display-end positions (anchor, spacer, x-element,
+    Y') for a read so that the anchor always sits on the LEFT of the bar
+    regardless of the read's actual sequencing orientation.
+
+    For telo_side='end' reads (anchor at 5', telomere at 3'), the *_end columns
+    are already in left-to-right display order; we use them directly.
+
+    For telo_side='beginning' reads (telomere at 5', anchor at 3'), the read
+    was sequenced in the reverse-complement orientation. We mirror it for
+    display by computing each segment's right edge as `rl - <feature>_start`.
+    Returns -1 (= no segment) for any feature where the start/end column is
+    -1 in the source data.
+    """
+    telo_side = str(row.get('telo_side', 'end')).strip().lower()
+
+    if telo_side == 'beginning':
+        def mirrored_end(start_col):
+            v = safe_int(row.get(start_col, -1))
+            return rl - v if v >= 0 else -1
+        a_end = mirrored_end('anchor_start')
+        s_end = mirrored_end('spacer_start')
+        x_end = mirrored_end('x_element_start')
+        y_end = mirrored_end('y_prime_start')
+    else:
+        a_end = safe_int(row.get('anchor_end', -1))
+        s_end = safe_int(row.get('spacer_end', -1))
+        x_end = safe_int(row.get('x_element_end', -1))
+        y_end = safe_int(row.get('y_prime_end', -1))
+
+    # Clamp -1's to 0 and enforce monotonic ordering so segments fall in
+    # left-to-right order without overlap.
+    a_end = max(a_end, 0)
+    s_end = max(s_end, a_end)
+    x_end = max(x_end, s_end)
+    y_end = max(y_end, x_end)
+    return a_end, s_end, x_end, y_end
+
+
+def display_switch_pos(row, original_pos, rl):
+    """Mirror a switch position for telo_side='beginning' reads."""
+    if original_pos < 0:
+        return -1
+    telo_side = str(row.get('telo_side', 'end')).strip().lower()
+    if telo_side == 'beginning':
+        return max(rl - original_pos, 0)
+    return original_pos
+
+
 def plot_chr_end_tracks(events: pd.DataFrame, chr_end: str, base_name: str,
                        output_path: str) -> None:
     """Render the track plot for one chr_end."""
@@ -113,10 +163,7 @@ def plot_chr_end_tracks(events: pd.DataFrame, chr_end: str, base_name: str,
     for i, row in events.iterrows():
         y = n - 1 - i  # top-down ordering
         rl = safe_int(row.get('read_length', 0), 0)
-        a_end = max(safe_int(row.get('anchor_end', -1)), 0)
-        s_end = max(safe_int(row.get('spacer_end', -1)), a_end)
-        x_end = max(safe_int(row.get('x_element_end', -1)), s_end)
-        y_end = max(safe_int(row.get('y_prime_end', -1)), x_end)
+        a_end, s_end, x_end, y_end = display_segment_ends(row, rl)
 
         # Background full-read bar so even short reads are visible.
         ax.barh(y, rl, left=0, height=bar_height, color=BACKGROUND_BAR, edgecolor='none')
@@ -152,7 +199,7 @@ def plot_chr_end_tracks(events: pd.DataFrame, chr_end: str, base_name: str,
 
         # Switch markers (vertical ticks at known switch positions).
         for col in ('spacer_switch_pos', 'x_element_switch_pos'):
-            sp = safe_int(row.get(col, -1))
+            sp = display_switch_pos(row, safe_int(row.get(col, -1)), rl)
             if sp > 0:
                 ax.vlines(sp, y - 0.45, y + 0.45, colors='white', linewidth=0.7)
 
