@@ -12,7 +12,7 @@ out_f_name = os.path.join(output_dir, 'porechop', f'{base_name}_porechopped.tsv'
 
 print("Starting check_for_adapters.py")
 
-read_id_pattern             = r"\w+-\w+-\w+-\w+ (AC|TG)"
+read_id_pattern             = r"^\S+ (AC|TG)\b"
 start_of_read_pattern       = "start:"
 start_of_alignment_pattern  = "start alignments:"
 end_of_read_pattern         = "end:"
@@ -74,9 +74,10 @@ with open(log_file, 'r') as f_in:
                 adapter_after_telomere_repeat = True
             continue
 
-# Append the last read
-adapter_details = [read_id, adapter_after_telomere_repeat, poly_tag_after_telomere_repeat, read_strand, telomere_sequence]
-read_adapter_check_list.append(adapter_details)
+# Append the last read (only if at least one read was processed)
+if not first_read:
+    adapter_details = [read_id, adapter_after_telomere_repeat, poly_tag_after_telomere_repeat, read_strand, telomere_sequence]
+    read_adapter_check_list.append(adapter_details)
 
 df = pd.DataFrame(read_adapter_check_list,
                   columns=['read_id', 'Adapter_After_Telomere', 'Tag_After_Telomere', 'Repeat_Type', 'Telomere_Sequence'])
