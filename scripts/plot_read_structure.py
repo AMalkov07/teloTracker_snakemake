@@ -6,17 +6,24 @@ Draws a schematic like the paper figure: left-pointing arrows for Y' elements,
 small squares for inter-Y' spacers with bp labels, X element, spacer, and
 chromosome end label.
 
-Usage (specify exact features TSV):
+Y' colors are read from the Y' library FASTA (IDn_ColorName encoded in headers),
+matching the colors assigned during label_regions.sh clustering. Supply the FASTA
+with --yprime-lib, or let the script find it automatically via --config (reads
+the Snakemake config.yaml and resolves y_prime_lib / y_prime_lib_override).
+
+Usage (specify exact features TSV + Y' library):
     python scripts/plot_read_structure.py \
         --features results/<base>/recombination/<base>_<chr_end>_features.tsv \
         --read-id <read_id> \
+        --config config.yaml \
         --output diagram.png
 
-Usage (auto-search across all chr_ends):
+Usage (auto-search across all chr_ends, explicit Y' library):
     python scripts/plot_read_structure.py \
         --recombination-dir results/<base>/recombination/ \
         --base-name <base> \
         --read-id <read_id> \
+        --yprime-lib references/extracted_yprimes_6991.fasta \
         --output diagram.png
 """
 
@@ -37,24 +44,151 @@ from matplotlib.patches import Polygon, Rectangle
 import pandas as pd
 
 
-# ─────────────────────────────── Color palette ────────────────────────────────
+# ─────────────────────────── Color name → hex mapping ─────────────────────────
+# Maps the color names embedded in Y' FASTA headers (IDn_ColorName) to hex.
+# Covers all names produced by cluster_yprimes_paper_method.py, including
+# -Light / -Dark / -Neutral shade variants.
 
-# Y' type → fill color (pink family like reference figure)
-Y_PRIME_COLORS: dict[str, str] = {
-    'ID1':     '#F2AACF',   # pink
-    'ID2':     '#C9A8E0',   # light purple
-    'ID3':     '#A8C9E0',   # light blue
-    'ID4':     '#A8E0C9',   # light teal
-    'ID5':     '#E0C9A8',   # light orange
-    'ID6':     '#E0A8A8',   # light red
+COLOR_NAME_TO_HEX: dict[str, str] = {
+    'Gray':            '#909090',
+    'Red':             '#E05555',
+    'Red-Light':       '#F1948A',
+    'Red-Dark':        '#C0392B',
+    'Green':           '#5CBF7A',
+    'Green-Light':     '#82E0AA',
+    'Green-Dark':      '#1E8449',
+    'Orange':          '#E8943A',
+    'Orange-Light':    '#F0B27A',
+    'Orange-Dark':     '#CA6F1E',
+    'Purple':          '#A569BD',
+    'Purple-Light':    '#C39BD3',
+    'Purple-Dark':     '#7D3C98',
+    'Purple-Neutral':  '#9B59B6',
+    'Blue':            '#5DADE2',
+    'Blue-Light':      '#85C1E9',
+    'Blue-Dark':       '#1F618D',
+    'Yellow':          '#F4D03F',
+    'Yellow-Light':    '#F9E79F',
+    'Yellow-Dark':     '#D4AC0D',
+    'Cyan':            '#48C9B0',
+    'Cyan-Light':      '#76D7C4',
+    'Cyan-Dark':       '#117A65',
+    'Magenta':         '#E874A8',
+    'Magenta-Light':   '#F1A9C7',
+    'Magenta-Dark':    '#C0396B',
+    'Brown':           '#A0522D',
+    'Brown-Light':     '#C49A6C',
+    'Brown-Dark':      '#6B3619',
+    'Pink':            '#F48FB1',
+    'Pink-Light':      '#F8BBD0',
+    'Pink-Dark':       '#E06080',
+    'Teal':            '#26A69A',
+    'Teal-Light':      '#80CBC4',
+    'Teal-Dark':       '#00695C',
+    'Olive':           '#8D9440',
+    'Navy':            '#1A5276',
+    'Coral':           '#F1755A',
+    'Lavender':        '#CE93D8',
+    'Maroon':          '#880E4F',
+    'Gold':            '#F5C518',
+    'Lime':            '#9CCC65',
+    'Slate':           '#607D8B',
+}
+
+# Fallback hardcoded colors when no Y' FASTA is provided
+_FALLBACK_COLORS: dict[str, str] = {
+    'ID1':     '#F2AACF',
+    'ID2':     '#C9A8E0',
+    'ID3':     '#A8C9E0',
+    'ID4':     '#A8E0C9',
+    'ID5':     '#E0C9A8',
+    'ID6':     '#E0A8A8',
     'default': '#F2AACF',
 }
 
-INTER_YP_COLOR = '#1A1A1A'   # near-black squares between Y' elements
-X_ELEMENT_COLOR = '#444444'  # dark grey
-SPACER_COLOR    = '#7399AB'  # muted teal-blue
-ANCHOR_COLOR    = '#282828'  # very dark
-RAIL_COLOR      = '#BBBBBB'  # horizontal connecting line
+INTER_YP_COLOR  = '#1A1A1A'
+X_ELEMENT_COLOR = '#444444'
+SPACER_COLOR    = '#7399AB'
+ANCHOR_COLOR    = '#282828'
+RAIL_COLOR      = '#BBBBBB'
+
+
+# ──────────────────────── Y' library color loader ─────────────────────────────
+
+def load_yprime_colors(fasta_path: str) -> dict[str, str]:
+    """
+    Parse a Y' FASTA library and return {IDn: hex_color}.
+
+    Headers have format:  >...#Size/Type/IDn_ColorName
+    e.g.  >Y_Prime_chr5R1#Long/Solo/ID1_Gray
+          >Y_Prime_chr4R1#Long/Tandem/ID2_Red-Light
+
+    The first occurrence of each IDn wins (subsequent sequences in the same
+    cluster may have a different shade suffix but share the base color).
+    """
+    id_to_hex: dict[str, str] = {}
+    try:
+        with open(fasta_path) as fh:
+            for line in fh:
+                if not line.startswith('>'):
+                    continue
+                header = line[1:].strip()
+                if '#' not in header:
+                    continue
+                metadata = header.split('#', 1)[1]   # "Size/Type/IDn_ColorName"
+                parts = metadata.split('/')
+                if len(parts) < 3:
+                    continue
+                id_color = parts[2].strip()           # e.g. "ID2_Red-Light"
+                if '_' not in id_color:
+                    continue
+                id_str, color_name = id_color.split('_', 1)   # "ID2", "Red-Light"
+                if id_str in id_to_hex:
+                    continue  # first occurrence wins
+                hex_color = COLOR_NAME_TO_HEX.get(color_name)
+                if hex_color is None:
+                    # Try base color (strip -Light/-Dark/-Neutral suffix)
+                    base = color_name.split('-')[0]
+                    hex_color = COLOR_NAME_TO_HEX.get(base, '#F2AACF')
+                id_to_hex[id_str] = hex_color
+    except OSError as exc:
+        print(f'  Warning: could not read Y\' library {fasta_path}: {exc}')
+    return id_to_hex
+
+
+def resolve_yprime_lib(config_path: str) -> str | None:
+    """
+    Read a Snakemake config.yaml and return the resolved y_prime_lib path.
+    Respects y_prime_lib_override when present.
+    Path is resolved relative to the config file's directory.
+    """
+    try:
+        import yaml
+    except ImportError:
+        print('  Warning: PyYAML not available — cannot auto-read config. '
+              'Install pyyaml or use --yprime-lib directly.')
+        return None
+
+    try:
+        with open(config_path) as fh:
+            cfg = yaml.safe_load(fh)
+    except Exception as exc:
+        print(f'  Warning: could not read config {config_path}: {exc}')
+        return None
+
+    refs = cfg.get('references', {})
+    override = refs.get('y_prime_lib_override', '')
+    lib_template = refs.get('y_prime_lib', '')
+    strain = str(cfg.get('strain', ''))
+
+    raw_path = override if override else lib_template.replace('{strain}', strain)
+    if not raw_path:
+        print('  Warning: no y_prime_lib found in config')
+        return None
+
+    # Resolve relative to the config file's directory
+    config_dir = os.path.dirname(os.path.abspath(config_path))
+    return os.path.join(config_dir, raw_path) if not os.path.isabs(raw_path) else raw_path
 
 
 # ─────────────────────────────── Parsers ──────────────────────────────────────
@@ -234,8 +368,17 @@ def draw_box(ax, x_left: float, x_right: float, y: float,
 
 # ─────────────────────────────── Main plot ────────────────────────────────────
 
-def plot_read_structure(row: dict, read_id: str, output_path: str) -> None:
-    """Render the schematic structure diagram for one read and save to output_path."""
+def plot_read_structure(row: dict, read_id: str, output_path: str,
+                        yprime_colors: dict[str, str] | None = None) -> None:
+    """Render the schematic structure diagram for one read and save to output_path.
+
+    yprime_colors: {IDn: hex_color} from load_yprime_colors(). Falls back to
+    hardcoded _FALLBACK_COLORS when None.
+    """
+    colors = yprime_colors if yprime_colors else _FALLBACK_COLORS
+
+    def yp_color(id_str: str) -> str:
+        return colors.get(id_str, colors.get('default', '#F2AACF'))
 
     elems = get_display_elements(row)
     yps   = elems['y_primes']
@@ -343,7 +486,7 @@ def plot_read_structure(row: dict, read_id: str, output_path: str) -> None:
             yp_type = info['type']
             label   = info['label']
             is_div  = info['divergence']
-            color   = Y_PRIME_COLORS.get(yp_type, Y_PRIME_COLORS['default'])
+            color   = yp_color(yp_type)
             edge    = '#C0392B' if is_div else 'black'
             lw      = 1.8       if is_div else 0.8
             draw_left_arrow(ax, xl, xr, YC, YP_H, color, edge, lw)
@@ -421,7 +564,7 @@ def plot_read_structure(row: dict, read_id: str, output_path: str) -> None:
     seen_types = {info['type'] for kind, _, _, info in elements if kind == 'y_prime'}
     legend_handles = []
     for t in sorted(seen_types):
-        color = Y_PRIME_COLORS.get(t, Y_PRIME_COLORS['default'])
+        color = yp_color(t)
         legend_handles.append(
             mpatches.Patch(facecolor=color, edgecolor='black', linewidth=0.5, label=f"Y' {t}"))
     legend_handles.append(
@@ -469,6 +612,15 @@ def parse_args() -> argparse.Namespace:
                    help='Read ID to plot')
     p.add_argument('--output', required=True, metavar='PNG',
                    help='Output PNG file path')
+
+    # Y' color source (mutually exclusive; both optional — fallback to defaults)
+    col = p.add_mutually_exclusive_group()
+    col.add_argument('--yprime-lib', metavar='FASTA',
+                     help='Y\' library FASTA whose headers encode IDn_ColorName '
+                          '(produced by cluster_yprimes_paper_method.py)')
+    col.add_argument('--config', metavar='YAML',
+                     help='Snakemake config.yaml; script resolves y_prime_lib / '
+                          'y_prime_lib_override automatically')
     return p.parse_args()
 
 
@@ -495,11 +647,27 @@ def main() -> None:
           f'y_prime_count={row.get("y_prime_count_on_read")}  '
           f'status={row.get("y_prime_recombination_status")}')
 
+    # Resolve Y' colors
+    yprime_colors: dict[str, str] | None = None
+    if args.yprime_lib:
+        yprime_colors = load_yprime_colors(args.yprime_lib)
+        print(f'  Y\' colors from: {args.yprime_lib}  '
+              f'({len(yprime_colors)} IDs: {", ".join(sorted(yprime_colors))})')
+    elif args.config:
+        lib_path = resolve_yprime_lib(args.config)
+        if lib_path:
+            print(f'  Y\' lib resolved from config: {lib_path}')
+            yprime_colors = load_yprime_colors(lib_path)
+            print(f'  Y\' colors loaded: {len(yprime_colors)} IDs: '
+                  f'{", ".join(sorted(yprime_colors))}')
+    if yprime_colors is None:
+        print('  Y\' colors: using fallback defaults (no --yprime-lib / --config provided)')
+
     out_dir = os.path.dirname(os.path.abspath(args.output))
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
 
-    plot_read_structure(row, args.read_id, args.output)
+    plot_read_structure(row, args.read_id, args.output, yprime_colors=yprime_colors)
 
 
 if __name__ == '__main__':
