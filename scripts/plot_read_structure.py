@@ -340,19 +340,28 @@ def get_display_elements(row: dict) -> dict:
 
 # ─────────────────────────────── Drawing helpers ──────────────────────────────
 
-def draw_left_arrow(ax, x_left: float, x_right: float, y: float,
-                    height: float, facecolor: str, edgecolor: str = 'black',
-                    lw: float = 0.8) -> None:
-    """Pentagon arrow pointing left (tip at x_left, tail at x_right)."""
+def draw_arrow(ax, x_left: float, x_right: float, y: float,
+               height: float, facecolor: str, edgecolor: str = 'black',
+               lw: float = 0.8, direction: str = 'left') -> None:
+    """Pentagon arrow. direction='left': tip at x_left; direction='right': tip at x_right."""
     hw = height / 2
     head_w = min(hw * 1.6, (x_right - x_left) * 0.30)
-    verts = [
-        (x_left,              y),
-        (x_left + head_w,     y + hw),
-        (x_right,             y + hw),
-        (x_right,             y - hw),
-        (x_left + head_w,     y - hw),
-    ]
+    if direction == 'left':
+        verts = [
+            (x_left,              y),
+            (x_left + head_w,     y + hw),
+            (x_right,             y + hw),
+            (x_right,             y - hw),
+            (x_left + head_w,     y - hw),
+        ]
+    else:
+        verts = [
+            (x_right,             y),
+            (x_right - head_w,    y + hw),
+            (x_left,              y + hw),
+            (x_left,              y - hw),
+            (x_right - head_w,    y - hw),
+        ]
     ax.add_patch(Polygon(verts, closed=True,
                           facecolor=facecolor, edgecolor=edgecolor,
                           linewidth=lw, zorder=3))
@@ -460,7 +469,24 @@ def plot_read_structure(row: dict, read_id: str, output_path: str,
         x += ANC_W
 
     x += PAD  # trailing padding before chromosome label
-    total_width = x + 1.2  # extra room for chr label text
+    x_content_end = x  # remember end of content before adding label space
+
+    # ── R-arm orientation: mirror elements so chromosome is on the left ─────
+    # L arms: telomere ← [Y-N … Y-1] [X] [spacer] [anchor]   chr
+    # R arms: chr   [anchor] [spacer] [X] [Y-1 … Y-N] →  telomere
+    is_r = str(chr_end).upper().endswith('R')
+    if is_r:
+        x_start = 0.5  # same leading offset used when building
+        elements = [
+            (kind, x_start + x_content_end - xr,
+                   x_start + x_content_end - xl, info)
+            for kind, xl, xr, info in reversed(elements)
+        ]
+        arrow_dir = 'right'
+    else:
+        arrow_dir = 'left'
+
+    total_width = x_content_end + 1.2  # extra room for chr label text
 
     # ── Figure setup ───────────────────────────────────────────────────────
     fig_w = max(9.0, total_width * 1.15)
@@ -489,7 +515,7 @@ def plot_read_structure(row: dict, read_id: str, output_path: str,
             color   = yp_color(yp_type)
             edge    = '#C0392B' if is_div else 'black'
             lw      = 1.8       if is_div else 0.8
-            draw_left_arrow(ax, xl, xr, YC, YP_H, color, edge, lw)
+            draw_arrow(ax, xl, xr, YC, YP_H, color, edge, lw, direction=arrow_dir)
 
             # Label above
             ax.text(mid, YC + above, label,
@@ -540,15 +566,22 @@ def plot_read_structure(row: dict, read_id: str, output_path: str,
             ax.text(mid, YC + above, 'anc',
                     ha='center', va='bottom', fontsize=6.5, color='#333333')
 
-    # Chromosome label at far right
-    ax.text(total_width - 1.05, YC, chr_end,
-            ha='left', va='center', fontsize=11, fontweight='bold')
-
-    # Telomere indicator at far left
-    ax.annotate('', xy=(-0.55, YC), xytext=(-0.1, YC),
-                arrowprops=dict(arrowstyle='->', color='#888888', lw=1.5))
-    ax.text(-0.60, YC, 'telo', ha='right', va='center',
-            fontsize=8, color='#888888')
+    if is_r:
+        # Chromosome label at far left, telomere indicator at far right
+        ax.text(0.40, YC, chr_end,
+                ha='right', va='center', fontsize=11, fontweight='bold')
+        ax.annotate('', xy=(total_width - 0.15, YC), xytext=(total_width - 0.65, YC),
+                    arrowprops=dict(arrowstyle='->', color='#888888', lw=1.5))
+        ax.text(total_width - 0.10, YC, 'telo', ha='left', va='center',
+                fontsize=8, color='#888888')
+    else:
+        # Chromosome label at far right, telomere indicator at far left
+        ax.text(total_width - 1.05, YC, chr_end,
+                ha='left', va='center', fontsize=11, fontweight='bold')
+        ax.annotate('', xy=(-0.55, YC), xytext=(-0.1, YC),
+                    arrowprops=dict(arrowstyle='->', color='#888888', lw=1.5))
+        ax.text(-0.60, YC, 'telo', ha='right', va='center',
+                fontsize=8, color='#888888')
 
     # ── Title ──────────────────────────────────────────────────────────────
     status = elems['y_prime_recombination_status']
