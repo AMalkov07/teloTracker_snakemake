@@ -595,12 +595,89 @@ def plot_read_structure(row: dict, read_id: str, output_path: str,
 
 # ─────────────────────────────── CLI ──────────────────────────────────────────
 
+# ─────────────────────────────── Read listing ─────────────────────────────────
+
+def list_reads(features_tsv: str | None,
+               recomb_dir: str | None,
+               base_name: str | None,
+               chr_end_filter: str | None,
+               recombination_only: bool,
+               min_yprimes: int) -> None:
+    """Print a table of available reads that can be plotted."""
+
+    # Collect all features files to scan
+    if features_tsv:
+        files = [features_tsv]
+    elif recomb_dir and base_name:
+        pattern = os.path.join(recomb_dir, f'{base_name}_*_features.tsv')
+        files = sorted(glob.glob(pattern))
+        if not files:
+            sys.exit(f'No features files found: {pattern}')
+    else:
+        sys.exit('Provide --features or --recombination-dir + --base-name')
+
+    rows = []
+    for fpath in files:
+        try:
+            df = pd.read_csv(fpath, sep='\t', dtype=str)
+        except Exception as exc:
+            print(f'  Warning: could not read {fpath}: {exc}')
+            continue
+        if df.empty:
+            continue
+
+        if chr_end_filter and 'chr_end' in df.columns:
+            df = df[df['chr_end'] == chr_end_filter]
+
+        if recombination_only and 'recombination_detected' in df.columns:
+            df = df[df['recombination_detected'].str.lower() == 'true']
+
+        if min_yprimes > 0 and 'y_prime_count_on_read' in df.columns:
+            df = df[pd.to_numeric(df['y_prime_count_on_read'], errors='coerce').fillna(0) >= min_yprimes]
+
+        rows.append(df)
+
+    if not rows:
+        print('No reads match the given filters.')
+        return
+
+    all_df = pd.concat(rows, ignore_index=True)
+
+    display_cols = {
+        'chr_end':                     'chr_end',
+        'read_id':                     'read_id',
+        'y_prime_count_on_read':       'y_primes',
+        'y_prime_recombination_status':'status',
+        'recombination_source':        'source',
+        'recombination_detected':      'recomb',
+        'telo_side':                   'telo_side',
+    }
+    present = [c for c in display_cols if c in all_df.columns]
+    out = all_df[present].rename(columns=display_cols)
+    out = out.fillna('').sort_values(['chr_end', 'read_id'] if 'chr_end' in out.columns else ['read_id'])
+
+    # Column widths
+    widths = {col: max(len(col), out[col].astype(str).str.len().max()) for col in out.columns}
+    header = '  '.join(col.ljust(widths[col]) for col in out.columns)
+    sep    = '  '.join('-' * widths[col] for col in out.columns)
+
+    print(f'\n{len(out)} read(s) available\n')
+    print(header)
+    print(sep)
+    for _, r in out.iterrows():
+        print('  '.join(str(r[col]).ljust(widths[col]) for col in out.columns))
+
+
+# ─────────────────────────────── CLI ──────────────────────────────────────────
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description='Per-read telomeric structure diagram',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
+
+    # Data source (always required)
     src = p.add_mutually_exclusive_group(required=True)
     src.add_argument('--features', metavar='TSV',
                      help='Path to a single <base>_<chr_end>_features.tsv file')
@@ -608,19 +685,32 @@ def parse_args() -> argparse.Namespace:
                      help='Dir containing *_features.tsv (requires --base-name)')
     p.add_argument('--base-name', metavar='NAME',
                    help='Sample base name (used with --recombination-dir)')
-    p.add_argument('--read-id', required=True, metavar='ID',
-                   help='Read ID to plot')
-    p.add_argument('--output', required=True, metavar='PNG',
-                   help='Output PNG file path')
 
-    # Y' color source (mutually exclusive; both optional — fallback to defaults)
+    # Mode: list reads or plot one
+    mode = p.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--list-reads', action='store_true',
+                      help='Print available reads instead of plotting')
+    mode.add_argument('--read-id', metavar='ID',
+                      help='Read ID to plot')
+
+    p.add_argument('--output', metavar='PNG',
+                   help='Output PNG path (required with --read-id)')
+
+    # Filters for --list-reads
+    p.add_argument('--chr-end', metavar='CHR_END',
+                   help='Only show reads from this chr_end (e.g. chr10R)')
+    p.add_argument('--recombination-only', action='store_true',
+                   help='Only show reads where recombination_detected is True')
+    p.add_argument('--min-yprimes', type=int, default=0, metavar='N',
+                   help='Only show reads with >= N Y\' elements on the read')
+
+    # Y' color source
     col = p.add_mutually_exclusive_group()
     col.add_argument('--yprime-lib', metavar='FASTA',
-                     help='Y\' library FASTA whose headers encode IDn_ColorName '
-                          '(produced by cluster_yprimes_paper_method.py)')
+                     help='Y\' library FASTA with IDn_ColorName headers')
     col.add_argument('--config', metavar='YAML',
-                     help='Snakemake config.yaml; script resolves y_prime_lib / '
-                          'y_prime_lib_override automatically')
+                     help='Snakemake config.yaml to auto-resolve y_prime_lib')
+
     return p.parse_args()
 
 
@@ -629,6 +719,22 @@ def main() -> None:
 
     if args.recombination_dir and not args.base_name:
         sys.exit('Error: --base-name is required when using --recombination-dir')
+
+    # ── List mode ──────────────────────────────────────────────────────────
+    if args.list_reads:
+        list_reads(
+            features_tsv=args.features,
+            recomb_dir=args.recombination_dir,
+            base_name=args.base_name,
+            chr_end_filter=args.chr_end,
+            recombination_only=args.recombination_only,
+            min_yprimes=args.min_yprimes,
+        )
+        return
+
+    # ── Plot mode ──────────────────────────────────────────────────────────
+    if not args.output:
+        sys.exit('Error: --output is required when plotting a read')
 
     print(f'plot_read_structure.py — read: {args.read_id}')
 
