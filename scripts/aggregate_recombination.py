@@ -118,8 +118,10 @@ def summarize(recombination_dir, base_name, output_summary):
         # Most common recombination source
         src_col = 'recombination_source'
         if src_col in df.columns:
-            sources = df[df[src_col] != ''][src_col]
-            most_common_source = sources.mode().iloc[0] if not sources.empty else ''
+            sources = df[src_col].dropna()
+            sources = sources[sources != '']
+            _mode = sources.mode()
+            most_common_source = _mode.iloc[0] if not _mode.empty else ''
         else:
             most_common_source = ''
 
