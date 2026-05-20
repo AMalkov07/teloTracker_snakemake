@@ -164,7 +164,7 @@ def write_snakemake_config(cfg: dict, dest: Path = None):
     Emits the key structure the current Snakefile reads at module load time.
     """
     if dest is None:
-        dest = PIPELINE_DIR / "config.yaml"
+        dest = PIPELINE_DIR / "_pipeline" / "config.yaml"
 
     base_name      = cfg["base_name"]
     strain         = cfg["strain"]
@@ -191,17 +191,17 @@ def write_snakemake_config(cfg: dict, dest: Path = None):
         "",
         "# Paths to references",
         "references:",
-        '  anchors: "references/telomerase_shutoff_anchors.fasta"',
-        '  adapters: "references/nanopore_sqk-slk114_adapter_sequence_truncated.txt"',
-        '  probe: "references/y_prime_probe.fasta"',
+        '  anchors: "_pipeline/references/telomerase_shutoff_anchors.fasta"',
+        '  adapters: "_pipeline/references/nanopore_sqk-slk114_adapter_sequence_truncated.txt"',
+        '  probe: "_pipeline/references/y_prime_probe.fasta"',
         "",
-        '  y_prime_lib: "references/extracted_yprimes_{strain}.fasta"',
+        '  y_prime_lib: "_pipeline/references/extracted_yprimes_{strain}.fasta"',
     ]
     if yp_override:
         lines.append(f'  y_prime_lib_override: "{yp_override}"')
     lines.extend([
-        '  spacer_lib_dir: "references/pairings_for_spacers/{strain}_pairings"',
-        '  x_element_lib: "references/clustered_x_elements_{strain}.fasta"',
+        '  spacer_lib_dir: "_pipeline/references/pairings_for_spacers/{strain}_pairings"',
+        '  x_element_lib: "_pipeline/references/clustered_x_elements_{strain}.fasta"',
         "",
     ])
     dest.write_text("\n".join(lines))
@@ -276,10 +276,10 @@ def run_script(patched_content: str, label: str, extra_args: list = None, dry_ru
 # ──────────────────────────────────────────────────────────────────────────────
 
 def organize_outputs(base_name: str, strain: str, enabled: bool = True, dry_run: bool = False):
-    """Run scripts/organize_outputs.py to (re)create sibling symlinks + MANIFEST."""
+    """Run _pipeline/scripts/organize_outputs.py to (re)create sibling symlinks + MANIFEST."""
     if not enabled or dry_run:
         return
-    script = PIPELINE_DIR / "scripts" / "organize_outputs.py"
+    script = PIPELINE_DIR / "_pipeline" / "scripts" / "organize_outputs.py"
     cmd = [sys.executable, str(script), base_name, "--strain", strain, "--quiet"]
     try:
         subprocess.run(cmd, check=True, cwd=PIPELINE_DIR)
@@ -331,7 +331,7 @@ def step_create_ref(cfg: dict, dry_run: bool = False):
     if dorado_image:
         subs["DORADO_IMAGE"] = dorado_image
 
-    patched = patch_script(PIPELINE_DIR / "create_ref.sh", subs)
+    patched = patch_script(PIPELINE_DIR / "_pipeline" / "create_ref.sh", subs)
     run_script(patched, "create_ref.sh", dry_run=dry_run)
 
 
@@ -375,7 +375,7 @@ def step_label_regions(cfg: dict, dry_run: bool = False):
         "YPRIME_LINKAGE":   cfg.get("yprime_linkage", "average"),
         "YPRIME_STOP_MODE": cfg.get("yprime_stop_mode", "silhouette"),
     }
-    patched = patch_script(PIPELINE_DIR / "label_regions.sh", subs)
+    patched = patch_script(PIPELINE_DIR / "_pipeline" / "label_regions.sh", subs)
 
     # Also fix REFERENCE_DIR and REFERENCE_FASTA (script has hardcoded test values)
     if ref_dir:
@@ -424,7 +424,7 @@ def step_recombination(cfg: dict, dry_run: bool = False):
         # single-sample plots, events extraction, per-chr_end track plots),
         # so a single `snakemake all` triggers all the rules that should
         # produce them. Snakemake skips anything already cached.
-        cmd = ["snakemake", "all", "-c", str(threads)]
+        cmd = ["snakemake", "-s", "_pipeline/Snakefile", "all", "-c", str(threads)]
 
         if dry_run:
             print(f"  [DRY RUN] Would write config.yaml with base_name={sample}, day0_base_name={day0_base}")
@@ -498,7 +498,7 @@ yprime_stop_mode: "silhouette"
 
 # Override the automatically-extracted Y prime library with a curated one.
 # Uncomment and set if you want to use a specific FASTA.
-# y_prime_lib_override: "references/7302_features/repeatmasker_7302_all_y_primes.fasta"
+# y_prime_lib_override: "_pipeline/references/7302_features/repeatmasker_7302_all_y_primes.fasta"
 
 # Uncomment to supply a custom reference FASTA for the label_regions step
 # (defaults to the output of create_ref.sh)

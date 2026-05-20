@@ -39,7 +39,7 @@ yprime_identity_threshold: 97.0
 
 # Override the automatically-extracted Y prime library with a curated one.
 # Uncomment and set if you want to use a specific FASTA.
-# y_prime_lib_override: "references/7302_features/repeatmasker_7302_all_y_primes.fasta"
+# y_prime_lib_override: "_pipeline/references/7302_features/repeatmasker_7302_all_y_primes.fasta"
 
 # Uncomment to supply a custom reference FASTA for the label_regions step
 # (defaults to the output of create_ref.sh)
