@@ -326,11 +326,13 @@ else
             echo "WARNING: Skipping X element clustering - X element sequences not available"
         fi
 
-        # Copy extracted Y primes to references directory for easy access
+        # Extracted Y primes already live in ${EXTRACTED_YPRIMES} (the per-run
+        # pretelomeric_labels/ dir), which is where the recombination step
+        # picks them up. No copy to references/ — keeping the Y' file
+        # alongside the run it came from makes the sample/file pairing
+        # obvious.
         echo ""
-        echo "Copying extracted Y primes to references directory..."
-        cp "${EXTRACTED_YPRIMES}" "references/extracted_yprimes_${STRAIN_ID}.fasta"
-        echo "Copied: references/extracted_yprimes_${STRAIN_ID}.fasta"
+        echo "Extracted Y primes available at: ${EXTRACTED_YPRIMES}"
     fi
 fi
 
@@ -344,7 +346,7 @@ echo "Pipeline completed successfully!"
 echo "========================================================================"
 echo ""
 echo "Reference files created for strain ${STRAIN_ID}:"
-echo "  - Extracted Y primes: references/extracted_yprimes_${STRAIN_ID}.fasta"
+echo "  - Extracted Y primes: ${EXTRACTED_YPRIMES}"
 echo "  - Spacer sequences: references/${STRAIN_ID}_50kb_chopped_up_spacer_sequences.fasta"
 echo "  - X element sequences: references/${STRAIN_ID}_whole_x_regions_sequences.fasta"
 echo "  - Spacer pairings: references/pairings_for_spacers/${STRAIN_ID}_pairings/"

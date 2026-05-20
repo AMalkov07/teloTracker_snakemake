@@ -195,7 +195,7 @@ def write_snakemake_config(cfg: dict, dest: Path = None):
         '  adapters: "_pipeline/references/nanopore_sqk-slk114_adapter_sequence_truncated.txt"',
         '  probe: "_pipeline/references/y_prime_probe.fasta"',
         "",
-        '  y_prime_lib: "_pipeline/references/extracted_yprimes_{strain}.fasta"',
+        f'  y_prime_lib: "results/{day0_base_name}/_pipeline/pretelomeric_labels/extracted_yprimes_{{strain}}.fasta"',
     ]
     if yp_override:
         lines.append(f'  y_prime_lib_override: "{yp_override}"')
