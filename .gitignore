@@ -24,6 +24,10 @@ curr_snake_output.txt
 # Snakemake working directory
 .snakemake/
 
+# RepeatMasker work directories — intermediate files that sometimes leak
+# out of contained tmp dirs onto cwd. Safe to delete.
+RM_*/
+
 # Python cache
 __pycache__/
 *.pyc

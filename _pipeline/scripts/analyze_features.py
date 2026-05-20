@@ -775,19 +775,24 @@ def repeatmasker_y_primes(read_seqs, y_prime_lib, tmp_dir, threads=4):
     # read count.
     pa = max(1, min(threads, len(read_seqs)))
 
+    # Use absolute paths in the cmd so we can set cwd=rm_dir below without
+    # breaking relative path resolution. RepeatMasker creates RM_<pid>.<timestamp>
+    # working dirs in its cwd (the -dir flag only controls outputs); pinning
+    # cwd to rm_dir keeps those work dirs contained instead of polluting the
+    # project root.
     cmd = [
         'RepeatMasker',
-        reads_fasta,
-        '-lib', y_prime_lib,
+        os.path.abspath(reads_fasta),
+        '-lib', os.path.abspath(y_prime_lib),
         '-s',                   # slow/sensitive search
         '-pa', str(pa),
         '--cutoff', '1000',
         '-no_is',               # skip bacterial insertion element check
         '-norna',               # skip RNA repeat check
-        '-dir', rm_dir,
+        '-dir', os.path.abspath(rm_dir),
     ]
     try:
-        subprocess.run(cmd, check=True, capture_output=True)
+        subprocess.run(cmd, check=True, capture_output=True, cwd=rm_dir)
     except subprocess.CalledProcessError as e:
         stderr = e.stderr.decode(errors='replace') if e.stderr else ''
         stdout_tail = (e.stdout.decode(errors='replace') if e.stdout else '')[-1500:]
