@@ -10,7 +10,7 @@ Run:
   snakemake recombination_summary --cores N    # full through step 12
 """
 
-configfile: "config.yaml"
+configfile: "_pipeline/config.yaml"
 
 # ---------------------------------------------------------------------------
 # Config variables
