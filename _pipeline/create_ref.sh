@@ -31,9 +31,9 @@ THREADS=56
 ###### Below does NOT need to be adjusted ######
 
 # Reference configuration (paths relative to the repo root)
-REFERENCE="references/6991_only_to_anchors.fasta"
-ADAPTER_FILE="references/offical_nanopore_adapter_seq+trunc.txt"
-SCRIPTS_DIR="scripts"
+REFERENCE="_pipeline/references/6991_only_to_anchors.fasta"
+ADAPTER_FILE="_pipeline/references/offical_nanopore_adapter_seq+trunc.txt"
+SCRIPTS_DIR="_pipeline/scripts"
 
 # Dorado configuration
 DORADO_MODE="docker"  # "docker" or "local"

@@ -24,14 +24,14 @@ REFERENCE_FASTA="${REFERENCE_DIR}/assembly_${STRAIN_ID}_dorado_reference.fasta"
 #REFERENCE_FASTA="${REFERENCE_DIR}/${STRAIN_ID}.fasta"
 
 # Reference sequences for labeling (from strain 6991)
-REFERENCES_DIR="references"
+REFERENCES_DIR="_pipeline/references"
 ANCHORS_FASTA="${REFERENCES_DIR}/test_anchors.fasta"
 YPRIMES_FASTA="${REFERENCES_DIR}/repeatmasker_6991_all_y_primes.fasta"
 XPRIMES_FASTA="${REFERENCES_DIR}/6991_xprimes.fasta"  # X prime sequences for detection
 PROBE_FASTA="${REFERENCES_DIR}/probe.fasta"  # Y prime probe for verification
 
 # Scripts directory
-SCRIPTS_DIR="scripts"
+SCRIPTS_DIR="_pipeline/scripts"
 
 # Output configuration
 OUTPUT_DIR="results/${BASE_NAME}/_pipeline/pretelomeric_labels"
@@ -265,7 +265,7 @@ else
         # Step 1: Create chopped spacer sequences
         echo ""
         echo "Step 1: Creating chopped spacer sequences..."
-        python scripts/make_chopped_spacer_sequences.py \
+        python _pipeline/scripts/make_chopped_spacer_sequences.py \
             "${STRAIN_ID}" \
             "${SIMPLIFIED_BED}" \
             "${REFERENCE_FASTA}" \
@@ -281,7 +281,7 @@ else
         # Step 2: Create X element sequences
         echo ""
         echo "Step 2: Creating X element sequences..."
-        python scripts/make_x_element_sequences.py \
+        python _pipeline/scripts/make_x_element_sequences.py \
             "${STRAIN_ID}" \
             "${SIMPLIFIED_BED}" \
             "${REFERENCE_FASTA}" \
@@ -297,7 +297,7 @@ else
         echo ""
         echo "Step 3: Creating spacer pairings for RepeatMasker..."
         if [ -f "${SPACER_SEQUENCES}" ]; then
-            python scripts/make_databases_of_pairings_for_spacers.py \
+            python _pipeline/scripts/make_databases_of_pairings_for_spacers.py \
                 "${STRAIN_ID}" \
                 "${EXTRACTED_YPRIMES}" \
                 "${SPACER_SEQUENCES}" \
@@ -315,7 +315,7 @@ else
             CLUSTERED_X_FASTA="references/clustered_x_elements_${STRAIN_ID}.fasta"
             X_CLUSTER_WORKDIR="${OUTPUT_DIR}/x_element_clustering_${STRAIN_ID}"
             mkdir -p "${X_CLUSTER_WORKDIR}"
-            python scripts/cluster_x_elements.py \
+            python _pipeline/scripts/cluster_x_elements.py \
                 "${X_ELEMENT_SEQUENCES}" \
                 --output-fasta "${CLUSTERED_X_FASTA}" \
                 --output-dir "${X_CLUSTER_WORKDIR}" \

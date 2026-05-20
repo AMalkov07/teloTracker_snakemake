@@ -118,7 +118,7 @@ rule filter_reads:
     input: f"{RESULTS}/{BASE}_raw.fastq"
     output: f"{RESULTS}/{BASE}.fastq"
     threads: 1
-    shell: "python scripts/filter_reads.py {input} {output}"
+    shell: "python _pipeline/scripts/filter_reads.py {input} {output}"
 
 # ---------------------------------------------------------------------------
 # Step 0c: Convert filtered FASTQ to FASTA
@@ -159,7 +159,7 @@ rule filter_anchors:
     input: f"{BLAST_DIR}/{BASE}_blasted_{ANCHOR}.tsv"
     output: f"{BLAST_DIR}/top_matches_{BASE}_blasted_{ANCHOR}.tsv"
     threads: 1
-    shell: "python scripts/filter_for_reads_with_anchors.py {BASE} {ANCHOR} {RESULTS}"
+    shell: "python _pipeline/scripts/filter_for_reads_with_anchors.py {BASE} {ANCHOR} {RESULTS}"
 
 # ---------------------------------------------------------------------------
 # Step 3: Split and label reads per chromosome end
@@ -173,7 +173,7 @@ rule split_and_label:
     threads: 1
     shell:
         """
-        python scripts/split_and_label_all_reads_include_anchor.py {BASE} {ANCHOR} {RESULTS}
+        python _pipeline/scripts/split_and_label_all_reads_include_anchor.py {BASE} {ANCHOR} {RESULTS}
         for f in {output.fasta} {output.tsv}; do touch -a "$f"; done
         """
 
@@ -221,9 +221,9 @@ rule parse_porechop_and_trim:
     threads: 1
     shell:
         """
-        python scripts/check_for_adapters.py {BASE} {input.log} {RESULTS}
-        python scripts/compare_adapter_callers_dorado.py {BASE} {ANCHOR} {RESULTS} {input.fasta}
-        python scripts/fine_telomere_trimming.py {BASE} {ANCHOR} {RESULTS}
+        python _pipeline/scripts/check_for_adapters.py {BASE} {input.log} {RESULTS}
+        python _pipeline/scripts/compare_adapter_callers_dorado.py {BASE} {ANCHOR} {RESULTS} {input.fasta}
+        python _pipeline/scripts/fine_telomere_trimming.py {BASE} {ANCHOR} {RESULTS}
         """
 
 # ---------------------------------------------------------------------------
@@ -254,7 +254,7 @@ rule y_prime_analysis:
         telo   = f"{RESULTS}/{BASE}_post_telo_trimming.tsv",
     output: f"{RESULTS}/{BASE}_post_y_prime_probe.tsv"
     threads: 1
-    shell: "python scripts/y_prime_analysis.py {BASE} {RESULTS}"
+    shell: "python _pipeline/scripts/y_prime_analysis.py {BASE} {RESULTS}"
 
 rule single_sample_plots:
     input: f"{RESULTS}/{BASE}_post_y_prime_probe.tsv"
@@ -263,7 +263,7 @@ rule single_sample_plots:
     shell:
         """
         mkdir -p {GRAPH_DIR}
-        python scripts/single_sample_plots.py {BASE} {RESULTS}
+        python _pipeline/scripts/single_sample_plots.py {BASE} {RESULTS}
         """
 
 # ===========================================================================
@@ -282,7 +282,7 @@ rule filter_telomere_reads:
     threads: 1
     shell:
         """
-        python scripts/filter_telomere_reads.py \
+        python _pipeline/scripts/filter_telomere_reads.py \
             --telo-tsv    {input.telo_tsv} \
             --input-dir   {CHR_DIR} \
             --output-dir  {TELO_DIR} \
@@ -305,7 +305,7 @@ rule recombination_alignment:
     shell:
         """
         mkdir -p {RECOMB_DIR}
-        python scripts/run_alignment.py \
+        python _pipeline/scripts/run_alignment.py \
             --reads-fasta {input.reads} \
             --day0-ref    {input.day0_ref} \
             --chr-end     {wildcards.chr_end} \
@@ -336,7 +336,7 @@ rule recombination_analyze:
     threads: workflow.cores
     shell:
         """
-        python scripts/analyze_features.py \
+        python _pipeline/scripts/analyze_features.py \
             --reads-fasta       {input.reads} \
             --alignment-tsv     {input.alignment} \
             --anchor-tsv        {input.anchor_tsv} \
@@ -364,7 +364,7 @@ rule recombination_summary:
     threads: 1
     shell:
         """
-        python scripts/aggregate_recombination.py \
+        python _pipeline/scripts/aggregate_recombination.py \
             --recombination-dir {params.recomb_dir} \
             --base-name         {params.base_name} \
             --output-summary    {output}
@@ -386,7 +386,7 @@ rule extract_recombination_events:
     shell:
         """
         mkdir -p {params.events_dir}
-        python scripts/extract_recombination_events.py \
+        python _pipeline/scripts/extract_recombination_events.py \
             {params.recomb_dir} {params.base_name} {params.events_dir}
         touch {output.marker}
         """
@@ -407,6 +407,6 @@ rule recombination_track_plots:
     shell:
         """
         mkdir -p {params.plots_dir}
-        python scripts/plot_recombination_tracks.py \
+        python _pipeline/scripts/plot_recombination_tracks.py \
             {params.recomb_dir} {params.base_name} {params.plots_dir}
         """
