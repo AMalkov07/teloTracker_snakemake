@@ -200,8 +200,8 @@ def write_snakemake_config(cfg: dict, dest: Path = None):
     if yp_override:
         lines.append(f'  y_prime_lib_override: "{yp_override}"')
     lines.extend([
-        '  spacer_lib_dir: "_pipeline/references/pairings_for_spacers/{strain}_pairings"',
-        '  x_element_lib: "_pipeline/references/clustered_x_elements_{strain}.fasta"',
+        f'  spacer_lib_dir: "results/{day0_base_name}/_pipeline/pretelomeric_labels/pairings_for_spacers/{{strain}}_pairings"',
+        f'  x_element_lib: "results/{day0_base_name}/_pipeline/pretelomeric_labels/clustered_x_elements_{{strain}}.fasta"',
         "",
     ])
     dest.write_text("\n".join(lines))

@@ -250,8 +250,8 @@ echo "========================================================================"
 # Define paths for pairing creation
 SIMPLIFIED_BED="${OUTPUT_DIR}/${PREFIX}_simp.bed"
 EXTRACTED_YPRIMES="${OUTPUT_DIR}/extracted_yprimes_${STRAIN_ID}.fasta"
-SPACER_SEQUENCES="references/${STRAIN_ID}_50kb_chopped_up_spacer_sequences.fasta"
-X_ELEMENT_SEQUENCES="references/${STRAIN_ID}_whole_x_regions_sequences.fasta"
+SPACER_SEQUENCES="${OUTPUT_DIR}/${STRAIN_ID}_50kb_chopped_up_spacer_sequences.fasta"
+X_ELEMENT_SEQUENCES="${OUTPUT_DIR}/${STRAIN_ID}_whole_x_regions_sequences.fasta"
 
 # Verify required files exist
 if [ ! -f "${SIMPLIFIED_BED}" ]; then
@@ -269,7 +269,7 @@ else
             "${STRAIN_ID}" \
             "${SIMPLIFIED_BED}" \
             "${REFERENCE_FASTA}" \
-            "references/" \
+            "${OUTPUT_DIR}/" \
             --fixed-50kb
 
         if [ -f "${SPACER_SEQUENCES}" ]; then
@@ -285,7 +285,7 @@ else
             "${STRAIN_ID}" \
             "${SIMPLIFIED_BED}" \
             "${REFERENCE_FASTA}" \
-            "references/"
+            "${OUTPUT_DIR}/"
 
         if [ -f "${X_ELEMENT_SEQUENCES}" ]; then
             echo "Created: ${X_ELEMENT_SEQUENCES}"
@@ -297,12 +297,13 @@ else
         echo ""
         echo "Step 3: Creating spacer pairings for RepeatMasker..."
         if [ -f "${SPACER_SEQUENCES}" ]; then
+            mkdir -p "${OUTPUT_DIR}/pairings_for_spacers"
             python _pipeline/scripts/make_databases_of_pairings_for_spacers.py \
                 "${STRAIN_ID}" \
                 "${EXTRACTED_YPRIMES}" \
                 "${SPACER_SEQUENCES}" \
-                "references/pairings_for_spacers/"
-            echo "Created: references/pairings_for_spacers/${STRAIN_ID}_pairings/"
+                "${OUTPUT_DIR}/pairings_for_spacers/"
+            echo "Created: ${OUTPUT_DIR}/pairings_for_spacers/${STRAIN_ID}_pairings/"
         else
             echo "WARNING: Skipping spacer pairings - spacer sequences not available"
         fi
@@ -312,7 +313,7 @@ else
         echo ""
         echo "Step 4: Clustering X elements..."
         if [ -f "${X_ELEMENT_SEQUENCES}" ]; then
-            CLUSTERED_X_FASTA="references/clustered_x_elements_${STRAIN_ID}.fasta"
+            CLUSTERED_X_FASTA="${OUTPUT_DIR}/clustered_x_elements_${STRAIN_ID}.fasta"
             X_CLUSTER_WORKDIR="${OUTPUT_DIR}/x_element_clustering_${STRAIN_ID}"
             mkdir -p "${X_CLUSTER_WORKDIR}"
             python _pipeline/scripts/cluster_x_elements.py \
@@ -347,10 +348,10 @@ echo "========================================================================"
 echo ""
 echo "Reference files created for strain ${STRAIN_ID}:"
 echo "  - Extracted Y primes: ${EXTRACTED_YPRIMES}"
-echo "  - Spacer sequences: references/${STRAIN_ID}_50kb_chopped_up_spacer_sequences.fasta"
-echo "  - X element sequences: references/${STRAIN_ID}_whole_x_regions_sequences.fasta"
-echo "  - Spacer pairings: references/pairings_for_spacers/${STRAIN_ID}_pairings/"
-echo "  - X element pairings: references/pairings_for_x_element_ends/${STRAIN_ID}_pairings/"
+echo "  - Spacer sequences: ${SPACER_SEQUENCES}"
+echo "  - X element sequences: ${X_ELEMENT_SEQUENCES}"
+echo "  - Spacer pairings: ${OUTPUT_DIR}/pairings_for_spacers/${STRAIN_ID}_pairings/"
+echo "  - Clustered X elements: ${OUTPUT_DIR}/clustered_x_elements_${STRAIN_ID}.fasta"
 echo ""
 echo "You can now run the telomere analysis pipeline with:"
 echo "  qsub telomere_analysis_complete.sh dorado_${STRAIN_ID}_dayX_PromethION_no_tag_yes_rejection"
