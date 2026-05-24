@@ -7,23 +7,37 @@ small squares for inter-Y' spacers with bp labels, X element, spacer, and
 chromosome end label.
 
 Y' colors are read from the Y' library FASTA (IDn_ColorName encoded in headers),
-matching the colors assigned during label_regions.sh clustering. Supply the FASTA
-with --yprime-lib, or let the script find it automatically via --config (reads
-the Snakemake config.yaml and resolves y_prime_lib / y_prime_lib_override).
+matching the colors assigned during label_regions.sh clustering. Color source,
+in order of precedence:
 
-Usage (specify exact features TSV + Y' library):
+  1. --yprime-lib FASTA          (explicit path; overrides everything else)
+  2. --config config.yaml        (resolves y_prime_lib / y_prime_lib_override)
+  3. Auto-detect (default)       — globs
+                                   results/*/_pipeline/pretelomeric_labels/
+                                   extracted_yprimes_*.fasta and picks the
+                                   most recently modified match. Works after
+                                   the label_regions refactor that put the
+                                   Y' library inside the per-run dir.
+  4. Fallback defaults           — monochrome arrows, no Y'-ID coloring
+
+Usage (auto-detect Y' lib — typical):
     python scripts/plot_read_structure.py \
-        --features results/<base>/recombination/<base>_<chr_end>_features.tsv \
+        --features results/<base>/_pipeline/recombination/<base>_<chr_end>_features.tsv \
         --read-id <read_id> \
-        --config config.yaml \
         --output diagram.png
 
-Usage (auto-search across all chr_ends, explicit Y' library):
+Usage (auto-search across all chr_ends + auto-detect Y' lib):
     python scripts/plot_read_structure.py \
-        --recombination-dir results/<base>/recombination/ \
+        --recombination-dir results/<base>/_pipeline/recombination/ \
         --base-name <base> \
         --read-id <read_id> \
-        --yprime-lib references/extracted_yprimes_6991.fasta \
+        --output diagram.png
+
+Usage (pin a specific Y' library):
+    python scripts/plot_read_structure.py \
+        --features ... \
+        --read-id <read_id> \
+        --yprime-lib results/<day0_base>/_pipeline/pretelomeric_labels/extracted_yprimes_<strain>.fasta \
         --output diagram.png
 """
 
@@ -154,6 +168,48 @@ def load_yprime_colors(fasta_path: str) -> dict[str, str]:
     except OSError as exc:
         print(f'  Warning: could not read Y\' library {fasta_path}: {exc}')
     return id_to_hex
+
+
+def auto_detect_yprime_lib(reference_path: str) -> str | None:
+    """
+    Locate an extracted_yprimes_*.fasta in the standard per-run location
+    introduced by the label_regions refactor:
+        results/<day0_base>/_pipeline/pretelomeric_labels/extracted_yprimes_<strain>.fasta
+
+    reference_path can be any path inside the project (a features.tsv path or
+    a recombination dir works) — we walk up to find the `results/` directory
+    that anchors the project, then glob across all per-sample dirs.
+
+    If multiple Y' libraries are present (e.g. several day0 samples have been
+    processed), the most recently modified one is returned — usually the one
+    the user just ran. Use --yprime-lib explicitly to pin a specific lib.
+    """
+    p = os.path.abspath(reference_path)
+    # If a file was passed, start from its directory.
+    if os.path.isfile(p):
+        p = os.path.dirname(p)
+
+    project_root = None
+    while p and p != os.path.dirname(p):  # stop at filesystem root
+        if os.path.basename(p) == 'results' and os.path.isdir(p):
+            project_root = os.path.dirname(p)
+            break
+        if os.path.isdir(os.path.join(p, 'results')):
+            project_root = p
+            break
+        p = os.path.dirname(p)
+
+    if project_root is None:
+        return None
+
+    pattern = os.path.join(
+        project_root, 'results', '*', '_pipeline',
+        'pretelomeric_labels', 'extracted_yprimes_*.fasta',
+    )
+    matches = glob.glob(pattern)
+    if not matches:
+        return None
+    return max(matches, key=os.path.getmtime)
 
 
 def resolve_yprime_lib(config_path: str) -> str | None:
@@ -737,12 +793,15 @@ def parse_args() -> argparse.Namespace:
     p.add_argument('--min-yprimes', type=int, default=0, metavar='N',
                    help='Only show reads with >= N Y\' elements on the read')
 
-    # Y' color source
+    # Y' color source — both optional; if neither given, the script will
+    # auto-detect the Y' library from results/*/_pipeline/pretelomeric_labels/
     col = p.add_mutually_exclusive_group()
     col.add_argument('--yprime-lib', metavar='FASTA',
-                     help='Y\' library FASTA with IDn_ColorName headers')
+                     help='Y\' library FASTA with IDn_ColorName headers '
+                          '(default: auto-detect from per-run pretelomeric_labels/)')
     col.add_argument('--config', metavar='YAML',
-                     help='Snakemake config.yaml to auto-resolve y_prime_lib')
+                     help='Snakemake config.yaml to auto-resolve y_prime_lib '
+                          '(default: auto-detect from per-run pretelomeric_labels/)')
 
     return p.parse_args()
 
@@ -799,8 +858,19 @@ def main() -> None:
             yprime_colors = load_yprime_colors(lib_path)
             print(f'  Y\' colors loaded: {len(yprime_colors)} IDs: '
                   f'{", ".join(sorted(yprime_colors))}')
+    else:
+        # Auto-detect: look in the standard per-run pretelomeric_labels/ dir.
+        # Anchor the search off whatever path we have (features.tsv or recomb dir).
+        ref_path = source_file or args.features or args.recombination_dir
+        lib_path = auto_detect_yprime_lib(ref_path) if ref_path else None
+        if lib_path:
+            print(f'  Y\' lib auto-detected: {lib_path}')
+            yprime_colors = load_yprime_colors(lib_path)
+            print(f'  Y\' colors loaded: {len(yprime_colors)} IDs: '
+                  f'{", ".join(sorted(yprime_colors))}')
     if yprime_colors is None:
-        print('  Y\' colors: using fallback defaults (no --yprime-lib / --config provided)')
+        print('  Y\' colors: using fallback defaults '
+              '(no --yprime-lib / --config and auto-detect found nothing)')
 
     out_dir = os.path.dirname(os.path.abspath(args.output))
     if out_dir:
