@@ -271,6 +271,86 @@ For the `recombination` step the wrapper doesn't touch a shell script — it jus
 
 ---
 
+## Post-processing — per-read structure diagrams
+
+After `recombination` has produced `*_features.tsv`, you can render a schematic of any individual read's pretelomeric structure with `_pipeline/scripts/plot_read_structure.py`. This is the easiest way to sanity-check a recombination call by eye.
+
+### Running it
+
+The script has two modes: **list** the reads available for plotting, then **plot** one of them. Both require either `--features <one_features.tsv>` or `--recombination-dir <dir> --base-name <base>` so it knows where to look.
+
+```bash
+# 1. List reads that look interesting (e.g. multi-Y' recombination events)
+python _pipeline/scripts/plot_read_structure.py \
+    --recombination-dir results/<base_name>/_pipeline/recombination \
+    --base-name <base_name> \
+    --list-reads --min-yprimes 4 --recombination-only
+
+# 2. Plot one
+python _pipeline/scripts/plot_read_structure.py \
+    --recombination-dir results/<base_name>/_pipeline/recombination \
+    --base-name <base_name> \
+    --read-id <read_id_from_list> \
+    --output diagram.png
+```
+
+Optional filters for `--list-reads`: `--chr-end chr10R` (single chromosome end), `--recombination-only` (skip `recombination_detected = False`), `--min-yprimes N`.
+
+#### Y′ colors
+
+The script auto-detects the Y′ library at `results/*/_pipeline/pretelomeric_labels/extracted_yprimes_*.fasta` and reads the per-ID color names from the FASTA headers. If you have several runs with different libraries, pin the right one explicitly:
+
+```bash
+--yprime-lib results/<day0_base_name>/_pipeline/pretelomeric_labels/extracted_yprimes_<strain>.fasta
+```
+
+### Reading the diagram
+
+Reads are always drawn **telomere on the outer end → chromosome on the chr-label end**. For an L-arm read (`chr_end` ending in `L`), the telomere is on the left and the chromosome label is on the right; R-arms are mirrored. The horizontal rail represents the read backbone, drawn from the telomere outer edge to the chromosome label.
+
+| Feature | Shape | Color | Meaning |
+|---|---|---|---|
+| **Telomere** | Square box at the outer end | Black (same as inter-Y′ spacer) | TG/AC repeat tract. Tract length in bp printed below the box (sourced from `<base>_post_telo_trimming.tsv`). |
+| **Y′ element** | Pentagon arrow, pointing toward the telomere | Per-ID color, from the Y′ library | A Y′ element. Label above is positional (`Y-1` is innermost / chromosome-side, `Y-N` is outermost / telomere-side). Label below is the Y′ ID (`ID1`, `ID2`, …) from clustering. |
+| **inter-Y′ spacer** | Small square between Y′ arrows | Black | Gap between two consecutive Y′ elements on the read. The number below is the gap length in bp. |
+| **X element** | Dark grey square | Dark grey | X element. Label above shows the reference chromosome end it matched (e.g. `X chr12R`); `bp` underneath is its size. |
+| **Spacer** | Blue-grey box | `#7399AB` | Pretelomeric spacer between the X element and the anchor. Label above shows the reference chromosome end it matched. |
+| **Anchor** | Dark `anc` box | Black | Subtelomeric anchor sequence. Chromosome assignment comes from which anchor matched (printed as the chromosome label). |
+| **★ + red outline** | On a Y′ arrow | — | Divergence point. The first Y′ position (innermost → outermost) where the read disagrees with the day-0 reference. The title bar reports `expected_at_divergence` and `found_at_divergence`. |
+
+### Reading the `Y' recombination status`
+
+The title bar always shows three things: the read ID, then `<chr_end>  ·  <N> Y' elements  ·  <status>`, and optionally `source: <chr_end>` (the reference chromosome end that the X element and/or spacer best match — telling you which donor end the recombined material likely came from).
+
+Possible `<status>` values, produced by [`analyze_features.py`](_pipeline/scripts/analyze_features.py):
+
+| Status | Meaning | What the diagram looks like |
+|---|---|---|
+| `No Change` | The Y′ array on the read matches the day-0 reference 1:1, position by position. | No ★ marker; Y′ colors should be the same as the reference for this chromosome end. |
+| `1st Y' Change` | The **innermost** Y′ (`Y-1`, adjacent to the X element) differs from the reference. This is the most common ALT-recombination signal — the read still has the right chromosome end, but its first Y′ is new. | ★ on `Y-1` (and a red outline). `expected_at_divergence` = reference's `Y-1` ID; `found_at_divergence` = the new ID actually on the read. |
+| `Y' Recombination` | Same as above but the divergence is at `Y-2` or further out — the innermost Y′ still matches reference but a downstream one differs. Rarer. | ★ on whichever `Y-k` is the divergent one. |
+| `Y' Gain` | The read has **more Y′ elements** than the reference for this chromosome end (extension events). | ★ on the first "extra" Y′ beyond the reference's count. `expected_at_divergence` = `None`. |
+| `Y' Loss` | The read has **fewer Y′ elements** than the reference (contraction events, or reference has Y′ but read has none). | If any Y′ are present, ★ is on the position where the array runs out. `found_at_divergence` = `None`. |
+
+Two additional `*_features.tsv` columns help interpret the status — they're not directly drawn but are visible in `--list-reads` output:
+
+- `recombination_source` — the reference chromosome end that the X-element + spacer best match. If `source: chrXY` differs from `chr_end: chrZW`, the read's chromosome end has likely been replaced by material from a different donor end. `ambiguous` means the X/spacer didn't pick a single donor confidently.
+- `y_prime_compatible_ends` — chromosome ends whose `Y-1` ID matches the read's `Y-1` ID. Useful for working out where a `1st Y' Change` event's new Y′ came from.
+
+### Worked example
+
+A read whose title reads:
+
+```
+SRR33298393.133768
+chr12R  ·  10 Y' elements  ·  Y' Gain
+source: chr4
+```
+
+…is an R-arm read assigned to chr12R, with 10 Y′ elements on it. The day-0 chr12R reference has fewer than 10 Y′, so the call is `Y' Gain`. The X-element + spacer match best to chr4, suggesting the read's pretelomere is the recombined product of a chr12R anchor stitched to chr4-derived pretelomeric material that has been elongated. The ★ on the diagram will sit on the first "extra" Y′ position beyond the original chr12R array.
+
+---
+
 ## Repository layout
 
 ```

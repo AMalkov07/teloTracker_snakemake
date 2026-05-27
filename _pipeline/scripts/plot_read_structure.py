@@ -322,6 +322,38 @@ def find_read(read_id: str,
     return None, None
 
 
+def find_telo_repeat_length(read_id: str, features_tsv: str | None) -> int | None:
+    """Look up the telomere TG/AC repeat tract length for read_id.
+
+    The tract length is recorded in <base>_post_telo_trimming.tsv at
+    results/<base>/<base>_post_telo_trimming.tsv. We walk up parents of
+    features_tsv to find a sibling *_post_telo_trimming.tsv.
+    """
+    if not features_tsv:
+        return None
+    cur = os.path.dirname(os.path.abspath(features_tsv))
+    for _ in range(4):
+        cands = glob.glob(os.path.join(cur, '*_post_telo_trimming.tsv'))
+        if cands:
+            try:
+                df = pd.read_csv(cands[0], sep='\t', dtype=str)
+            except Exception as exc:
+                print(f'  Warning: could not read {cands[0]}: {exc}')
+                return None
+            if 'read_id' not in df.columns or 'repeat_length' not in df.columns:
+                return None
+            hits = df[df['read_id'] == read_id]
+            if hits.empty:
+                return None
+            val = hits.iloc[0]['repeat_length']
+            try:
+                return int(float(val))
+            except (ValueError, TypeError):
+                return None
+        cur = os.path.dirname(cur)
+    return None
+
+
 # ─────────────────────────────── Display coords ───────────────────────────────
 
 def to_display(raw_pos: int, telo_side: str, read_length: int) -> int:
@@ -434,11 +466,14 @@ def draw_box(ax, x_left: float, x_right: float, y: float,
 # ─────────────────────────────── Main plot ────────────────────────────────────
 
 def plot_read_structure(row: dict, read_id: str, output_path: str,
-                        yprime_colors: dict[str, str] | None = None) -> None:
+                        yprime_colors: dict[str, str] | None = None,
+                        telo_length: int | None = None) -> None:
     """Render the schematic structure diagram for one read and save to output_path.
 
     yprime_colors: {IDn: hex_color} from load_yprime_colors(). Falls back to
     hardcoded _FALLBACK_COLORS when None.
+    telo_length: telomere TG/AC repeat tract length in bp, drawn as a labeled
+    feature at the telomeric end. None → drawn as an unlabeled box.
     """
     colors = yprime_colors if yprime_colors else _FALLBACK_COLORS
 
@@ -467,6 +502,8 @@ def plot_read_structure(row: dict, read_id: str, output_path: str,
     SP_H      = 0.45
     ANC_W     = 0.38   # anchor box width
     ANC_H     = 0.45
+    TELO_W    = 0.55   # telomere box width (slightly larger than inter-Y' square)
+    TELO_H    = 0.55
     PAD       = 0.18   # gap between adjacent elements
     LABEL_GAP = 0.08   # extra gap between element edge and text
     YC        = 0.0    # vertical center of all elements
@@ -474,7 +511,12 @@ def plot_read_structure(row: dict, read_id: str, output_path: str,
     # ── Build element list left→right (telomere→chromosome) ────────────────
     # Each entry: (kind, x_left, x_right, info_dict)
     elements: list[tuple[str, float, float, dict]] = []
-    x = 0.5   # start with left padding (for telomere label)
+    x = 0.5   # start with left padding (for chr_end label on R arms)
+
+    # Telomere — first element on the telomeric side, before any Y'
+    elements.append(('telo', x, x + TELO_W, {'size_bp': telo_length}))
+    x += TELO_W
+    x += PAD
 
     # Y' elements and inter-Y' spacers
     for i, (yp_type, yp_left_bp, yp_right_bp) in enumerate(yps):
@@ -552,8 +594,16 @@ def plot_read_structure(row: dict, read_id: str, output_path: str,
     ax.set_ylim(-1.6, 1.6)
     ax.axis('off')
 
-    # Background rail
-    ax.hlines(YC, 0.0, total_width - 1.1,
+    # Background rail — stops at the telomere on one end and the chr_end label
+    # on the other (the chromosome conceptually continues past the anchor into
+    # the genome, but stops at the telomere).
+    if is_r:
+        rail_x0 = 0.40
+        rail_x1 = x_content_end
+    else:
+        rail_x0 = 0.5
+        rail_x1 = total_width - 1.05
+    ax.hlines(YC, rail_x0, rail_x1,
               colors=RAIL_COLOR, linewidth=1.5, zorder=1)
 
     # ── Draw each element ───────────────────────────────────────────────────
@@ -591,6 +641,15 @@ def plot_read_structure(row: dict, read_id: str, output_path: str,
                 ax.text(mid, YC + sq_below, str(gap_bp),
                         ha='center', va='top', fontsize=7, color='#333333')
 
+        elif kind == 'telo':
+            telo_bp = info.get('size_bp')
+            draw_box(ax, xl, xr, YC, TELO_H, INTER_YP_COLOR)
+            ax.text(mid, YC + above, 'telo',
+                    ha='center', va='bottom', fontsize=7.5, color='#333333')
+            if telo_bp is not None:
+                ax.text(mid, YC + below, f'{telo_bp} bp',
+                        ha='center', va='top', fontsize=6.5, color='#666666')
+
         elif kind == 'x_element':
             draw_box(ax, xl, xr, YC, XE_H, X_ELEMENT_COLOR)
             src = info['source']
@@ -623,21 +682,13 @@ def plot_read_structure(row: dict, read_id: str, output_path: str,
                     ha='center', va='bottom', fontsize=6.5, color='#333333')
 
     if is_r:
-        # Chromosome label at far left, telomere indicator at far right
+        # Chromosome label at far left; telomere drawn as feature at far right
         ax.text(0.40, YC, chr_end,
                 ha='right', va='center', fontsize=11, fontweight='bold')
-        ax.annotate('', xy=(total_width - 0.15, YC), xytext=(total_width - 0.65, YC),
-                    arrowprops=dict(arrowstyle='->', color='#888888', lw=1.5))
-        ax.text(total_width - 0.10, YC, 'telo', ha='left', va='center',
-                fontsize=8, color='#888888')
     else:
-        # Chromosome label at far right, telomere indicator at far left
+        # Chromosome label at far right; telomere drawn as feature at far left
         ax.text(total_width - 1.05, YC, chr_end,
                 ha='left', va='center', fontsize=11, fontweight='bold')
-        ax.annotate('', xy=(-0.55, YC), xytext=(-0.1, YC),
-                    arrowprops=dict(arrowstyle='->', color='#888888', lw=1.5))
-        ax.text(-0.60, YC, 'telo', ha='right', va='center',
-                fontsize=8, color='#888888')
 
     # ── Title ──────────────────────────────────────────────────────────────
     status = elems['y_prime_recombination_status']
@@ -872,11 +923,20 @@ def main() -> None:
         print('  Y\' colors: using fallback defaults '
               '(no --yprime-lib / --config and auto-detect found nothing)')
 
+    # Telomere repeat length (for telo feature box)
+    telo_length = find_telo_repeat_length(args.read_id, source_file)
+    if telo_length is not None:
+        print(f'  Telomere repeat_length: {telo_length} bp')
+    else:
+        print('  Telomere repeat_length: not found (telo box will be unlabeled)')
+
     out_dir = os.path.dirname(os.path.abspath(args.output))
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
 
-    plot_read_structure(row, args.read_id, args.output, yprime_colors=yprime_colors)
+    plot_read_structure(row, args.read_id, args.output,
+                        yprime_colors=yprime_colors,
+                        telo_length=telo_length)
 
 
 if __name__ == '__main__':
