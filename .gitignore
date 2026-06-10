@@ -4,7 +4,8 @@ dorado_6991_day0_repeat2_PromethION_no_tag_yes_rejection_2/
 not_needed/
 previous_tests/
 results/
-samples_dorado_basecalled/
+samples_dorado_basecalled/*
+!samples_dorado_basecalled/.gitkeep
 samples_dorado_basecalled2/
 telomere_figures/
 TeloTracker/
