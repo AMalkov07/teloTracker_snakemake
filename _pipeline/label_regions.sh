@@ -338,6 +338,29 @@ else
 fi
 
 # ============================================================================
+# Reference structure diagrams (auto-generated overview)
+# ============================================================================
+
+echo ""
+echo "========================================================================"
+echo "Generating reference structure diagrams"
+echo "========================================================================"
+
+REF_STRUCT_DIR="${OUTPUT_DIR}/reference_structure_figures"
+SIMP_BED_FOR_PLOT="${OUTPUT_DIR}/${PREFIX}_simp.bed"
+
+if [ -f "${SIMP_BED_FOR_PLOT}" ]; then
+    python _pipeline/scripts/plot_reference_structure.py \
+        --bed        "${SIMP_BED_FOR_PLOT}" \
+        --yprime-lib "${EXTRACTED_YPRIMES}" \
+        --reference  "${REFERENCE_FASTA}" \
+        --output-dir "${REF_STRUCT_DIR}" \
+        || echo "WARNING: reference structure plot generation failed (non-fatal)"
+else
+    echo "Skipping reference structure plots: ${SIMP_BED_FOR_PLOT} not found"
+fi
+
+# ============================================================================
 # Final Summary
 # ============================================================================
 
@@ -352,6 +375,7 @@ echo "  - Spacer sequences: ${SPACER_SEQUENCES}"
 echo "  - X element sequences: ${X_ELEMENT_SEQUENCES}"
 echo "  - Spacer pairings: ${OUTPUT_DIR}/pairings_for_spacers/${STRAIN_ID}_pairings/"
 echo "  - Clustered X elements: ${OUTPUT_DIR}/clustered_x_elements_${STRAIN_ID}.fasta"
+echo "  - Reference structure diagrams: ${REF_STRUCT_DIR}/"
 echo ""
 echo "You can now run the telomere analysis pipeline with:"
 echo "  qsub telomere_analysis_complete.sh dorado_${STRAIN_ID}_dayX_PromethION_no_tag_yes_rejection"
