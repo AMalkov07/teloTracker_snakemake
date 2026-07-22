@@ -7,6 +7,7 @@ import argparse
 import sys
 from subtelomere_reference_pipeline_utils import (
     get_75th_percentile_reads,
+    select_consensus_scaffold_reads,
     extract_selected_reads,
     extend_reference_multi
 )
@@ -25,6 +26,24 @@ def main():
                               help='Output directory')
     select_parser.add_argument('--output-file', required=True,
                               help='Output file for read IDs')
+    select_parser.add_argument('--all-matches-tsv', default=None,
+                              help='all_matches_<base>_blasted_<anchor>.tsv. Supplying this '
+                                   '(with --reads-fasta) switches on consensus selection: the '
+                                   'scaffold must be corroborated by other near-percentile '
+                                   'reads instead of being trusted on its own.')
+    select_parser.add_argument('--reads-fasta', default=None,
+                              help='<base>.fasta, with a .fai alongside it')
+    select_parser.add_argument('--n-candidates', type=int, default=5,
+                              help='reads to compare around the 75th percentile (default 5)')
+    select_parser.add_argument('--min-agree', type=int, default=3,
+                              help='how many must mutually agree (default 3)')
+    select_parser.add_argument('--min-identity', type=float, default=90.0,
+                              help='pident floor for two candidates to agree (default 90)')
+    select_parser.add_argument('--min-coverage', type=float, default=0.90,
+                              help='best-HSP coverage floor to agree (default 0.90)')
+    select_parser.add_argument('--report-tsv', default=None,
+                              help='optional per-end record of what was chosen and why')
+    select_parser.add_argument('--threads', type=int, default=4)
 
     # Extract reads command
     extract_parser = subparsers.add_parser('extract_reads',
@@ -58,11 +77,29 @@ def main():
     args = parser.parse_args()
 
     if args.command == 'select_reads':
-        get_75th_percentile_reads(
-            args.input_tsv,
-            args.output_dir,
-            args.output_file
-        )
+        if args.all_matches_tsv and args.reads_fasta:
+            select_consensus_scaffold_reads(
+                args.input_tsv,
+                args.all_matches_tsv,
+                args.reads_fasta,
+                args.output_dir,
+                args.output_file,
+                n_candidates=args.n_candidates,
+                min_agree=args.min_agree,
+                min_identity=args.min_identity,
+                min_coverage=args.min_coverage,
+                threads=args.threads,
+                report_tsv=args.report_tsv
+            )
+        else:
+            print('WARNING: --all-matches-tsv/--reads-fasta not supplied; falling back to '
+                  'the single 75th-percentile read. That read is scaffolded with no check '
+                  'that it is typical of its chromosome end.')
+            get_75th_percentile_reads(
+                args.input_tsv,
+                args.output_dir,
+                args.output_file
+            )
     elif args.command == 'extract_reads':
         extract_selected_reads(
             args.reads_fastq,

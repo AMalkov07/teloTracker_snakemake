@@ -16,10 +16,13 @@ set -o pipefail  # Exit on pipe failure
 # Required inputs
 BASE_NAME="dorado_fast5_7575_day0_PromethION_no_tag_yes_rejection"
 STRAIN_ID="7575"
+ANCHOR_SET="telomerase_shutoff_anchors"
 
 # Paths relative to Snakemake pipeline outputs
 INPUT_TSV="results/${BASE_NAME}/_pipeline/${BASE_NAME}_post_y_prime_probe.tsv"
 READS_FASTQ="results/${BASE_NAME}/_pipeline/${BASE_NAME}.fastq"
+READS_FASTA="results/${BASE_NAME}/_pipeline/${BASE_NAME}.fasta"
+ALL_MATCHES_TSV="results/${BASE_NAME}/_pipeline/blast/all_matches_${BASE_NAME}_blasted_${ANCHOR_SET}.tsv"
 
 # Output configuration
 OUTPUT_DIR="results/${BASE_NAME}/_pipeline/assembly_${STRAIN_ID}"
@@ -127,10 +130,23 @@ echo "========================================================================"
 echo "Step 2: Selecting 75th percentile reads from TSV"
 echo "========================================================================"
 
+# The scaffold is chosen by consensus among the reads bracketing the 75th
+# percentile, not by trusting that single read. Needs random access to the reads
+# (.fai) and the anchor positions, to compare the region each candidate would
+# actually graft onto the reference.
+if [ ! -f "${READS_FASTA}.fai" ]; then
+    echo "Indexing ${READS_FASTA} for consensus scaffold selection"
+    samtools faidx "${READS_FASTA}"
+fi
+
 python "${SCRIPTS_DIR}/run_subtelomere_reference_pipeline.py" select_reads \
     --input-tsv "${INPUT_TSV}" \
+    --all-matches-tsv "${ALL_MATCHES_TSV}" \
+    --reads-fasta "${READS_FASTA}" \
     --output-dir "${OUTPUT_DIR}" \
-    --output-file "${SELECTED_READS_TEXT_FILE}"
+    --output-file "${SELECTED_READS_TEXT_FILE}" \
+    --report-tsv "${OUTPUT_DIR}/${PREFIX}_scaffold_selection_report.tsv" \
+    --threads "${THREADS}"
 
 echo "Selected reads saved to: ${SELECTED_READS_TEXT_FILE}"
 
