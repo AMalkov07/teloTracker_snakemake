@@ -137,7 +137,8 @@ def get_softclip_from_cigar(read, side="start"):
     return ""
 
 
-def extend_reference_multi(bamfile, reference, read_ids_file, output_fasta, trim):
+def extend_reference_multi(bamfile, reference, read_ids_file, output_fasta, trim,
+                           chr_arm_pairs_file=None):
     """
     Extend reference genome using soft-clipped bases from multiple reads
 
@@ -147,10 +148,48 @@ def extend_reference_multi(bamfile, reference, read_ids_file, output_fasta, trim
         read_ids_file: Path to file with read IDs (one per line)
         output_fasta: Path to output extended FASTA file
         trim: Number of bp to trim from the end of extensions to remove adapters
+        chr_arm_pairs_file: "<chr_end>\\t<read_id>" pairs from select_reads. When
+            supplied, each scaffold contributes ONLY to its own arm's side:
+            an L-arm read's start-clip may become a prefix, an R-arm read's
+            end-clip may become a suffix, and the opposite-side clip of each is
+            ignored entirely.
+
+    WHY ARM BINDING MATTERS
+    ----------------------
+    Each contig carries both arms, so extensions[contig] holds one 'prefix' and
+    one 'suffix' list. Without arm awareness a clip is filed purely by which end
+    of the CIGAR it sits on, and the winner is whichever is LONGEST. Arm and
+    clip-side normally coincide geometrically (verified: all 32 arms map L->
+    contig start, R-> contig end), but nothing enforces it, so a read clipped on
+    BOTH sides lands in both lists and can win the other arm's slot.
+
+    That is what corrupted 7172 chr16R: the chr16L scaffold is a fold-back whose
+    spurious 82,350bp end-clip beat chr16R's legitimate 6,814bp clip, grafting
+    chr16L's inverted subtelomere onto chr16R.
+
+    Removing bad reads alone does not close this. Perfectly healthy R-arm reads
+    carry a telomeric start-clip (1,848bp on 1R, 2,049bp on 9R) because the base
+    reference is truncated before the telomeres -- larger than the legitimate
+    prefix clips of chr7L (1,935bp) and chr15L (1,778bp). Binding by arm makes
+    the wrong-side clip ineligible rather than merely out-competed.
     """
     # Read the read IDs
     with open(read_ids_file, 'r') as f:
         read_ids = [line.strip() for line in f if line.strip()]
+
+    # read_id -> chr_end ("16L" / "16R"), used to bind clips to their own arm
+    read_to_arm = {}
+    if chr_arm_pairs_file:
+        with open(chr_arm_pairs_file, 'r') as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 2:
+                    read_to_arm[parts[1]] = parts[0]
+        print(f"Arm binding ENABLED: {len(read_to_arm)} scaffold/arm pairs loaded")
+    else:
+        print("WARNING: no chr_arm pairs file supplied -- falling back to "
+              "side-of-CIGAR filing (a read clipped on both sides can win the "
+              "wrong arm's slot)")
 
     samfile = pysam.AlignmentFile(bamfile, "rb")
     ref_seqs = SeqIO.to_dict(SeqIO.parse(reference, "fasta"))
@@ -172,19 +211,29 @@ def extend_reference_multi(bamfile, reference, read_ids_file, output_fasta, trim
         if ref_name not in extensions:
             extensions[ref_name] = {'prefix': [], 'suffix': []}
 
-        # Check if read has soft-clipped bases at start (5' extension)
-        prefix = get_softclip_from_cigar(read, side="start")
-        if prefix and len(prefix) > trim:
-            trimmed_prefix = prefix[:-trim] if trim > 0 else prefix
-            extensions[ref_name]['prefix'].append((read.query_name, trimmed_prefix, len(prefix)))
-            #print(f"Found 5' extension from read {read.query_name} on {ref_name}: {len(prefix)}bp (trimmed to {len(trimmed_prefix)}bp)")
+        # Which side is this read allowed to contribute to?
+        # L arm -> contig start -> prefix only.  R arm -> contig end -> suffix only.
+        # The opposite-side clip is never examined, so it cannot compete.
+        arm = read_to_arm.get(read.query_name)
+        if read_to_arm and arm is None:
+            print(f"  WARNING: {read.query_name} has no arm assignment, skipping")
+            continue
+        allow_prefix = (arm is None) or arm.upper().endswith('L')
+        allow_suffix = (arm is None) or arm.upper().endswith('R')
 
-        # Check if read has soft-clipped bases at end (3' extension)
-        suffix = get_softclip_from_cigar(read, side="end")
-        if suffix and len(suffix) > trim:
-            trimmed_suffix = suffix[trim:] if trim > 0 else suffix
-            extensions[ref_name]['suffix'].append((read.query_name, trimmed_suffix, len(suffix)))
-            #print(f"Found 3' extension from read {read.query_name} on {ref_name}: {len(suffix)}bp (trimmed to {len(trimmed_suffix)}bp)")
+        # Soft-clipped bases at start (5' extension) -- L arms only
+        if allow_prefix:
+            prefix = get_softclip_from_cigar(read, side="start")
+            if prefix and len(prefix) > trim:
+                trimmed_prefix = prefix[:-trim] if trim > 0 else prefix
+                extensions[ref_name]['prefix'].append((read.query_name, trimmed_prefix, len(prefix)))
+
+        # Soft-clipped bases at end (3' extension) -- R arms only
+        if allow_suffix:
+            suffix = get_softclip_from_cigar(read, side="end")
+            if suffix and len(suffix) > trim:
+                trimmed_suffix = suffix[trim:] if trim > 0 else suffix
+                extensions[ref_name]['suffix'].append((read.query_name, trimmed_suffix, len(suffix)))
 
     samfile.close()
 
@@ -195,20 +244,35 @@ def extend_reference_multi(bamfile, reference, read_ids_file, output_fasta, trim
     for ref_name, ext_data in extensions.items():
         orig_ref = str(ref_seqs[ref_name].seq)
 
+        # With arm binding there is exactly one scaffold per arm, so each side
+        # must have at most one candidate. More than one means something
+        # upstream is broken (duplicate rows in the pairs file, or two reads
+        # assigned the same arm) -- fail loudly rather than silently picking.
+        if read_to_arm:
+            for side in ('prefix', 'suffix'):
+                if len(ext_data[side]) > 1:
+                    who = ', '.join(f'{r}({len(s)}bp)' for r, s, _ in ext_data[side])
+                    raise RuntimeError(
+                        f'{ref_name}: {len(ext_data[side])} {side} candidates but arm '
+                        f'binding permits exactly 1 -- {who}. Check '
+                        f'selected_read_chr_arm_pairs.txt for duplicate arms.')
+
         # Use the longest prefix and suffix (after trimming) if multiple exist
         prefix = ""
         prefix_read = ""
         prefix_orig_len = 0
         if ext_data['prefix']:
             prefix_read, prefix, prefix_orig_len = max(ext_data['prefix'], key=lambda x: len(x[1]))
-            print(f"Using longest 5' extension for {ref_name} from {prefix_read}: added {len(prefix)}bp")
+            print(f"Using 5' extension for {ref_name} from {prefix_read} "
+                  f"[{read_to_arm.get(prefix_read, 'unbound')}]: added {len(prefix)}bp")
 
         suffix = ""
         suffix_read = ""
         suffix_orig_len = 0
         if ext_data['suffix']:
             suffix_read, suffix, suffix_orig_len = max(ext_data['suffix'], key=lambda x: len(x[1]))
-            print(f"Using longest 3' extension for {ref_name} from {suffix_read}: added {len(suffix)}bp")
+            print(f"Using 3' extension for {ref_name} from {suffix_read} "
+                  f"[{read_to_arm.get(suffix_read, 'unbound')}]: added {len(suffix)}bp")
 
         if prefix or suffix:
             new_ref = prefix + orig_ref + suffix

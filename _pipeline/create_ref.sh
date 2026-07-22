@@ -179,6 +179,7 @@ python "${SCRIPTS_DIR}/run_subtelomere_reference_pipeline.py" extend_reference \
     --bamfile "${INITIAL_BAM_FILE}" \
     --reference "${REFERENCE}" \
     --read-ids-file "${SELECTED_READS_IDS_ONLY_FILE}" \
+    --chr-arm-pairs-file "${SELECTED_READS_TEXT_FILE}" \
     --output-fasta "${EXTENDED_REF}"
 
 echo "Extended reference saved to: ${EXTENDED_REF}"

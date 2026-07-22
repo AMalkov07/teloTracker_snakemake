@@ -49,6 +49,11 @@ def main():
                               help='Output extended FASTA file')
     extend_parser.add_argument('--trim', type=int, default=0,
                               help='Number of bp to trim from extensions (default: 0)')
+    extend_parser.add_argument('--chr-arm-pairs-file', default=None,
+                              help='<chr_end>\\t<read_id> pairs from select_reads. Binds each '
+                                   'scaffold to its own arm: L reads may only supply a prefix, '
+                                   'R reads only a suffix. Strongly recommended -- without it a '
+                                   'read clipped on both sides can win the other arm\'s slot.')
 
     args = parser.parse_args()
 
@@ -70,7 +75,8 @@ def main():
             args.reference,
             args.read_ids_file,
             args.output_fasta,
-            trim=args.trim
+            trim=args.trim,
+            chr_arm_pairs_file=args.chr_arm_pairs_file
         )
     else:
         parser.print_help()
