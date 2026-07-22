@@ -155,11 +155,44 @@ rule blast_anchors:
 # Step 2: Filter BLAST results
 # ---------------------------------------------------------------------------
 
+rule detect_foldbacks:
+    """Flag hairpin reads: the same anchor twice, in opposite orientations.
+
+    Re-BLASTs each ANCHORED read against ONLY its assigned anchor, without
+    -min_raw_gapped_score (that flag filters on the preliminary gapped score,
+    which systematically hides the degraded second copy of a fold-back).
+    Detection only -- it cannot reassign a read or anchor a new one.
+    """
+    input:
+        blast   = f"{BLAST_DIR}/{BASE}_blasted_{ANCHOR}.tsv",
+        fasta   = f"{RESULTS}/{BASE}.fasta",
+        anchors = ANCHOR_DB,   # db prefix is the FASTA path itself
+    output:
+        ids    = f"{BLAST_DIR}/{BASE}_foldback_read_ids.txt",
+        detail = f"{BLAST_DIR}/{BASE}_foldback_detail.tsv",
+    threads: workflow.cores
+    shell:
+        """
+        samtools faidx {input.fasta}
+        python _pipeline/scripts/detect_foldback_reads.py \
+            --blast-tsv     {input.blast} \
+            --reads-fasta   {input.fasta} \
+            --anchors-fasta {input.anchors} \
+            --output        {output.ids} \
+            --detail-tsv    {output.detail} \
+            --threads       {threads}
+        """
+
+
 rule filter_anchors:
-    input: f"{BLAST_DIR}/{BASE}_blasted_{ANCHOR}.tsv"
+    input:
+        blast    = f"{BLAST_DIR}/{BASE}_blasted_{ANCHOR}.tsv",
+        foldback = f"{BLAST_DIR}/{BASE}_foldback_read_ids.txt",
     output: f"{BLAST_DIR}/top_matches_{BASE}_blasted_{ANCHOR}.tsv"
     threads: 1
-    shell: "python _pipeline/scripts/filter_for_reads_with_anchors.py {BASE} {ANCHOR} {RESULTS}"
+    shell:
+        "python _pipeline/scripts/filter_for_reads_with_anchors.py "
+        "{BASE} {ANCHOR} {RESULTS} {input.foldback}"
 
 # ---------------------------------------------------------------------------
 # Step 3: Split and label reads per chromosome end

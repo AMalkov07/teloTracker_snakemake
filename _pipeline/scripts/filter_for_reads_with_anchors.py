@@ -2,10 +2,14 @@ import pandas as pd
 import os
 import sys
 
-# Usage: filter_for_reads_with_anchors.py <base_name> <anchor_set> <output_dir>
+# Usage: filter_for_reads_with_anchors.py <base_name> <anchor_set> <output_dir> [foldback_ids.txt]
 base_name  = sys.argv[1]
 anchor_set = sys.argv[2]
 output_dir = sys.argv[3]
+# Optional: read IDs flagged by detect_foldback_reads.py (hairpin artifacts --
+# the same anchor twice in opposite orientations). Excluding them here removes
+# them from every downstream step, including scaffold selection in create_ref.
+foldback_ids_file = sys.argv[4] if len(sys.argv) > 4 else None
 
 anchor_blast_input  = f'{base_name}_blasted_{anchor_set}'
 anchor_blast_f_name = os.path.join(output_dir, 'blast', f'{anchor_blast_input}.tsv')
@@ -56,6 +60,28 @@ chr_r_end_list = [f'chr{n}R_anchor' for n in range(1, 18)]
 chr_l_end_list = [f'chr{n}L_anchor' for n in range(1, 18)]
 
 df = pd.read_csv(anchor_blast_f_name, sep='\t')
+
+# --- Exclude fold-back (hairpin) reads ---------------------------------------
+# Detected by detect_foldback_reads.py, which re-BLASTs each anchored read
+# against ONLY its assigned anchor without -min_raw_gapped_score (that flag
+# filters on the preliminary gapped score and hides the degraded second copy).
+# This can only remove reads -- it never adds or reassigns any.
+if foldback_ids_file and os.path.exists(foldback_ids_file):
+    with open(foldback_ids_file) as fh:
+        foldback_ids = {ln.strip() for ln in fh if ln.strip()}
+    if foldback_ids:
+        before = df['read_id'].nunique()
+        df = df[~df['read_id'].isin(foldback_ids)]
+        after = df['read_id'].nunique()
+        print(f'Fold-back filter: removed {before - after} of {before} reads '
+              f'({len(foldback_ids)} flagged in {os.path.basename(foldback_ids_file)})')
+    else:
+        print('Fold-back filter: no reads flagged.')
+elif foldback_ids_file:
+    print(f'WARNING: fold-back ID file not found: {foldback_ids_file}')
+else:
+    print('Fold-back filter: not supplied (skipping).')
+# ------------------------------------------------------------------------------
 
 df_filtered = df[df['read_bp_used_for_match'] > df['total_anchor_length'] / 2]
 df_filtered = df_filtered.sort_values(['read_id', 'bitscore', 'read_bp_used_for_match'], ascending=False)
