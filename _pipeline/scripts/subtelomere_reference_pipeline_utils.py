@@ -487,30 +487,49 @@ def extend_reference_multi(bamfile, reference, read_ids_file, output_fasta, trim
         output_fasta: Path to output extended FASTA file
         trim: Number of bp to trim from the end of extensions to remove adapters
         chr_arm_pairs_file: "<chr_end>\\t<read_id>" pairs from select_reads. When
-            supplied, each scaffold contributes ONLY to its own arm's side:
-            an L-arm read's start-clip may become a prefix, an R-arm read's
-            end-clip may become a suffix, and the opposite-side clip of each is
-            ignored entirely.
+            supplied, each scaffold's clip is taken from the alignment on its OWN
+            chromosome's contig, running off its OWN end of that contig -- and
+            from nowhere else. Without it the function falls back to filing clips
+            by which end of the CIGAR they sit on, which is unsafe (see below).
 
-    WHY ARM BINDING MATTERS
-    ----------------------
-    Each contig carries both arms, so extensions[contig] holds one 'prefix' and
-    one 'suffix' list. Without arm awareness a clip is filed purely by which end
-    of the CIGAR it sits on, and the winner is whichever is LONGEST. Arm and
-    clip-side normally coincide geometrically (verified: all 32 arms map L->
-    contig start, R-> contig end), but nothing enforces it, so a read clipped on
-    BOTH sides lands in both lists and can win the other arm's slot.
+    WHY THE CLIP MUST BE BOUND TO A CONTIG *AND* AN END
+    ---------------------------------------------------
+    Binding only the side (L -> prefix, R -> suffix) is not enough, because it
+    says nothing about WHICH contig the clip lands on. A scaffold whose primary
+    alignment falls on another chromosome then occupies that chromosome's
+    same-side slot. Measured on day-0: 7871 12R aligns primarily to chr3 and
+    7871 8R to chr13; 7858 9L to chr15; 7172 8R to chr12. In 7858 and 7871 the
+    intruder's clip was the LONGER one, so max(len) grafted chr9L's subtelomere
+    onto chr15 and chr12R's onto chr3 -- verified against the pre-fix references.
 
-    That is what corrupted 7172 chr16R: the chr16L scaffold is a fold-back whose
-    spurious 82,350bp end-clip beat chr16R's legitimate 6,814bp clip, grafting
-    chr16L's inverted subtelomere onto chr16R.
+    WHY THE PRIMARY ALIGNMENT IS THE WRONG THING TO TRUST
+    -----------------------------------------------------
+    minimap2 ranks alignments by score, and score scales with LENGTH, not
+    identity. These scaffolds are almost entirely subtelomeric repeat shared
+    across chromosome ends, and the base reference is truncated at the anchors
+    so the read's true distal home is largely absent from it. A long, diverged
+    match to a repeat copy elsewhere therefore outscores the short, near-perfect
+    match at the read's real position:
 
-    Removing bad reads alone does not close this. Perfectly healthy R-arm reads
-    carry a telomeric start-clip (1,848bp on 1R, 2,049bp on 9R) because the base
-    reference is truncated before the telomeres -- larger than the legitimate
-    prefix clips of chr7L (1,935bp) and chr15L (1,778bp). Binding by arm makes
-    the wrong-side clip ineligible rather than merely out-competed.
+        7858 9L : chr15 8,701bp @ 90.0% (AS 13361)  BEAT  chr9 3,400bp @ 99.8%
+        7871 12R: chr3  3,732bp @ 87.4% (AS  5897)  BEAT  chr12 2,995bp @ 98.9%
+        7172 8R : chr12 6,000bp @ 93.1% (AS  9957, MAPQ 1)  BEAT chr8 4,341bp
+
+    This is not ambiguity -- 7858 and 7871 carry MAPQ 60, so minimap2 is
+    confident; it simply optimised the wrong quantity. Only 7172 is genuinely
+    ambiguous (MAPQ 1, five near-tied secondaries).
+
+    The correct alignment is nevertheless PRESENT in every failing case, on the
+    right contig and at the right end, merely demoted to supplementary. So this
+    function considers supplementary alignments too and selects by contig+end
+    rather than by the primary flag. That requires minimap2 to be run with -Y,
+    otherwise supplementary records are hard-clipped and their clip bases are
+    not recoverable.
+
+    Correctly-placed scaffolds sit flush against their contig end (measured
+    across 96 arms: median 0bp, max 12bp), so END_TOLERANCE is generous at 100.
     """
+    END_TOLERANCE = 100
     # Read the read IDs
     with open(read_ids_file, 'r') as f:
         read_ids = [line.strip() for line in f if line.strip()]
@@ -523,11 +542,11 @@ def extend_reference_multi(bamfile, reference, read_ids_file, output_fasta, trim
                 parts = line.split()
                 if len(parts) >= 2:
                     read_to_arm[parts[1]] = parts[0]
-        print(f"Arm binding ENABLED: {len(read_to_arm)} scaffold/arm pairs loaded")
+        print(f"Contig+end binding ENABLED: {len(read_to_arm)} scaffold/arm pairs loaded")
     else:
         print("WARNING: no chr_arm pairs file supplied -- falling back to "
-              "side-of-CIGAR filing (a read clipped on both sides can win the "
-              "wrong arm's slot)")
+              "side-of-CIGAR filing, which can graft one chromosome's subtelomere "
+              "onto another (verified to have corrupted chr16R, chr15 and chr3)")
 
     samfile = pysam.AlignmentFile(bamfile, "rb")
     ref_seqs = SeqIO.to_dict(SeqIO.parse(reference, "fasta"))
@@ -539,35 +558,102 @@ def extend_reference_multi(bamfile, reference, read_ids_file, output_fasta, trim
     if trim != 0:
         print(f"Will trim {trim}bp from extension ends to remove adapters")
 
-    # Collect all extensions from all specified reads
-    for read in samfile.fetch(until_eof=True):
-        if read.query_name not in read_ids_set or read.is_secondary or read.is_supplementary:
-            continue
+    if read_to_arm:
+        # ---- contig + end binding -------------------------------------------
+        # Two reads claiming the same arm means the pairs file is malformed;
+        # nothing downstream can sensibly arbitrate, so stop now.
+        arm_to_read = {}
+        for rid, arm in read_to_arm.items():
+            if arm in arm_to_read:
+                raise RuntimeError(
+                    f'{arm} is claimed by two scaffolds ({arm_to_read[arm]} and {rid}) '
+                    f'in {chr_arm_pairs_file}. Each arm must appear exactly once.')
+            arm_to_read[arm] = rid
 
-        ref_name = read.reference_name
+        contig_len = dict(zip(samfile.references, samfile.lengths))
 
-        if ref_name not in extensions:
-            extensions[ref_name] = {'prefix': [], 'suffix': []}
+        def contig_for_arm(arm):
+            """Map '12R' -> the contig whose name carries the same number."""
+            num = ''.join(c for c in arm if c.isdigit())
+            hits = [r for r in samfile.references
+                    if ''.join(c for c in r if c.isdigit()) == num]
+            return hits[0] if len(hits) == 1 else None
 
-        # Which side is this read allowed to contribute to?
-        # L arm -> contig start -> prefix only.  R arm -> contig end -> suffix only.
-        # The opposite-side clip is never examined, so it cannot compete.
-        arm = read_to_arm.get(read.query_name)
-        if read_to_arm and arm is None:
-            print(f"  WARNING: {read.query_name} has no arm assignment, skipping")
-            continue
-        allow_prefix = (arm is None) or arm.upper().endswith('L')
-        allow_suffix = (arm is None) or arm.upper().endswith('R')
+        # Keep every non-secondary alignment of each scaffold. Secondary records
+        # carry no sequence, so they can never supply a clip.
+        alns = {}
+        for read in samfile.fetch(until_eof=True):
+            if read.query_name not in read_ids_set or read.is_secondary:
+                continue
+            alns.setdefault(read.query_name, []).append(read)
 
-        # Soft-clipped bases at start (5' extension) -- L arms only
-        if allow_prefix:
+        for arm in sorted(arm_to_read):
+            rid = arm_to_read[arm]
+            want_contig = contig_for_arm(arm)
+            if want_contig is None:
+                raise RuntimeError(
+                    f'{arm}: cannot identify which contig this arm belongs to among '
+                    f'{list(samfile.references)[:5]}... Rename contigs so each carries '
+                    f'its chromosome number exactly once.')
+            side = 'prefix' if arm.upper().endswith('L') else 'suffix'
+            clen = contig_len[want_contig]
+
+            # The alignment must be on this arm's own contig AND run off this
+            # arm's own end of it -- primary or supplementary, the flag is not
+            # what makes a placement correct.
+            picks = []
+            for a in alns.get(rid, []):
+                if a.reference_name != want_contig:
+                    continue
+                at_end = (a.reference_start <= END_TOLERANCE if side == 'prefix'
+                          else clen - a.reference_end <= END_TOLERANCE)
+                if not at_end:
+                    continue
+                clip = get_softclip_from_cigar(a, side='start' if side == 'prefix' else 'end')
+                if clip and len(clip) > trim:
+                    picks.append((a, clip))
+
+            if not picks:
+                where = ', '.join(sorted({a.reference_name for a in alns.get(rid, [])})) or 'nowhere'
+                hard = any('H' in (a.cigarstring or '') for a in alns.get(rid, [])
+                           if a.is_supplementary)
+                hint = (' Supplementary alignments are hard-clipped -- rerun minimap2 '
+                        'with -Y so their clip bases are recoverable.') if hard else ''
+                print(f'  WARNING: {arm} ({rid}) has no usable alignment at the '
+                      f'{"5-prime" if side == "prefix" else "3-prime"} end of {want_contig} '
+                      f'(aligns to: {where}). {want_contig} gets NO {side} extension.{hint}')
+                continue
+
+            # Prefer the alignment that sits closest to the contig end; among
+            # equals, the higher-identity one. Length is deliberately not used --
+            # preferring the longest clip is what grafted the wrong arm before.
+            def rank(p):
+                a = p[0]
+                dist = a.reference_start if side == 'prefix' else clen - a.reference_end
+                nm = a.get_tag('NM') if a.has_tag('NM') else 0
+                ident = 1 - nm / max(1, a.reference_length or 1)
+                return (dist, -ident)
+
+            best_aln, clip = min(picks, key=rank)
+            trimmed = (clip[:-trim] if trim > 0 else clip) if side == 'prefix' \
+                else (clip[trim:] if trim > 0 else clip)
+            extensions.setdefault(want_contig, {'prefix': [], 'suffix': []})
+            extensions[want_contig][side].append((rid, trimmed, len(clip)))
+            flag = ('primary' if not best_aln.is_supplementary else 'SUPPLEMENTARY')
+            print(f'  {arm:<4} -> {want_contig} {side:<6} {len(clip):>7,}bp  '
+                  f'[{flag} alignment]')
+    else:
+        # ---- legacy path: file clips by which end of the CIGAR they sit on ----
+        for read in samfile.fetch(until_eof=True):
+            if read.query_name not in read_ids_set or read.is_secondary or read.is_supplementary:
+                continue
+            ref_name = read.reference_name
+            if ref_name not in extensions:
+                extensions[ref_name] = {'prefix': [], 'suffix': []}
             prefix = get_softclip_from_cigar(read, side="start")
             if prefix and len(prefix) > trim:
                 trimmed_prefix = prefix[:-trim] if trim > 0 else prefix
                 extensions[ref_name]['prefix'].append((read.query_name, trimmed_prefix, len(prefix)))
-
-        # Soft-clipped bases at end (3' extension) -- R arms only
-        if allow_suffix:
             suffix = get_softclip_from_cigar(read, side="end")
             if suffix and len(suffix) > trim:
                 trimmed_suffix = suffix[trim:] if trim > 0 else suffix
@@ -582,18 +668,19 @@ def extend_reference_multi(bamfile, reference, read_ids_file, output_fasta, trim
     for ref_name, ext_data in extensions.items():
         orig_ref = str(ref_seqs[ref_name].seq)
 
-        # With arm binding there is exactly one scaffold per arm, so each side
-        # must have at most one candidate. More than one means something
-        # upstream is broken (duplicate rows in the pairs file, or two reads
-        # assigned the same arm) -- fail loudly rather than silently picking.
+        # Contig+end binding fills each slot from exactly one arm, so this can
+        # only trip if that loop is edited into inconsistency. Kept as a cheap
+        # invariant check: it is the assertion that first exposed the
+        # wrong-contig grafting, and silently picking a winner here is precisely
+        # the behaviour that corrupted chr16R, chr15 and chr3.
         if read_to_arm:
             for side in ('prefix', 'suffix'):
                 if len(ext_data[side]) > 1:
                     who = ', '.join(f'{r}({len(s)}bp)' for r, s, _ in ext_data[side])
                     raise RuntimeError(
-                        f'{ref_name}: {len(ext_data[side])} {side} candidates but arm '
-                        f'binding permits exactly 1 -- {who}. Check '
-                        f'selected_read_chr_arm_pairs.txt for duplicate arms.')
+                        f'{ref_name}: {len(ext_data[side])} {side} candidates but contig '
+                        f'binding permits exactly 1 -- {who}. This is an internal '
+                        f'inconsistency in extend_reference_multi, not a data problem.')
 
         # Use the longest prefix and suffix (after trimming) if multiple exist
         prefix = ""

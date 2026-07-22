@@ -175,7 +175,13 @@ echo "========================================================================"
 echo "Step 4: Mapping reads to reference with minimap2"
 echo "========================================================================"
 
-minimap2 -ax map-ont -L -t "${THREADS}" "${REFERENCE}" "${SELECTED_FASTQ}" \
+# -Y soft-clips supplementary alignments so they keep the full read sequence.
+# extend_reference_multi selects a scaffold's clip by contig+end rather than by
+# the primary flag, because minimap2 scores by alignment LENGTH and these reads
+# are mostly shared subtelomeric repeat -- the correct placement is often
+# demoted to supplementary (7858 9L: chr9 @ 99.8% lost to chr15 @ 90.0%).
+# Without -Y those records are hard-clipped and their clip bases are gone.
+minimap2 -ax map-ont -Y -L -t "${THREADS}" "${REFERENCE}" "${SELECTED_FASTQ}" \
     | samtools sort -@ "${THREADS}" -o "${INITIAL_BAM_FILE}"
 
 samtools index -@ "${THREADS}" "${INITIAL_BAM_FILE}"
