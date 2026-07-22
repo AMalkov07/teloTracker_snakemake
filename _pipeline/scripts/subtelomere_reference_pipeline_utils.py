@@ -210,34 +210,33 @@ def select_consensus_scaffold_reads(input_tsv, all_matches_tsv, reads_fasta,
     ------
     Take the `n_candidates` reads bracketing the 75th-percentile position, align
     their extensions all-vs-all, and require the scaffold to mutually agree with
-    at least `min_agree - 1` peers. Preference order within the agreeing group:
+    at least `min_agree - 1` peers. The read with the highest anchor identity in
+    that agreeing group wins.
 
-      1. the incumbent 75th-percentile read, if its peers corroborate it
-      2. otherwise the corroborated read nearest the percentile in rank
-      3. anchor identity, only to break ties between equally-near reads
+    Note this moves the scaffold at most ends (29 of 32 on 7172), since the
+    highest-identity candidate is rarely the percentile read itself. That is
+    expected, not drift: every candidate in the group has been shown to be
+    structurally equivalent, so the choice between them is a quality question.
 
-    Keeping the incumbent when it is corroborated matters: the point is to catch
-    the aberrant read, not to relitigate ends that were already fine. Choosing
-    purely by anchor identity instead moved the pick at 29 of 32 ends on 7172 --
-    churn that discards the percentile's telomere-length rationale and makes the
-    change impossible to diff against previous runs.
-
-    WHY ANCHOR IDENTITY CANNOT BE A PRIMARY CRITERION
-    -------------------------------------------------
-    It is uninformative at best and actively misleading at worst. Measured over
-    468 candidates in three strains, median anchor identity was 99.48% for
+    WHY ANCHOR IDENTITY ONLY WORKS *AFTER* CONSENSUS
+    ------------------------------------------------
+    It is a fine way to rank corroborated reads and a terrible way to filter
+    uncorroborated ones -- as a filter it is inverted. Measured over 468
+    candidates in three strains, median anchor identity was 99.48% for
     structurally aberrant reads vs 99.63% for normal ones. At 4 of the 6 ends
     that had an outlier, the outlier had the HIGHEST anchor identity of all five
     candidates (7172 4L 99.94%, 7858 14L 99.90%, 7871 5R 99.96%, 7871 12R
-    99.97%) -- so "prefer >=99%" would have actively selected the bad scaffold.
+    99.97%), so "prefer >=99%" would have actively selected the bad scaffold.
     The reason is structural: the anchor is a ~5kb reference-matched window, and
     a recombined or artifact-bearing read has a perfectly normal anchor because
-    the damage lies downstream of it. Anchor identity measures local basecall
-    quality, which is orthogonal to structural normality. It is also confounded
-    by anchor position -- ONT accuracy decays ~2 points per 100kb, so a read
-    whose anchor sits 35kb in scores lower for reasons unrelated to its quality.
-    As a tiebreak among reads already agreed to be typical, it is harmless and
-    mildly useful; as a filter it inverts the signal.
+    the damage lies downstream of it. Identity there measures local basecall
+    quality, which is orthogonal to structural normality, and is further
+    confounded by anchor position -- ONT accuracy decays ~2 points per 100kb, so
+    a read whose anchor sits 35kb in scores lower for reasons unrelated to its
+    quality.
+
+    So the order matters: exclude aberrant reads by consensus FIRST, then rank
+    what survives by anchor identity. Never the reverse.
 
     Guard rails
     -----------
@@ -315,21 +314,19 @@ def select_consensus_scaffold_reads(input_tsv, all_matches_tsv, reads_fasta,
             # --- widen the window until a mutually-agreeing majority appears
             chosen = group = cands = None
             max_records_seen = 0
+            window_n = n_candidates
             for widening in range(max_widenings + 1):
                 n = n_candidates + 2 * widening
                 lo = max(0, min(q_idx - n // 2, pool - n))
                 picks = sub.iloc[lo:lo + n]
 
                 records = []
-                for offset, rid in enumerate(picks['read_id']):
+                for rid in picks['read_id']:
                     if rid not in idx or rid not in anchor:
                         continue
                     ext = _extension_of(_fetch_seq(fh, idx[rid]), anchor[rid])
                     if len(ext) >= 1000:
-                        # distance in rank from the 75th-percentile position, so a
-                        # replacement can be chosen as close to it as possible
-                        records.append((rid, ext, anchor[rid]['pident'],
-                                        abs((lo + offset) - q_idx)))
+                        records.append((rid, ext, anchor[rid]['pident']))
                 max_records_seen = max(max_records_seen, len(records))
                 if len(records) < min_agree:
                     continue
@@ -339,23 +336,24 @@ def select_consensus_scaffold_reads(input_tsv, all_matches_tsv, reads_fasta,
                 grp = _largest_agreeing_group(ids, agreement, min_identity, min_coverage)
                 if len(grp) >= min_agree:
                     pid_of = {r[0]: r[2] for r in records}
-                    dist_of = {r[0]: r[3] for r in records}
-                    # Prefer the incumbent 75th-percentile read whenever its peers
-                    # corroborate it. Selection exists to catch the aberrant read,
-                    # not to relitigate the choice at ends that were already fine --
-                    # replacing a corroborated pick would perturb the telomere-length
-                    # rationale of the percentile for no gain, and would make this
-                    # change impossible to validate against previous runs.
-                    if percentile_pick in grp:
-                        chosen = percentile_pick
-                    else:
-                        # Otherwise take the corroborated read nearest the percentile,
-                        # with anchor identity only breaking ties between equals.
-                        chosen = min(grp, key=lambda r: (dist_of.get(r, 99), -pid_of.get(r, 0.0)))
+                    # Highest anchor identity within the agreeing group. Safe here
+                    # precisely because consensus has already run: the trap that
+                    # makes anchor identity useless as a FILTER -- an aberrant read
+                    # scoring highest, seen at 4 of 6 outlier-bearing ends -- cannot
+                    # bite once those reads are excluded. Among structurally
+                    # equivalent candidates it is a reasonable proxy for basecall
+                    # quality. (It is only a proxy: the anchor is not itself grafted,
+                    # and identity is depressed for reads whose anchor sits late,
+                    # since ONT accuracy decays ~2 points per 100kb.)
+                    chosen = max(grp, key=lambda r: pid_of.get(r, 0.0))
                     group, cands = grp, ids
+                    window_n = n
                     if widening:
-                        print(f'{chr_end}: needed a wider window (n={n}) to find '
-                              f'{len(grp)} mutually-agreeing reads')
+                        print(f'{chr_end}: WARNING the initial window of {n_candidates} '
+                              f'reads held no {min_agree} mutually-agreeing candidates; '
+                              f'widened to {n} to find a group of {len(grp)}. This should '
+                              f'be rare -- inspect this end, as it means several '
+                              f'near-percentile reads disagree with each other.')
                     break
 
             # --- guard rail 2: the window could never be filled, so a failure to
@@ -406,6 +404,7 @@ def select_consensus_scaffold_reads(input_tsv, all_matches_tsv, reads_fasta,
                   f'anchor {anchor[chosen]["pident"]:.2f}%){flag}{note}')
             report.append({'chr_end': chr_end, 'pool': pool, 'method': 'consensus',
                            'n_candidates': len(cands), 'group_size': len(group),
+                           'window_n': window_n, 'widened': window_n != n_candidates,
                            'selected_read': chosen, 'percentile_pick': percentile_pick,
                            'changed': changed})
 
