@@ -204,6 +204,15 @@ python "${SCRIPTS_DIR}/run_subtelomere_reference_pipeline.py" extend_reference \
     --chr-arm-pairs-file "${SELECTED_READS_TEXT_FILE}" \
     --output-fasta "${EXTENDED_REF}"
 
+# Rebuild the .fai now, since the assembly dir is reused across runs and htslib
+# trusts a pre-existing index rather than regenerating it. A stale index from a
+# previous run points at wrong byte offsets, and any htslib random-access reader
+# (dorado polish) then fetches garbage. dorado aligner builds its own minimap2
+# index so it is unaffected, which is why this stayed latent until extension
+# stopped failing earlier.
+rm -f "${EXTENDED_REF}.fai"
+samtools faidx "${EXTENDED_REF}"
+
 echo "Extended reference saved to: ${EXTENDED_REF}"
 
 # ============================================================================
@@ -224,6 +233,12 @@ flye --polish-target "${EXTENDED_REF}" \
      -i 3
 
 cp $FLYE_DIR/polished_3.fasta $FLYE_REF
+
+# Same staleness hazard as EXTENDED_REF above: dorado polish reads FLYE_REF by
+# faidx random access, so a leftover index from a prior run is what aborted the
+# reruns ("Could not fetch sequence for chr9_extended").
+rm -f "${FLYE_REF}.fai"
+samtools faidx "${FLYE_REF}"
 
 echo "Flye polished reference: ${FLYE_REF}"
 
@@ -324,6 +339,11 @@ else
 fi
 
 cp $DORADO_DIR/consensus.fasta $DORADO_REF
+
+# Final reference; label_regions and recombination read it by faidx random
+# access, so give it a fresh index for the same reason as above.
+rm -f "${DORADO_REF}.fai"
+samtools faidx "${DORADO_REF}"
 
 echo "Dorado polished reference saved to: ${DORADO_REF}"
 
