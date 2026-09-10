@@ -46,3 +46,6 @@ __pycache__/
 # OS files
 .DS_Store
 Thumbs.db
+
+verification/snapshot*/
+verification/labels_curated/

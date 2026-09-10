@@ -115,15 +115,36 @@ def summarize(recombination_dir, base_name, output_summary):
         cx_col = 'is_complex_event'
         n_complex = df[cx_col].sum() if cx_col in df.columns else 0
 
-        # Most common recombination source
+        # Most common recombination source.
+        #   most_common_source        : mode over NAMED donor ends (excludes '' and 'ambiguous')
+        #   most_common_source_legacy : the pre-v2 value (mode including the literal 'ambiguous')
         src_col = 'recombination_source'
+        most_common_source = most_common_source_legacy = ''
+        n_ambiguous = 0
         if src_col in df.columns:
-            sources = df[src_col].dropna()
+            sources = df[src_col].dropna().astype(str)
             sources = sources[sources != '']
             _mode = sources.mode()
+            most_common_source_legacy = _mode.iloc[0] if not _mode.empty else ''
+            n_ambiguous = int((sources == 'ambiguous').sum())
+            named = sources[sources != 'ambiguous']
+            _mode = named.mode()
             most_common_source = _mode.iloc[0] if not _mode.empty else ''
-        else:
-            most_common_source = ''
+
+        # Y' status breakdown (n_y_prime_change kept for compatibility = total - No Change)
+        def _n(status):
+            return int((df[yp_col] == status).sum()) if yp_col in df.columns else 0
+        n_loss = _n("Y' Loss")
+        n_loss_confirmed = 0
+        if 'telomere_end_confirmed' in df.columns and yp_col in df.columns:
+            n_loss_confirmed = int(((df[yp_col] == "Y' Loss") & (df['telomere_end_confirmed'].astype(str) == 'True')).sum())
+        mech_col = 'recombination_mechanism'
+        most_common_mechanism = ''
+        if mech_col in df.columns:
+            mechs = df[mech_col].dropna().astype(str)
+            mechs = mechs[mechs != '']
+            _mode = mechs.mode()
+            most_common_mechanism = _mode.iloc[0] if not _mode.empty else ''
 
         summary_rows.append({
             'chr_end': chr_end,
@@ -137,10 +158,18 @@ def summarize(recombination_dir, base_name, output_summary):
             'n_x_element_switch': xe_switch,
             'n_y_prime_change': yp_change,
             'n_y_prime_no_change': yp_no_change,
+            'n_y_prime_gain': _n("Y' Gain"),
+            'n_y_prime_loss': n_loss,
+            'n_y_prime_loss_confirmed_end': n_loss_confirmed,
+            'n_first_y_prime_change': _n("1st Y' Change"),
+            'n_y_prime_recombination': _n("Y' Recombination"),
+            'n_ambiguous': n_ambiguous,
             'mean_confidence': round(mean_conf, 4),
             'n_cross_feature_consistent': int(n_consistent),
             'n_complex_events': int(n_complex),
             'most_common_source': most_common_source,
+            'most_common_source_legacy': most_common_source_legacy,
+            'most_common_mechanism': most_common_mechanism,
         })
 
     write_results_tsv(summary_rows, output_summary)

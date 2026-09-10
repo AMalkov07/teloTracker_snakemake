@@ -269,8 +269,11 @@ else
             "${STRAIN_ID}" \
             "${SIMPLIFIED_BED}" \
             "${REFERENCE_FASTA}" \
-            "${OUTPUT_DIR}/" \
-            --fixed-50kb
+            "${OUTPUT_DIR}/"
+        # (variable-size, spacer-only library = the script's default. The old
+        # --fixed-50kb window, 50 kb inward from each telomere, was mostly Y'
+        # sequence for tandem-array ends and did not even reach the spacer when
+        # the array exceeded 50 kb (7172 chr12R): spurious "spacer switches".)
 
         if [ -f "${SPACER_SEQUENCES}" ]; then
             echo "Created: ${SPACER_SEQUENCES}"
@@ -335,6 +338,39 @@ else
         echo ""
         echo "Extracted Y primes available at: ${EXTRACTED_YPRIMES}"
     fi
+fi
+
+# ============================================================================
+# Reference structure map (visual overview of the labeled reference)
+# ============================================================================
+echo ""
+echo "Creating reference subtelomere map..."
+REF_MAP_DIR="results/${BASE_NAME}/_pipeline/graphs"
+mkdir -p "${REF_MAP_DIR}"
+if [ -f "${SIMPLIFIED_BED}" ]; then
+    # to-scale map + a spacer-compressed variant that enlarges the Y' arrays
+    python "${SCRIPTS_DIR}/plot_reference_map.py" \
+        "${SIMPLIFIED_BED}" "${BASE_NAME}" \
+        "${REF_MAP_DIR}/${BASE_NAME}_reference_map.png" \
+        && echo "Reference map:            ${REF_MAP_DIR}/${BASE_NAME}_reference_map.png" \
+        || echo "WARNING: reference map (to-scale) failed"
+    python "${SCRIPTS_DIR}/plot_reference_map.py" \
+        "${SIMPLIFIED_BED}" "${BASE_NAME}" \
+        "${REF_MAP_DIR}/${BASE_NAME}_reference_map_zoom.png" --yprime-zoom \
+        && echo "Reference map (Y'-zoom):  ${REF_MAP_DIR}/${BASE_NAME}_reference_map_zoom.png" \
+        || echo "WARNING: reference map (zoom) failed"
+    # Y'-element cluster map (lab figure style; Y' clusters from extracted_yprimes)
+    if [ -f "${EXTRACTED_YPRIMES}" ]; then
+        python "${SCRIPTS_DIR}/draw_yprime_map.py" \
+            "${SIMPLIFIED_BED}" "${EXTRACTED_YPRIMES}" "${BASE_NAME}" \
+            "${REF_MAP_DIR}/${BASE_NAME}_yprime_map.png" \
+            && echo "Y' cluster map:           ${REF_MAP_DIR}/${BASE_NAME}_yprime_map.png" \
+            || echo "WARNING: Y' cluster map failed"
+    else
+        echo "WARNING: extracted Y' fasta not found; skipping Y' cluster map"
+    fi
+else
+    echo "WARNING: simplified BED not found; skipping reference map"
 fi
 
 # ============================================================================

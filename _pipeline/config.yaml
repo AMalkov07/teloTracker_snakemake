@@ -22,6 +22,10 @@ references:
   # Strain-specific (used by recombination steps 10-12)
   y_prime_lib: "references/extracted_yprimes_{strain}.fasta"
   # Override with curated library for testing (comment out to use extracted version)
-  y_prime_lib_override: "references/7302_features/repeatmasker_7302_all_y_primes.fasta"
+  # Optional: point the recombination step at a curated library instead of the
+  # extracted one. Only do this if the BED was labeled with the SAME library --
+  # a lib/BED mismatch silently turns every read into a "1st Y' Change"
+  # (analyze_features.py now aborts on that unless --no-strict-lib).
+  # y_prime_lib_override: "references/7302_features/repeatmasker_7302_all_y_primes.fasta"
   spacer_lib_dir: "references/pairings_for_spacers/{strain}_pairings"
   x_element_lib_dir: "references/pairings_for_x_element_ends/{strain}_pairings"

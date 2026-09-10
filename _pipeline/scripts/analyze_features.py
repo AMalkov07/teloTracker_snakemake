@@ -35,6 +35,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import pandas as pd
 
+import yprime_path as ypath
+
 from recombination_utils import (
     load_bed_features,
     telo_side_from_header,
@@ -70,6 +72,34 @@ PARTIAL_AGREEMENT_FACTOR = 0.7 # when features partially agree
 # breakpoint (typically 5-10%+).
 MIN_SWITCH_GAP_PCT = 3.0
 
+# ---------------------------------------------------------------------------
+# Attribution mode (see docs/attribution_v2.md)
+#   legacy : the pre-2026-09 behaviour -- source voted by spacer / x-element /
+#            supplementary only; the Y' array never votes; only the first Y'
+#            ID is compared against the reference ends.
+#   v2     : the full gained Y' array is matched against every reference end
+#            (contiguous / rotated / periodic), a unique match votes for the
+#            donor, arm-less supplementary hits can no longer out-vote an
+#            arm-resolved source, spacer source = post-breakpoint segment,
+#            deterministic tie-break, mechanism tag, Loss confirmation.
+# ---------------------------------------------------------------------------
+ATTRIBUTION_MODE = 'v2'
+
+VOTE_WEIGHTS = {
+    'spacer': 1.0,
+    'y_prime_fingerprint_3': 1.0,   # unique donor, gained segment >= 3 Y'
+    'y_prime_fingerprint_2': 0.6,   # unique donor, gained segment == 2 Y'
+    'y_prime_fingerprint_1': 0.5,   # a single Y' whose variant exists at exactly one end
+    'y_prime_candidates': 0.3,      # 2-3 candidate donors: spread, never wins alone
+    'x_element': 0.5,
+    'supplementary': 0.4,
+    'supplementary_armless': 0.25,
+}
+AXIS_PRIORITY = ['spacer', 'y_prime', 'x_element', 'supplementary']   # tie-break order
+STRUCTURAL_MIN_CONF = 0.2       # a spacer/x switch below this cannot name the proximal donor on its own
+LOSS_UNCONFIRMED_FACTOR = 0.5
+TELO_CONFIRMED_MIN_REPEAT = 30      # same "qualifying" definition as read_summary.tsv
+
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -77,16 +107,16 @@ MIN_SWITCH_GAP_PCT = 3.0
 
 def parse_args():
     p = argparse.ArgumentParser(description='Combined feature analysis — chunk-based')
-    p.add_argument('--reads-fasta',    required=True)
-    p.add_argument('--alignment-tsv',  required=True, help='Step 10 supplementary alignment TSV')
+    p.add_argument('--reads-fasta',    default='')
+    p.add_argument('--alignment-tsv',  default='', help='Step 10 supplementary alignment TSV')
     p.add_argument('--anchor-tsv',     default='', help='Per-chr-end anchor BLAST TSV with match_start/end_on_read')
     p.add_argument('--day0-bed',       required=True)
     p.add_argument('--day0-ref',       default='', help='Day0 reference FASTA (for spacer quick check)')
     p.add_argument('--y-prime-lib',    required=True)
-    p.add_argument('--spacer-lib-dir',     required=True, help='Directory with spacer pairing FASTAs')
-    p.add_argument('--x-element-lib',      required=True, help='Clustered x-element library FASTA (one entry per cluster)')
+    p.add_argument('--spacer-lib-dir',     default='', help='Directory with spacer pairing FASTAs')
+    p.add_argument('--x-element-lib',      default='', help='Clustered x-element library FASTA (one entry per cluster)')
     p.add_argument('--chr-end',        required=True)
-    p.add_argument('--strain',         required=True)
+    p.add_argument('--strain',         default='')
     p.add_argument('--output-tsv',     required=True)
     p.add_argument('--threads',        type=int, default=4)
     p.add_argument('--min-reads-per-chr-end', type=int, default=3,
@@ -95,7 +125,27 @@ def parse_args():
                         'filtering for this chr_end, the script aborts with a '
                         'coverage diagnostic instead of emitting near-empty output. '
                         'Default: 3. Set to 0 to force-run on any input.')
-    return p.parse_args()
+    p.add_argument('--attribution-mode', choices=['legacy', 'v2'], default='v2',
+                   help='Source-attribution logic (default v2; legacy reproduces the pre-v2 calls)')
+    p.add_argument('--telo-tsv',  default='', help='<base>_post_telo_trimming.tsv (telomere-end confirmation)')
+    p.add_argument('--probe-tsv', default='', help="<base>_post_y_prime_probe.tsv (Y' probe counts)")
+    p.add_argument('--strict-lib', dest='strict_lib', action='store_true', default=None,
+                   help="Abort if any reference Y' in the BED cannot be resolved in the Y' library (default on in v2)")
+    p.add_argument('--no-strict-lib', dest='strict_lib', action='store_false')
+    p.add_argument('--y-prime-id-level', choices=['family', 'variant'], default='family',
+                   help="Y' ID granularity taken from the library headers (variant = keep the colour shade)")
+    p.add_argument('--reprocess-tsv', default='',
+                   help='Re-run the Y\'-array comparison and reconciliation on an existing '
+                        '*_features.tsv (no BLAST / RepeatMasker). Spacer / x-element results are '
+                        'taken from the TSV as they are.')
+    args = p.parse_args()
+    if not args.reprocess_tsv:
+        for name in ('reads_fasta', 'alignment_tsv', 'spacer_lib_dir', 'x_element_lib'):
+            if not getattr(args, name):
+                p.error(f'--{name.replace("_", "-")} is required unless --reprocess-tsv is given')
+    if args.strict_lib is None:
+        args.strict_lib = (args.attribution_mode == 'v2')
+    return args
 
 
 def print_coverage_diagnostic(chr_end, n_reads, threshold, reads_fasta):
@@ -356,6 +406,23 @@ def spacer_quick_check(read_seq, reference_spacer):
 # Spacer / X element analysis (chunk walk)
 # ---------------------------------------------------------------------------
 
+def spacer_interval(telo_side, read_len, anchor_start, anchor_end, x_start, x_end, yp_start, yp_end):
+    """Read coordinates of the spacer: anchor -> first of (x element, Y' array).
+    Falls back to the read boundary when a feature is unknown (-1)."""
+    if telo_side == 'end':
+        sp_start = anchor_end if anchor_end >= 0 else 0
+        sp_end = x_start if x_start >= 0 else (yp_start if yp_start >= 0 else read_len)
+    else:
+        sp_start = x_end if x_end >= 0 else (yp_end if yp_end >= 0 else 0)
+        sp_end = anchor_start if anchor_start >= 0 else read_len
+    return sp_start, sp_end
+
+
+def chunks_in_interval(chunk_hits, start, end, chunk_size=CHUNK_SIZE):
+    """Keep the chunks whose midpoint lies inside [start, end)."""
+    return [(pos, info) for pos, info in chunk_hits if start <= pos + chunk_size // 2 < end]
+
+
 def analyze_chunks(read_id, chunk_hits, expected_chr_end, feature_name):
     """Walk chunks for one read, detect source switches.
 
@@ -466,6 +533,20 @@ def analyze_chunks(read_id, chunk_hits, expected_chr_end, feature_name):
     distinctiveness = DISTINCTIVENESS.get(feature_name, 0.5)
     confidence = distinctiveness * separation
 
+    # v2: `separation` compares the mean identity of the chunks assigned to
+    # the best source with the mean identity of the chunks assigned to the
+    # second source -- two different sets of chunks, both ~99% -- so it is
+    # ~0 (or negative) for every real switch. Score the switch by what defined
+    # it instead: the mean per-chunk identity advantage of the new source over
+    # the expected end across the switched chunks (a 10-point gap = full
+    # confidence; the 3-point detection threshold ~ 0.27).
+    if ATTRIBUTION_MODE == 'v2' and recomb_status != 'no_change':
+        new_src = switch_source if switch_chunk >= 0 else best_source
+        gaps = [info['pident'] - info.get('expected_pident', 0.0)
+                for i, (pos, info) in enumerate(chunk_hits) if effective_sources[i][1] == new_src]
+        mean_gap = (sum(gaps) / len(gaps)) if gaps else 0.0
+        confidence = distinctiveness * max(0.0, min(1.0, mean_gap / 10.0))
+
     if recomb_status == 'no_change':
         confidence = 0.95
 
@@ -479,11 +560,23 @@ def analyze_chunks(read_id, chunk_hits, expected_chr_end, feature_name):
     if switch_chunk >= 0 and switch_chunk < len(chunk_hits):
         switch_read_pos = chunk_hits[switch_chunk][0]
 
+    # Source of the feature. legacy: plurality over ALL chunks (a recombinant
+    # segment shorter than half the feature is labelled with the original
+    # end). v2: when a switch was detected the source is the post-breakpoint
+    # segment; the plurality is kept alongside for reference.
+    if recomb_status == 'no_change':
+        source = expected_chr_end
+    elif ATTRIBUTION_MODE == 'v2' and switch_chunk >= 0 and switch_source:
+        source = switch_source
+    else:
+        source = best_source
+
     return {
         f'{feature_name}_start': feat_start,
         f'{feature_name}_end': feat_end,
         f'{feature_name}_size': feat_end - feat_start,
-        f'{feature_name}_source': best_source if recomb_status != 'no_change' else expected_chr_end,
+        f'{feature_name}_source': source,
+        f'{feature_name}_plurality_source': best_source if recomb_status != 'no_change' else expected_chr_end,
         f'{feature_name}_switch_pos': switch_read_pos,
         f'{feature_name}_best_identity': round(best_avg_identity, 2),
         f'{feature_name}_second_best_identity': round(second_avg_identity, 2),
@@ -495,8 +588,16 @@ def analyze_chunks(read_id, chunk_hits, expected_chr_end, feature_name):
 # Y prime analysis
 # ---------------------------------------------------------------------------
 
+Y_PRIME_ID_LEVEL = 'family'   # 'family' -> ID2 ; 'variant' -> ID2_Red-Light (curated libraries only)
+
+
 def parse_y_prime_header(header):
-    """Parse Y prime FASTA header like >Y_Prime_chr2L1#Short/Solo/ID4_Green-Light."""
+    """Parse Y prime FASTA header like >Y_Prime_chr2L1#Short/Solo/ID4_Green-Light.
+
+    The ID used for array comparison is the family (ID4) by default. Curated
+    libraries carry a second level, the colour shade (ID4_Green-Light vs
+    ID4_Green-Dark = sequence variants a few SNPs apart); --y-prime-id-level
+    variant keeps that level so those variants are told apart on reads."""
     header = header.lstrip('>')
     name_part, class_part = (header.split('#', 1) + [''])[:2]
     y_id, color_group = '', ''
@@ -504,7 +605,7 @@ def parse_y_prime_header(header):
         parts = class_part.split('/')
         if len(parts) >= 3:
             color_group = parts[2]
-            y_id = color_group.split('_', 1)[0]
+            y_id = color_group if Y_PRIME_ID_LEVEL == 'variant' else color_group.split('_', 1)[0]
     return {'id': y_id, 'color_group': color_group, 'origin': name_part, 'full_name': header.split()[0]}
 
 
@@ -533,39 +634,209 @@ def get_reference_y_prime_order(features, name_to_info):
         return int(m.group(1)) if m else 0
     yp_features.sort(key=_yp_sort_key)
 
+    location_to_id = {}
+    for info in name_to_info.values():
+        for loc in parse_origin_locations(info.get('origin', '')):
+            location_to_id.setdefault(loc, info.get('id', ''))
+
     result = []
     for f in yp_features:
-        y_id = ''
         feat_name = f['name']
-        # Extract chr end and position from BED feature name
-        # e.g. "chr4R_Y_Prime_3" -> chr_end="chr4R", pos="3"
+        # e.g. "chr4R_Y_Prime_3" -> ("chr4R", 3)
         m = re.match(r'(chr\d+[LR])_Y_Prime_(\d+)', feat_name)
-        if not m:
-            result.append({'feature_name': feat_name, 'id': feat_name, 'start': f['start'], 'end': f['end']})
-            continue
-        feat_chr_end = m.group(1)  # e.g. "chr4R"
-        feat_pos = m.group(2)      # e.g. "3"
-
-        for seq_name, info in name_to_info.items():
-            origin = info.get('origin', '')
-            # origin is like "Y_Prime_chr12R2,3,4,5;chr4R1,2,3,4,6,7" or "Y_Prime_chr4R5"
-            # Parse each semicolon-separated group for chr_end + position list
-            origin_body = origin.replace('Y_Prime_', '')
-            for group in origin_body.split(';'):
-                # group is like "chr4R1,2,3,4,6,7" or "chr12R2,3,4,5"
-                gm = re.match(r'(chr\d+[LR])([\d,]+)', group)
-                if gm and gm.group(1) == feat_chr_end:
-                    positions = gm.group(2).split(',')
-                    if feat_pos in positions:
-                        y_id = info.get('id', '')
-                        break
-            if y_id:
-                break
-
+        y_id = location_to_id.get((m.group(1), int(m.group(2))), '') if m else ''
         if not y_id:
-            y_id = feat_name  # fallback: use the full feature name
+            # Unresolvable in the library: every read at this end would look
+            # like a "1st Y' Change". Fall back to the feature name but count
+            # it so main() can warn / abort (--strict-lib).
+            y_id = feat_name
+            UNRESOLVED_REFERENCE_YPRIMES.append(feat_name)
         result.append({'feature_name': feat_name, 'id': y_id, 'start': f['start'], 'end': f['end']})
     return result
+
+
+UNRESOLVED_REFERENCE_YPRIMES = []   # filled by get_reference_y_prime_order
+
+
+# ---------------------------------------------------------------------------
+# Y' library helpers (v2)
+# ---------------------------------------------------------------------------
+
+def parse_origin_locations(origin):
+    """'Y_Prime_chr12R2,3,4,5;chr4R1,2,3,4,6,7' -> [('chr12R',2), ..., ('chr4R',7)]."""
+    out = []
+    body = origin.replace('Y_Prime_', '', 1)
+    for group in body.split(';'):
+        gm = re.match(r'(chr\d+[LR])([\d,]+)', group.strip())
+        if not gm:
+            continue
+        for p in gm.group(2).split(','):
+            if p:
+                out.append((gm.group(1), int(p)))
+    return out
+
+
+def build_reference_arrays(name_to_info):
+    """{chr_end: [ID at position 1, ID at position 2, ...]} for every end in the library."""
+    per_end = {}
+    for info in name_to_info.values():
+        for ce, pos in parse_origin_locations(info.get('origin', '')):
+            per_end.setdefault(ce, {})[pos] = info.get('id', '')
+    return {ce: [d[k] for k in sorted(d)] for ce, d in per_end.items()}
+
+
+def _norm_end(s):
+    """'chr10L' -> (10, 'L'); 'chr4' / 'chr4_extended' -> (4, None); other -> (None, None)."""
+    m = re.match(r'chr(\d+)([LR])?', str(s))
+    if not m:
+        return (None, None)
+    return (int(m.group(1)), m.group(2))
+
+
+def _same_end(a, b):
+    """Loose equality: same chromosome, and arms equal or one of them unknown."""
+    ca, aa = _norm_end(a)
+    cb, ab = _norm_end(b)
+    if ca is None or cb is None or ca != cb:
+        return False
+    return aa is None or ab is None or aa == ab
+
+
+def _is_contiguous(needle, hay):
+    n = len(needle)
+    return n > 0 and any(hay[i:i + n] == needle for i in range(len(hay) - n + 1))
+
+
+def _rotations(seq):
+    return [seq[i:] + seq[:i] for i in range(1, len(seq))]
+
+
+def _longest_contiguous_overlap(window, arr):
+    """Length of the longest sub-window of `window` that occurs verbatim in `arr`."""
+    n = len(window)
+    for L in range(n, 0, -1):
+        for i in range(0, n - L + 1):
+            if _is_contiguous(window[i:i + L], arr):
+                return L
+    return 0
+
+
+def _periodic_unit(seq):
+    """Smallest unit u (len >= 2) such that seq is a prefix of u repeated at
+    least twice; None if seq is not periodic."""
+    n = len(seq)
+    for k in range(2, n // 2 + 1):
+        u = seq[:k]
+        if all(seq[i] == u[i % k] for i in range(n)):
+            return u
+    return None
+
+
+# A circle excised from an end can re-insert in any phase, so a rotation of a
+# donor's array is as good a fingerprint as the array itself; ties between
+# ends are then broken by how much of the window they carry verbatim.
+MATCH_KIND_RANK = {'contiguous': 0, 'rotation': 0, 'periodic': 1}
+
+
+def _longest_run(arr, x):
+    best = cur = 0
+    for v in arr:
+        cur = cur + 1 if v == x else 0
+        best = max(best, cur)
+    return best
+
+
+def match_gained_array(gained, ref_arrays):
+    """Match a gained Y' segment (anchor-to-telomere order) against every
+    reference end's array. Returns {chr_end: kind} with kind in
+      contiguous  gained is an ordered contiguous piece of the end's array
+      rotation    a cyclic rotation of gained is (circle excised from that end,
+                  re-inserted in a different phase)
+      periodic    gained is >= 2 repeats of a unit that is a contiguous piece
+                  of the end's array (rolling-circle amplification), or a run
+                  of one ID longer than any run of it at that end
+    A single Y' matches every end that carries that ID ('contiguous'); it can
+    only become a fingerprint when the ID exists at exactly one end (e.g. a
+    strain-specific variant in a curated library)."""
+    if not gained:
+        return {}
+    if len(gained) == 1:
+        return {ce: 'contiguous' for ce, arr in ref_arrays.items() if gained[0] in arr}
+    matches = {}
+    if len(set(gained)) == 1:                      # homopolymer run: ID1,ID1,ID1,...
+        x, n = gained[0], len(gained)
+        for ce, arr in ref_arrays.items():
+            run = _longest_run(arr, x)
+            if run >= n:
+                matches[ce] = 'contiguous'
+            elif run >= 2:
+                matches[ce] = 'periodic'
+        return matches
+    unit = _periodic_unit(gained)
+    for ce, arr in ref_arrays.items():
+        if _is_contiguous(gained, arr):
+            matches[ce] = 'contiguous'
+        elif any(_is_contiguous(r, arr) for r in _rotations(gained)):
+            matches[ce] = 'rotation'
+        elif unit and (_is_contiguous(unit, arr) or any(_is_contiguous(r, arr) for r in _rotations(unit))):
+            matches[ce] = 'periodic'
+    return matches
+
+
+def find_fingerprint(gained, ref_arrays, self_end):
+    """Longest-window search: try the whole gained segment, then every shorter
+    window (longest first, anchor-proximal first) down to 2 Y', and stop at the
+    first window that matches any end. Among the matching ends only the best
+    kind (contiguous > rotation > periodic) counts.
+
+    Returns dict with
+      window, matched_len, best_kind, matches (all ends for that window),
+      best (ends at the best kind), self_match (self_end among best),
+      source ('' unless exactly one non-self end is at the best kind and the
+              self end is not), specificity (1 / n best-kind ends)."""
+    empty = {'window': [], 'matched_len': 0, 'best_kind': '', 'matches': {}, 'best': [],
+             'self_match': False, 'source': '', 'specificity': 0.0}
+    n = len(gained)
+    if n == 0:
+        return empty
+    if n == 1:
+        matches = match_gained_array(gained, ref_arrays)
+        if not matches:
+            return empty
+        return _rank_matches(gained, 1, matches, ref_arrays, self_end)
+    # Two passes: heterogeneous windows first (longest first), then homopolymer
+    # runs. A run of one ID says only "an end with >= 2 adjacent copies", so
+    # it must not out-rank a shorter but structured window (e.g. ID2,ID1,ID2,ID1
+    # followed by a long ID2 run is attributed by the alternation, not the run).
+    passes = ([lambda w: len(set(w)) > 1] if len(set(gained)) > 1 else []) + [lambda w: len(set(w)) == 1]
+    for accept in passes:
+        for L in range(n, 1, -1):
+            for i in range(0, n - L + 1):
+                window = gained[i:i + L]
+                if not accept(window):
+                    continue
+                matches = match_gained_array(window, ref_arrays)
+                if not matches:
+                    continue
+                return _rank_matches(window, L, matches, ref_arrays, self_end)
+    return empty
+
+
+def _rank_matches(window, L, matches, ref_arrays, self_end):
+    """Rank the ends matching one window by kind, then by how much of the
+    window they carry verbatim: a rolling-circle product ABABAB is attributed
+    to the end that natively holds ABAB rather than to one with a lone AB."""
+    score = {ce: (MATCH_KIND_RANK[k], -_longest_contiguous_overlap(window, ref_arrays[ce]))
+             for ce, k in matches.items()}
+    top = min(score.values())
+    best = sorted(ce for ce, s in score.items() if s == top)
+    best_kind = next(k for k, r in MATCH_KIND_RANK.items() if r == top[0])
+    self_match = self_end in best
+    non_self = [ce for ce in best if ce != self_end]
+    source = non_self[0] if (len(non_self) == 1 and not self_match) else ''
+    return {'window': window, 'matched_len': L, 'best_kind': best_kind, 'matches': matches,
+            'best': best, 'self_match': self_match, 'source': source,
+            'specificity': 1.0 / len(best)}
 
 
 # ---------------------------------------------------------------------------
@@ -891,8 +1162,123 @@ def repeatmasker_y_primes(read_seqs, y_prime_lib, tmp_dir, threads=4):
     return deduped
 
 
-def analyze_y_primes(read_id, y_prime_hits, telo_side, ref_y_primes, name_to_info):
-    """Analyze Y primes for one read."""
+def compare_y_prime_arrays(observed_array, ref_y_primes, name_to_info, ref_arrays=None, chr_end=''):
+    """Position-by-position comparison of an observed Y' ID array (anchor-to-
+    telomere order) with the reference array of this end, plus (v2) the
+    full-array fingerprint match of the gained segment against every end.
+
+    Returns the y_prime_* status columns (positions/coordinates are added by
+    analyze_y_primes, which owns the RepeatMasker hits)."""
+    n_obs = len(observed_array)
+    divergence_idx = -1
+    expected_at_div = ''
+    found_at_div = ''
+    downstream_consistent = True
+    status = 'No Change'
+
+    if n_obs == 0 and len(ref_y_primes) == 0:
+        status = 'No Change'
+    elif n_obs == 0 and len(ref_y_primes) > 0:
+        divergence_idx = 0
+        expected_at_div = ref_y_primes[0]['id']
+        found_at_div = 'None'
+        status = "Y' Loss"
+    elif n_obs > 0 and len(ref_y_primes) == 0:
+        divergence_idx = 0
+        expected_at_div = 'None'
+        found_at_div = observed_array[0]
+        status = "Y' Gain"
+    elif n_obs < len(ref_y_primes):
+        divergence_idx = n_obs
+        if divergence_idx < len(ref_y_primes):
+            expected_at_div = ref_y_primes[divergence_idx]['id']
+        status = "Y' Loss"
+    else:
+        for i in range(len(ref_y_primes)):
+            if i >= n_obs:
+                break
+            if observed_array[i] != ref_y_primes[i]['id']:
+                divergence_idx = i
+                expected_at_div = ref_y_primes[i]['id']
+                found_at_div = observed_array[i]
+                if i + 1 < n_obs:
+                    first_new = observed_array[i]
+                    for j in range(i + 1, n_obs):
+                        if observed_array[j] != first_new:
+                            downstream_consistent = False
+                            break
+                status = "1st Y' Change" if i == 0 else "Y' Recombination"
+                break
+        if status == 'No Change' and n_obs > len(ref_y_primes):
+            # Divergence starts at the first extra Y prime beyond the reference
+            divergence_idx = len(ref_y_primes)
+            expected_at_div = 'None'
+            found_at_div = observed_array[divergence_idx] if divergence_idx < n_obs else ''
+            status = "Y' Gain"
+
+    compatible_ends = find_compatible_ends(observed_array, name_to_info)
+
+    # --- v2: fingerprint of the gained segment -------------------------------
+    gained = []
+    fp = {'window': [], 'matched_len': 0, 'best_kind': '', 'matches': {}, 'best': [],
+          'self_match': False, 'source': '', 'specificity': 0.0}
+    if ATTRIBUTION_MODE == 'v2' and ref_arrays and status in ("Y' Gain", "1st Y' Change", "Y' Recombination"):
+        gained = observed_array[divergence_idx:] if divergence_idx >= 0 else []
+        fp = find_fingerprint(gained, ref_arrays, chr_end)
+
+    return {
+        'y_prime_observed_array': ','.join(observed_array) if observed_array else '',
+        'y_prime_recombination_status': status,
+        'y_prime_divergence_idx': divergence_idx,
+        'y_prime_expected_at_divergence': expected_at_div,
+        'y_prime_found_at_divergence': found_at_div,
+        'y_prime_downstream_consistent': downstream_consistent,
+        'y_prime_compatible_ends': ','.join(compatible_ends),
+        'y_prime_gained_segment': ','.join(gained),
+        'y_prime_fingerprint_window': ','.join(fp['window']),
+        'y_prime_fingerprint_len': fp['matched_len'],
+        'y_prime_fingerprint_kind': fp['best_kind'],
+        'y_prime_array_matches': ';'.join(f'{ce}:{k}' for ce, k in sorted(fp['matches'].items())),
+        'y_prime_self_match': fp['self_match'],
+        'y_prime_fingerprint_source': fp['source'],
+        'y_prime_fingerprint_specificity': round(fp['specificity'], 3),
+    }
+
+
+def path_columns(tokens, divergence_idx, status, ref_tokens, chr_end):
+    """(ID, ITS) path of the gained part of the array -> y_prime_path* columns."""
+    empty = {'y_prime_path': '', 'y_prime_path_n_segments': 0, 'y_prime_path_primary_donor': '',
+             'y_prime_path_primary_len': 0, 'y_prime_path_circles': '', 'y_prime_path_its_verified': 0,
+             'y_prime_path_its_checked': 0}
+    if ATTRIBUTION_MODE != 'v2' or not ref_tokens or status not in ("Y' Gain", "1st Y' Change", "Y' Recombination"):
+        return empty
+    if divergence_idx < 0 or divergence_idx >= len(tokens):
+        return empty
+    parsed = ypath.parse_path(tokens[divergence_idx:], ref_tokens, chr_end)
+    return {'y_prime_path': ypath.format_path(parsed),
+            'y_prime_path_n_segments': parsed['n_segments'],
+            'y_prime_path_primary_donor': parsed.get('primary_donor', ''),
+            'y_prime_path_primary_len': parsed.get('primary_len', 0),
+            'y_prime_path_circles': ypath.format_circles(parsed),
+            'y_prime_path_its_verified': parsed['its_verified'],
+            'y_prime_path_its_checked': parsed['its_checked']}
+
+
+def build_reference_tokens(bed_path, name_to_info):
+    loc = {}
+    for info in name_to_info.values():
+        for l in parse_origin_locations(info.get('origin', '')):
+            loc.setdefault(l, info.get('id', ''))
+    try:
+        return ypath.build_reference_tokens(bed_path, loc)
+    except Exception as e:  # pragma: no cover
+        print(f'  WARNING: could not build (ID, ITS) reference tokens: {e}', file=sys.stderr)
+        return {}
+
+
+def analyze_y_primes(read_id, y_prime_hits, telo_side, ref_y_primes, name_to_info, ref_arrays=None, chr_end='',
+                     ref_tokens=None):
+    """Analyze Y primes for one read (RepeatMasker hits -> observed array -> comparison)."""
     hits = y_prime_hits or []
     hits.sort(key=lambda h: h['match_start'])
     if telo_side == 'beginning':
@@ -904,55 +1290,7 @@ def analyze_y_primes(read_id, y_prime_hits, telo_side, ref_y_primes, name_to_inf
         info = name_to_info.get(hit['y_prime_name'], {})
         observed_array.append(info.get('id', hit['y_prime_name']))
 
-    # Position-by-position comparison with reference
-    divergence_idx = -1
-    expected_at_div = ''
-    found_at_div = ''
-    downstream_consistent = True
-    status = 'No Change'
-
-    if len(hits) == 0 and len(ref_y_primes) == 0:
-        status = 'No Change'
-    elif len(hits) == 0 and len(ref_y_primes) > 0:
-        divergence_idx = 0
-        expected_at_div = ref_y_primes[0]['id']
-        found_at_div = 'None'
-        status = "Y' Loss"
-    elif len(hits) > 0 and len(ref_y_primes) == 0:
-        divergence_idx = 0
-        expected_at_div = 'None'
-        found_at_div = observed_array[0]
-        status = "Y' Gain"
-    elif len(hits) < len(ref_y_primes):
-        divergence_idx = len(hits)
-        if divergence_idx < len(ref_y_primes):
-            expected_at_div = ref_y_primes[divergence_idx]['id']
-        status = "Y' Loss"
-    else:
-        for i in range(len(ref_y_primes)):
-            if i >= len(observed_array):
-                break
-            if observed_array[i] != ref_y_primes[i]['id']:
-                divergence_idx = i
-                expected_at_div = ref_y_primes[i]['id']
-                found_at_div = observed_array[i]
-                if i + 1 < len(observed_array):
-                    first_new = observed_array[i]
-                    for j in range(i + 1, len(observed_array)):
-                        if observed_array[j] != first_new:
-                            downstream_consistent = False
-                            break
-                status = "1st Y' Change" if i == 0 else "Y' Recombination"
-                break
-        if status == 'No Change' and len(observed_array) > len(ref_y_primes):
-            # Divergence starts at the first extra Y prime beyond the reference
-            divergence_idx = len(ref_y_primes)
-            expected_at_div = 'None'
-            found_at_div = observed_array[divergence_idx] if divergence_idx < len(observed_array) else ''
-            status = "Y' Gain"
-
-    # Find compatible reference ends
-    compatible_ends = find_compatible_ends(observed_array, name_to_info)
+    cmp = compare_y_prime_arrays(observed_array, ref_y_primes, name_to_info, ref_arrays, chr_end)
 
     # Per-Y-prime positions on the read (anchor-to-telomere order)
     yp_positions = []
@@ -969,41 +1307,50 @@ def analyze_y_primes(read_id, y_prime_hits, telo_side, ref_y_primes, name_to_inf
         yp_region_start = -1
         yp_region_end = -1
 
-    return {
+    out = {
         'y_prime_count_on_read': len(hits),
-        'y_prime_observed_array': ','.join(observed_array) if observed_array else '',
+        'y_prime_observed_array': cmp['y_prime_observed_array'],
         'y_prime_positions': ';'.join(yp_positions) if yp_positions else '',
         'y_prime_start': yp_region_start,
         'y_prime_end': yp_region_end,
         'y_prime_size': yp_region_end - yp_region_start if hits else 0,
-        'y_prime_recombination_status': status,
-        'y_prime_divergence_idx': divergence_idx,
-        'y_prime_expected_at_divergence': expected_at_div,
-        'y_prime_found_at_divergence': found_at_div,
-        'y_prime_downstream_consistent': downstream_consistent,
-        'y_prime_compatible_ends': ','.join(compatible_ends),
     }
+    out.update({k: v for k, v in cmp.items() if k != 'y_prime_observed_array'})
+    tokens = ypath.read_tokens_from_hits([(h['match_start'], h['match_end'],
+                                           name_to_info.get(h['y_prime_name'], {}).get('id', h['y_prime_name']))
+                                          for h in hits], telo_side)
+    out.update(path_columns(tokens, cmp['y_prime_divergence_idx'], cmp['y_prime_recombination_status'], ref_tokens, chr_end))
+    return out
 
 
 def find_compatible_ends(observed_array, name_to_info):
-    """Find reference chr ends whose first Y prime ID matches the observed first Y prime."""
+    """Reference chr ends whose FIRST Y' ID equals the observed first Y' ID.
+
+    v2 reads every location of every library record (a record such as
+    'Y_Prime_chr12R2,3,4,5;chr4R1,2,3,4,6,7' names two ends); legacy only
+    looked at the first chr_end / first position of the header, so chr4R was
+    invisible in that example."""
     if not observed_array:
         return []
-
     first_observed = observed_array[0]
 
-    # Build per-chr-end first Y prime from library
     chr_end_first_yp = {}
-    for seq_name, info in name_to_info.items():
-        origin = info.get('origin', '')
-        m = re.search(r'(chr\d+[LR])', origin)
-        if not m:
-            continue
-        ce = m.group(1)
-        pos_match = re.search(r'chr\d+[LR](\d+)', origin)
-        pos = int(pos_match.group(1)) if pos_match else 0
-        if ce not in chr_end_first_yp or pos < chr_end_first_yp[ce][0]:
-            chr_end_first_yp[ce] = (pos, info.get('id', ''))
+    if ATTRIBUTION_MODE == 'v2':
+        for info in name_to_info.values():
+            for ce, pos in parse_origin_locations(info.get('origin', '')):
+                if ce not in chr_end_first_yp or pos < chr_end_first_yp[ce][0]:
+                    chr_end_first_yp[ce] = (pos, info.get('id', ''))
+    else:
+        for seq_name, info in name_to_info.items():
+            origin = info.get('origin', '')
+            m = re.search(r'(chr\d+[LR])', origin)
+            if not m:
+                continue
+            ce = m.group(1)
+            pos_match = re.search(r'chr\d+[LR](\d+)', origin)
+            pos = int(pos_match.group(1)) if pos_match else 0
+            if ce not in chr_end_first_yp or pos < chr_end_first_yp[ce][0]:
+                chr_end_first_yp[ce] = (pos, info.get('id', ''))
 
     compatible = [ce for ce, (_, yid) in chr_end_first_yp.items() if yid == first_observed]
     return sorted(compatible)
@@ -1012,8 +1359,261 @@ def find_compatible_ends(observed_array, name_to_info):
 # Cross-feature reconciliation + confidence scoring
 # ---------------------------------------------------------------------------
 
-def reconcile_features(spacer_result, x_element_result, y_prime_result, supp_contigs, chr_end):
-    """Compare results across features, compute overall confidence."""
+def reconcile_features(spacer_result, x_element_result, y_prime_result, supp_contigs, chr_end,
+                       telo_info=None):
+    """Compare results across features, name the donor end, compute overall confidence."""
+    if ATTRIBUTION_MODE == 'v2':
+        return reconcile_features_v2(spacer_result, x_element_result, y_prime_result, supp_contigs, chr_end, telo_info)
+    out = reconcile_features_legacy(spacer_result, x_element_result, y_prime_result, supp_contigs, chr_end)
+    out.update({'source_votes': '', 'source_tie': False, 'source_resolution': '',
+                'recombination_mechanism': '', 'y_prime_donor': ''})
+    return out
+
+
+def _empty_votes():
+    from collections import defaultdict
+    return defaultdict(float)
+
+
+def reconcile_features_v2(spacer_result, x_element_result, y_prime_result, supp_contigs, chr_end, telo_info=None):
+    """v2 reconciliation: weighted votes from spacer / Y' fingerprint /
+    x-element / supplementary; arm-less evidence cannot out-vote an
+    arm-resolved end; deterministic tie-break; mechanism tag."""
+    spacer_source = spacer_result.get('spacer_source', '')
+    x_source = x_element_result.get('x_element_source', '')
+    spacer_recomb = spacer_result.get('spacer_recombination', 'no_data')
+    x_recomb = x_element_result.get('x_element_recombination', 'no_data')
+    y_status = y_prime_result.get('y_prime_recombination_status', '')
+    y_compatible = [e for e in str(y_prime_result.get('y_prime_compatible_ends', '') or '').split(',') if e]
+    y_fp = y_prime_result.get('y_prime_fingerprint_source', '') or ''
+    y_gained = [g for g in str(y_prime_result.get('y_prime_gained_segment', '') or '').split(',') if g]
+    y_fp_len = int(y_prime_result.get('y_prime_fingerprint_len', 0) or 0)
+    y_self = str(y_prime_result.get('y_prime_self_match', '')) == 'True'
+    y_matches = {}
+    for item in str(y_prime_result.get('y_prime_array_matches', '') or '').split(';'):
+        if ':' in item:
+            ce, kind = item.split(':', 1)
+            y_matches[ce] = kind
+    # ITS tie-break (yprime_path): when the ID-only fingerprint is not unique,
+    # the (ID, ITS) path can single out the donor or show it is the end itself.
+    path_donor = str(y_prime_result.get('y_prime_path_primary_donor', '') or '')
+    path_len = int(y_prime_result.get('y_prime_path_primary_len', 0) or 0)
+    if not y_fp and not y_self and path_len >= 2:
+        if path_donor == 'self':
+            y_self = True
+        elif path_donor and '|' not in path_donor:
+            y_fp, y_fp_len, y_specificity = path_donor, path_len, 1.0
+    best_rank = min((MATCH_KIND_RANK[k] for k in y_matches.values()), default=None)
+    y_best = sorted(ce for ce, k in y_matches.items() if best_rank is not None and MATCH_KIND_RANK[k] == best_rank)
+    y_specificity = float(y_prime_result.get('y_prime_fingerprint_specificity', 0) or 0)
+
+    supp_chr_ends = []
+    for contig in supp_contigs:
+        m = re.search(r'chr(\d+)([LR])?', str(contig))
+        if m:
+            supp_chr_ends.append(f'chr{m.group(1)}{m.group(2) or ""}')
+
+    spacer_has_recomb = spacer_recomb in ('switch_detected', 'full_switch')
+    x_has_recomb = x_recomb in ('switch_detected', 'full_switch')
+    y_has_recomb = y_status not in ('No Change', '', 'no_data')
+    is_loss = (y_status == "Y' Loss")
+
+    base_out = {'source_votes': '', 'source_tie': False, 'source_resolution': '', 'recombination_mechanism': '',
+                'y_prime_donor': ''}
+
+    if not spacer_has_recomb and not x_has_recomb and not y_has_recomb:
+        return {**base_out,
+                'recombination_source': '', 'recombination_detected': False, 'overall_confidence': 0.95,
+                'cross_feature_consistent': True, 'cross_feature_detail': 'all_features_match_reference',
+                'is_complex_event': False, 'confidence_factors': 'no_recombination'}
+
+    # ---- votes -------------------------------------------------------------
+    # A spacer / x-element switch votes with its full weight only when its own
+    # confidence is meaningful; a low-confidence switch still votes (scaled)
+    # but does not take precedence over the Y' fingerprint below.
+    votes = _empty_votes()
+    axis_source = {}       # axis -> end it voted for (arm-resolved or not)
+    structural_axes = []   # axes whose switch is confident enough to name the proximal donor
+    sp_conf = float(spacer_result.get('spacer_confidence', 0) or 0)
+    x_conf = float(x_element_result.get('x_element_confidence', 0) or 0)
+    if spacer_has_recomb and spacer_source and not _same_end(spacer_source, chr_end):
+        strong = sp_conf >= STRUCTURAL_MIN_CONF
+        votes[spacer_source] += VOTE_WEIGHTS['spacer'] * (1.0 if strong else max(sp_conf, 0.1))
+        axis_source['spacer'] = spacer_source
+        if strong:
+            structural_axes.append('spacer')
+    if x_has_recomb and x_source and not _same_end(x_source, chr_end):
+        strong = x_conf >= STRUCTURAL_MIN_CONF
+        votes[x_source] += VOTE_WEIGHTS['x_element'] * (1.0 if strong else max(x_conf, 0.1))
+        axis_source['x_element'] = x_source
+        if strong:
+            structural_axes.append('x_element')
+    if supp_chr_ends:
+        s = supp_chr_ends[0]
+        if not _same_end(s, chr_end):
+            armless = _norm_end(s)[1] is None
+            votes[s] += VOTE_WEIGHTS['supplementary_armless' if armless else 'supplementary']
+            axis_source['supplementary'] = s
+    y_axis_weight = 0.0
+    y_non_self = [ce for ce in y_best if ce != chr_end]
+    # A spacer / x-element switch names the PROXIMAL donor of the subtelomere
+    # (the recombination breakpoint is anchor-side of the Y' array). When such
+    # a structural donor exists the Y' fingerprint does not compete for the
+    # source: it is reported as y_prime_donor -- the end the Y' array itself
+    # came from, which may differ when the donor's own array had changed --
+    # and a disagreement marks the event as complex.
+    structural_donor = bool(structural_axes)
+    if y_has_recomb and not is_loss and not y_self:
+        if y_fp:
+            axis_source['y_prime'] = y_fp
+            if not structural_donor:
+                y_axis_weight = (VOTE_WEIGHTS['y_prime_fingerprint_3'] if y_fp_len >= 3 else
+                             VOTE_WEIGHTS['y_prime_fingerprint_2'] if y_fp_len == 2 else
+                             VOTE_WEIGHTS['y_prime_fingerprint_1'])
+                votes[y_fp] += y_axis_weight
+        elif 2 <= len(y_non_self) <= 3 and not structural_donor:
+            for ce in y_non_self:
+                votes[ce] += VOTE_WEIGHTS['y_prime_candidates'] / len(y_non_self)
+
+    # Fold arm-less votes into an arm-resolved candidate on the same chromosome;
+    # an arm-less vote on its own can never beat any arm-resolved candidate.
+    resolved = {k: v for k, v in votes.items() if _norm_end(k)[1] is not None}
+    unresolved = {k: v for k, v in votes.items() if _norm_end(k)[1] is None}
+    for k, v in unresolved.items():
+        targets = [r for r in resolved if _same_end(r, k)]
+        if targets:
+            resolved[targets[0]] += v
+    pool = resolved if resolved else unresolved
+    source_resolution = 'arm' if resolved else ('chromosome' if unresolved else '')
+
+    # A gained array that this end's own array explains (tandem amplification)
+    # with no spacer / x-element switch is attributed to the end itself; a lone
+    # supplementary alignment of Y' sequence elsewhere is not a donor call.
+    if y_self and not spacer_has_recomb and not x_has_recomb:
+        pool = {chr_end: 1.0}
+        source_resolution = 'self'
+
+    if not pool and not y_has_recomb:
+        return {**base_out,
+                'recombination_source': '', 'recombination_detected': False, 'overall_confidence': 0.90,
+                'cross_feature_consistent': True, 'cross_feature_detail': 'feature_signals_match_self',
+                'is_complex_event': False, 'confidence_factors': 'self_source_only'}
+
+    # ---- best source + tie-break -------------------------------------------
+    best_source, tie = 'ambiguous', False
+    if pool:
+        top = max(pool.values())
+        leaders = [k for k, v in pool.items() if abs(v - top) < 1e-9]
+        if len(leaders) == 1:
+            best_source = leaders[0]
+        else:
+            tie = True
+            best_source = leaders[0]
+            for axis in AXIS_PRIORITY:
+                src = axis_source.get(axis)
+                if src and any(_same_end(src, L) for L in leaders):
+                    best_source = next(L for L in leaders if _same_end(src, L))
+                    break
+        # an arm-less winner for which the Y' candidates single out an arm
+        if _norm_end(best_source)[1] is None:
+            arms = [ce for ce in y_compatible if _same_end(ce, best_source)]
+            if len(arms) == 1:
+                best_source = arms[0]
+                source_resolution = 'arm_via_y_prime_candidates'
+
+    # ---- agreement / complexity --------------------------------------------
+    # Only the primary axes (spacer, x-element, Y' fingerprint) can disagree
+    # with each other; a supplementary alignment of Y'-containing sequence to
+    # some other chromosome votes but never makes an event "complex".
+    axis_ends = [s for axis, s in axis_source.items() if axis != 'supplementary']
+    distinct = []
+    for s in axis_ends:
+        if not any(_same_end(s, d) for d in distinct):
+            distinct.append(s)
+    all_agree = len(distinct) <= 1
+    y_supports = (best_source != 'ambiguous') and (
+        any(_same_end(best_source, ce) for ce in y_compatible) or
+        any(_same_end(best_source, ce) for ce in y_matches))
+
+    feature_confidences = []
+    if spacer_has_recomb:
+        feature_confidences.append(spacer_result.get('spacer_confidence', 0))
+    if x_has_recomb:
+        feature_confidences.append(x_element_result.get('x_element_confidence', 0))
+    if feature_confidences:
+        base_confidence = max(feature_confidences)
+    elif y_fp and y_axis_weight > 0:
+        base_confidence = DISTINCTIVENESS['y_prime'] * y_specificity * min(1.0, y_fp_len / 3.0)
+        base_confidence = max(base_confidence, 0.3)
+    else:
+        base_confidence = 0.3
+
+    if all_agree:
+        complexity_factor = 1.1 if y_supports else 1.0
+    elif len(distinct) == 2:
+        complexity_factor = PARTIAL_AGREEMENT_FACTOR
+    else:
+        complexity_factor = COMPLEXITY_PENALTY
+    overall_confidence = min(1.0, base_confidence * complexity_factor)
+
+    # ---- Loss confirmation (C8) ---------------------------------------------
+    qc = []
+    if is_loss and telo_info is not None:
+        if not telo_info.get('confirmed', False):
+            overall_confidence *= LOSS_UNCONFIRMED_FACTOR
+            qc.append('loss_unconfirmed_end')
+
+    # ---- mechanism ----------------------------------------------------------
+    if is_loss:
+        if telo_info is None:
+            mechanism = 'array_contraction'
+        else:
+            mechanism = 'array_contraction' if telo_info.get('confirmed', False) else 'array_contraction_unconfirmed'
+    elif spacer_has_recomb or x_has_recomb:
+        mechanism = 'subtelomere_switch'
+    elif y_has_recomb:
+        if y_self:
+            mechanism = 'tandem_amplification_same_end'
+        elif y_fp:
+            mechanism = 'donor_transfer'
+        elif len(y_non_self) >= 2:
+            mechanism = f'donor_transfer_candidates:{len(y_non_self)}'
+        elif len(y_gained) == 1:
+            mechanism = 'single_y_prime_change'
+        else:
+            mechanism = 'unmatched_array'
+    else:
+        mechanism = ''
+
+    detail_parts = [f'{axis}={src}' for axis, src in axis_source.items()]
+    if y_compatible:
+        detail_parts.append(f'y_prime_compatible={",".join(y_compatible[:5])}')
+    if y_matches:
+        detail_parts.append('y_prime_array_matches=' + ','.join(f'{ce}:{k}' for ce, k in sorted(y_matches.items())))
+    if y_has_recomb:
+        detail_parts.append(f'y_prime_status={y_status}')
+    if y_prime_result.get('y_prime_path'):
+        detail_parts.append(f"y_prime_path={y_prime_result['y_prime_path']}")
+
+    return {
+        'recombination_source': best_source,
+        'recombination_detected': True,
+        'overall_confidence': round(overall_confidence, 4),
+        'cross_feature_consistent': all_agree,
+        'cross_feature_detail': '; '.join(detail_parts),
+        'is_complex_event': (not all_agree) and len(distinct) > 1,
+        'confidence_factors': f'base={base_confidence:.2f}, complexity={complexity_factor:.2f}',
+        'source_votes': ';'.join(f'{k}={v:.2f}' for k, v in sorted(votes.items(), key=lambda kv: -kv[1])),
+        'source_tie': tie,
+        'source_resolution': source_resolution,
+        'recombination_mechanism': mechanism,
+        'y_prime_donor': y_fp if (y_has_recomb and not is_loss and not y_self) else '',
+        'qc_flags_extra': ';'.join(qc),
+    }
+
+
+def reconcile_features_legacy(spacer_result, x_element_result, y_prime_result, supp_contigs, chr_end):
+    """Pre-v2 reconciliation, kept verbatim for --attribution-mode legacy."""
     spacer_source = spacer_result.get('spacer_source', '')
     x_source = x_element_result.get('x_element_source', '')
     spacer_recomb = spacer_result.get('spacer_recombination', 'no_data')
@@ -1127,9 +1727,121 @@ def reconcile_features(spacer_result, x_element_result, y_prime_result, supp_con
 # Main
 # ---------------------------------------------------------------------------
 
+def load_telo_probe(telo_tsv, probe_tsv):
+    """Per-read telomere-end confirmation + Y' probe count (C8).
+    Returns {read_id: {'confirmed': bool, 'repeat_length': float, 'probe_count': float}} or None."""
+    if not telo_tsv or not os.path.exists(telo_tsv):
+        return None
+    info = {}
+    t = pd.read_csv(telo_tsv, sep='\t')
+    if len(t.columns) and str(t.columns[0]).startswith('Unnamed'):
+        t = t.drop(columns=t.columns[0])
+    rl = pd.to_numeric(t['repeat_length'], errors='coerce')
+    conf = (t['Adapter_After_Telomere'].astype(str) == 'True') & (rl >= TELO_CONFIRMED_MIN_REPEAT)
+    for rid, c, r in zip(t['read_id'], conf, rl):
+        info[rid] = {'confirmed': bool(c), 'repeat_length': (float(r) if pd.notna(r) else -1), 'probe_count': -1}
+    if probe_tsv and os.path.exists(probe_tsv):
+        p = pd.read_csv(probe_tsv, sep='\t')
+        for rid, pc in zip(p['read_id'], pd.to_numeric(p['y_prime_probe_count'], errors='coerce')):
+            info.setdefault(rid, {'confirmed': False, 'repeat_length': -1, 'probe_count': -1})
+            info[rid]['probe_count'] = float(pc) if pd.notna(pc) else -1
+    return info
+
+
+def y_prime_tail_bp(telo_side, read_len, yp_start, yp_end):
+    """bp between the Y' region and the telomere-side end of the read (-1 if no Y')."""
+    if yp_start is None or yp_start < 0:
+        return -1
+    return int(yp_start) if telo_side == 'beginning' else int(read_len - yp_end)
+
+
+def c8_columns(read_id, telo_info, telo_side, read_len, y_result):
+    ti = (telo_info or {}).get(read_id) if telo_info is not None else None
+    return {
+        'telomere_end_confirmed': (ti['confirmed'] if ti else ''),
+        'telomere_repeat_length': (ti['repeat_length'] if ti else -1),
+        'y_prime_probe_count': (ti['probe_count'] if ti else -1),
+        'y_prime_tail_bp': y_prime_tail_bp(telo_side, read_len, y_result.get('y_prime_start', -1), y_result.get('y_prime_end', -1)),
+    }
+
+
+def check_reference_library(ref_y_primes, chr_end, strict):
+    if UNRESOLVED_REFERENCE_YPRIMES:
+        msg = (f"WARNING: {len(UNRESOLVED_REFERENCE_YPRIMES)} reference Y' feature(s) at {chr_end} "
+               f"could not be resolved in the Y' library: {','.join(UNRESOLVED_REFERENCE_YPRIMES)}. "
+               f"The BED and the library disagree (wrong --y-prime-lib?).")
+        print(msg, file=sys.stderr)
+        if strict:
+            print('ERROR: aborting (--strict-lib). Pass --no-strict-lib to run anyway.', file=sys.stderr)
+            sys.exit(2)
+
+
+def reprocess_tsv(args):
+    """Re-derive the Y' comparison + reconciliation from an existing features TSV."""
+    print(f'  Reprocessing {args.reprocess_tsv} (mode={ATTRIBUTION_MODE})')
+    features = load_bed_features(args.day0_bed, args.chr_end)
+    name_to_info = build_y_prime_info(args.y_prime_lib)
+    ref_y_primes = get_reference_y_prime_order(features, name_to_info)
+    check_reference_library(ref_y_primes, args.chr_end, args.strict_lib)
+    ref_arrays = build_reference_arrays(name_to_info)
+    ref_tokens = build_reference_tokens(args.day0_bed, name_to_info)
+    telo_info = load_telo_probe(args.telo_tsv, args.probe_tsv)
+
+    if not os.path.exists(args.reprocess_tsv) or os.path.getsize(args.reprocess_tsv) == 0:
+        write_results_tsv([], args.output_tsv)
+        return
+    try:
+        df = pd.read_csv(args.reprocess_tsv, sep='\t')
+    except pd.errors.EmptyDataError:
+        write_results_tsv([], args.output_tsv)
+        return
+    if df.empty:
+        write_results_tsv([], args.output_tsv)
+        return
+
+    rows = []
+    for _, r in df.iterrows():
+        row = {k: (v if not (isinstance(v, float) and pd.isna(v)) else '') for k, v in r.items()}
+        spacer_result = {k: row[k] for k in row if k.startswith('spacer_')}
+        x_result = {k: row[k] for k in row if k.startswith('x_element_')}
+        observed = [x for x in str(row.get('y_prime_observed_array', '') or '').split(',') if x]
+        cmp = compare_y_prime_arrays(observed, ref_y_primes, name_to_info, ref_arrays, args.chr_end)
+        y_result = {k: row[k] for k in row if k.startswith('y_prime_')}
+        y_result.update(cmp)
+        tokens = ypath.read_tokens_from_positions(row.get('y_prime_positions', ''), row.get('telo_side', 'end'))
+        y_result.update(path_columns(tokens, cmp['y_prime_divergence_idx'], cmp['y_prime_recombination_status'],
+                                     ref_tokens, args.chr_end))
+        # supplementary evidence was only ever recorded as 'supplementary=chrN' in the detail string
+        supp = re.findall(r'supplementary=(chr\d+[LR]?)', str(row.get('cross_feature_detail', '') or ''))
+        telo_side = row.get('telo_side', 'end')
+        read_len = int(row.get('read_length', 0) or 0)
+        rid = row['read_id']
+        ti = (telo_info or {}).get(rid) if telo_info is not None else None
+        rec = reconcile_features(spacer_result, x_result, y_result, supp, args.chr_end, ti)
+        extra_qc = rec.pop('qc_flags_extra', '')
+        row.update(y_result)
+        row.update(rec)
+        row.update(c8_columns(rid, telo_info, telo_side, read_len, y_result))
+        old_qc = str(row.get('qc_flags', '') or '')
+        row['qc_flags'] = ';'.join(x for x in (old_qc, extra_qc) if x)
+        rows.append(row)
+    os.makedirs(os.path.dirname(args.output_tsv) or '.', exist_ok=True)
+    write_results_tsv(rows, args.output_tsv)
+    from collections import Counter
+    c = Counter(r['recombination_source'] for r in rows if r['recombination_detected'])
+    print(f'  Output: {args.output_tsv} ({len(rows)} reads); top sources: {c.most_common(5)}')
+
+
 def main():
+    global ATTRIBUTION_MODE, Y_PRIME_ID_LEVEL
     args = parse_args()
-    print(f'analyze_features.py -- chr_end={args.chr_end}')
+    ATTRIBUTION_MODE = args.attribution_mode
+    Y_PRIME_ID_LEVEL = args.y_prime_id_level
+    print(f'analyze_features.py -- chr_end={args.chr_end} (attribution_mode={ATTRIBUTION_MODE})')
+
+    if args.reprocess_tsv:
+        reprocess_tsv(args)
+        return
 
     for path in [args.reads_fasta, args.day0_bed, args.y_prime_lib]:
         if not os.path.exists(path):
@@ -1159,6 +1871,13 @@ def main():
     name_to_info = build_y_prime_info(args.y_prime_lib)
     ref_y_primes = get_reference_y_prime_order(features, name_to_info)
     print(f'  BED: {len(features)} features, {len(ref_y_primes)} Y primes for {args.chr_end}')
+    check_reference_library(ref_y_primes, args.chr_end, args.strict_lib)
+    ref_arrays = build_reference_arrays(name_to_info)
+    ref_tokens = build_reference_tokens(args.day0_bed, name_to_info)
+    print(f"  (ID, ITS) reference tokens for {len(ref_tokens)} ends")
+    telo_info = load_telo_probe(args.telo_tsv, args.probe_tsv)
+    if telo_info is not None:
+        print(f'  Telomere/probe info loaded for {len(telo_info)} reads')
 
     # Load supplementary alignment info from step 10
     supp_info = {}
@@ -1268,16 +1987,37 @@ def main():
                 'spacer_second_best_identity': 0.0,
                 'spacer_confidence': 0.95,
                 'spacer_recombination': 'no_change',
+                'spacer_plurality_source': args.chr_end,
                 'spacer_quick_check_skipped': True,
             }
         else:
-            spacer_result = analyze_chunks(read_id, spacer_hits.get(read_id, []), args.chr_end, 'spacer')
-            spacer_result['spacer_quick_check_skipped'] = False
+            spacer_result = None   # filled below once the spacer interval is known
         x_result = x_results_by_read.get(read_id) or _empty_x_result(args.chr_end)
-        y_result = analyze_y_primes(read_id, y_prime_hits.get(read_id, []), telo_side, ref_y_primes, name_to_info)
+        y_result = analyze_y_primes(read_id, y_prime_hits.get(read_id, []), telo_side, ref_y_primes, name_to_info,
+                                    ref_arrays, args.chr_end, ref_tokens)
 
+        # Spacer chunk walk. The "spacer" library is made of 50 kb subtelomere
+        # sections that also contain Y' sequence, and the read was chunked end
+        # to end, so in legacy mode chunks from the Y' array were BLASTed as if
+        # they were spacer and produced spurious "spacer switches" to the
+        # tandem-array ends (chr12R, chr4R, chr14L). v2 restricts the walk to
+        # the read's spacer interval (anchor -> x element / Y' start).
+        if spacer_result is None:
+            hits_for_walk = spacer_hits.get(read_id, [])
+            if ATTRIBUTION_MODE == 'v2':
+                _a = anchor_info.get(read_id, {})
+                _s, _e = spacer_interval(telo_side, len(read_seqs[read_id]),
+                                         _a.get('anchor_start', -1), _a.get('anchor_end', -1),
+                                         x_result.get('x_element_start', -1), x_result.get('x_element_end', -1),
+                                         y_result.get('y_prime_start', -1), y_result.get('y_prime_end', -1))
+                hits_for_walk = chunks_in_interval(hits_for_walk, _s, _e)
+            spacer_result = analyze_chunks(read_id, hits_for_walk, args.chr_end, 'spacer')
+            spacer_result['spacer_quick_check_skipped'] = False
+
+        ti = (telo_info or {}).get(read_id) if telo_info is not None else None
         reconciliation = reconcile_features(
-            spacer_result, x_result, y_result, supp_info.get(read_id, []), args.chr_end)
+            spacer_result, x_result, y_result, supp_info.get(read_id, []), args.chr_end, ti)
+        extra_qc = reconciliation.pop('qc_flags_extra', '')
 
         # Anchor position from anchor BLAST
         read_len = len(read_seqs[read_id])
@@ -1290,12 +2030,7 @@ def main():
         x_end = x_result.get('x_element_end', -1)
         yp_start = y_result.get('y_prime_start', -1)
         yp_end = y_result.get('y_prime_end', -1)
-        if telo_side == 'end':
-            sp_start = anchor_end if anchor_end >= 0 else 0
-            sp_end = x_start if x_start >= 0 else (yp_start if yp_start >= 0 else read_len)
-        else:
-            sp_start = x_end if x_end >= 0 else (yp_end if yp_end >= 0 else 0)
-            sp_end = anchor_start if anchor_start >= 0 else read_len
+        sp_start, sp_end = spacer_interval(telo_side, read_len, anchor_start, anchor_end, x_start, x_end, yp_start, yp_end)
         spacer_result['spacer_start'] = sp_start
         spacer_result['spacer_end'] = sp_end
         spacer_result['spacer_size'] = max(0, sp_end - sp_start)
@@ -1312,7 +2047,8 @@ def main():
         row.update(x_result)
         row.update(y_result)
         row.update(reconciliation)
-        row['qc_flags'] = ''
+        row.update(c8_columns(read_id, telo_info, telo_side, read_len, y_result))
+        row['qc_flags'] = extra_qc
         rows.append(row)
 
     # Write output
