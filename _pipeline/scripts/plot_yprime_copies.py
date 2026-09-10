@@ -93,13 +93,13 @@ for f in sorted(glob.glob(f"{feat_dir}/{base}_chr*_features.tsv")):
             ax.barh(y, TW, left=x, height=0.62, color=TELO_COLOR, edgecolor="none")
             ax.text(x+TW/2, y+0.36, f"{tail:,}", ha="center", va="bottom", fontsize=5.5, color="#555555"); x+=TW
             ncop=len(r["copies"]); ids=[c[0] for c in r["copies"]]
-            ax.text(x+0.15, y+0.14, f"{ncop}× ({rle_str(ids)})", va="center", fontsize=6)
+            ax.text(x+0.15, y+0.16, f"{ncop}× ({rle_str(ids)})", va="center", fontsize=6.5, fontweight="bold")
             if r["path"]:
                 path=r["path"] if len(r["path"])<=150 else r["path"][:147]+"..."
-                ax.text(x+0.15, y-0.2, f"gained from: {path}", va="center", fontsize=5.2, color="#333333")
+                ax.text(x+0.15, y-0.2, f"gained from: {path}", va="center", fontsize=6.5, fontweight="bold", color="#222222")
             yt.append(y); ytl.append(f'{r["ce"]} {r["rid"][-8:]} [{r["status"][:8]}]')
         ax.set_yticks(yt); ax.set_yticklabels(ytl, fontsize=6)
-        ax.set_ylim(-0.7, n-0.3); ax.set_xlim(-0.2, maxx+9.5); ax.set_xticks([])
+        ax.set_ylim(-0.7, n-0.3); ax.set_xlim(-0.2, maxx+12); ax.set_xticks([])
         for sp in ("top","right","bottom"): ax.spines[sp].set_visible(False)
         ax.set_xlabel("schematic (not to scale): anchor → Y' copies (numbers above gaps = ITS length in bp; first number = bp from anchor to first copy; last = bp to read end) → telomere side")
         ax.set_title(f"{base}: {end} — {n} read(s); each Y' copy = one box (by identity); yellow gap = ITS with its measured length\n"
