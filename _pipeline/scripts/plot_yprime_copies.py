@@ -18,6 +18,9 @@ from itertools import groupby
 
 feat_dir, base, out_dir = sys.argv[1], sys.argv[2], sys.argv[3]
 only_gain = "--only-gain" in sys.argv[4:]
+# --schematic: not to scale -- every Y' copy the same width, a fixed gap between copies with
+# the measured ITS length (bp) printed above it; anchor and telomere side as fixed blocks.
+schematic = "--schematic" in sys.argv[4:]
 keep_ids = None
 if "--reads" in sys.argv[4:]:
     keep_ids = {l.strip() for l in open(sys.argv[sys.argv.index("--reads") + 1]) if l.strip()}
@@ -66,6 +69,50 @@ for f in sorted(glob.glob(f"{feat_dir}/{base}_chr*_features.tsv")):
     if not reads: continue
     reads.sort(key=lambda r:(r["ce"], r["status"], -len(r["copies"])))
     n=len(reads); maxlen=max(r["rlen"] for r in reads)
+    if schematic:
+        BW, GAP, AW, TW, PRE = 1.0, 0.55, 0.9, 0.7, 0.8      # box, gap, anchor, telomere, anchor->first-copy widths
+        maxcop=max(len(r["copies"]) for r in reads)
+        maxx=AW+PRE+maxcop*(BW+GAP)+TW
+        fig,ax=plt.subplots(figsize=(max(9, 0.9*maxx+7), max(2.5, min(26, 0.55*n+1.5))))
+        yt=[]; ytl=[]
+        for i,r in enumerate(reads):
+            y=n-1-i; x=0.0
+            ax.barh(y, AW, left=x, height=0.62, color=ANCHOR_COLOR, edgecolor="none"); x+=AW
+            first=r["copies"][0]; pre_bp=first[1]-r["aend"] if r["aend"]>0 else first[1]
+            ax.plot([x, x+PRE], [y, y], color="#777777", lw=1.0, ls=(0,(2,2)))
+            ax.text(x+PRE/2, y+0.36, f"{pre_bp:,}", ha="center", va="bottom", fontsize=5.5, color="#555555"); x+=PRE
+            for j,(idn,a,b) in enumerate(r["copies"]):
+                ax.barh(y, BW, left=x, height=0.62, color=id_color(idn), edgecolor="black", linewidth=0.5)
+                ax.text(x+BW/2, y, idn, ha="center", va="center", fontsize=6, color="white", fontweight="bold"); x+=BW
+                if j < len(r["copies"])-1:
+                    its=r["copies"][j+1][1]-b
+                    ax.barh(y, GAP, left=x, height=0.62, color=ITS_COLOR, edgecolor="none")
+                    ax.text(x+GAP/2, y+0.36, str(its), ha="center", va="bottom", fontsize=6, color="#333333"); x+=GAP
+            tail=r["rlen"]-r["copies"][-1][2]
+            ax.plot([x, x+0.25], [y, y], color="#777777", lw=1.0, ls=(0,(2,2))); x+=0.25
+            ax.barh(y, TW, left=x, height=0.62, color=TELO_COLOR, edgecolor="none")
+            ax.text(x+TW/2, y+0.36, f"{tail:,}", ha="center", va="bottom", fontsize=5.5, color="#555555"); x+=TW
+            ncop=len(r["copies"]); ids=[c[0] for c in r["copies"]]
+            ax.text(x+0.15, y+0.14, f"{ncop}× ({rle_str(ids)})", va="center", fontsize=6)
+            if r["path"]:
+                path=r["path"] if len(r["path"])<=150 else r["path"][:147]+"..."
+                ax.text(x+0.15, y-0.2, f"gained from: {path}", va="center", fontsize=5.2, color="#333333")
+            yt.append(y); ytl.append(f'{r["ce"]} {r["rid"][-8:]} [{r["status"][:8]}]')
+        ax.set_yticks(yt); ax.set_yticklabels(ytl, fontsize=6)
+        ax.set_ylim(-0.7, n-0.3); ax.set_xlim(-0.2, maxx+9.5); ax.set_xticks([])
+        for sp in ("top","right","bottom"): ax.spines[sp].set_visible(False)
+        ax.set_xlabel("schematic (not to scale): anchor → Y' copies (numbers above gaps = ITS length in bp; first number = bp from anchor to first copy; last = bp to read end) → telomere side")
+        ax.set_title(f"{base}: {end} — {n} read(s); each Y' copy = one box (by identity); yellow gap = ITS with its measured length\n"
+                     f"right label: copy count (composition) and the inferred origin path: donor[copies]:ids(circ x repeats support) > next donor")
+        handles=[mpatches.Patch(color=ANCHOR_COLOR,label="anchor"), mpatches.Patch(color=ITS_COLOR,label="ITS (inter-Y' spacer)"),
+                 mpatches.Patch(color=TELO_COLOR,label="telomere side")]
+        handles+=[mpatches.Patch(color=id_color(i),label=i) for i in sorted(_idc)]
+        ax.legend(handles=handles, fontsize=7, loc="lower right", frameon=False)
+        fig.tight_layout()
+        op=f"{out_dir}/{base}_{end}_ycopies_schematic.png"
+        fig.savefig(op, dpi=130, bbox_inches="tight"); plt.close(fig)
+        print(f"  {end}: {n} reads -> {os.path.basename(op)}")
+        continue
     fig,ax=plt.subplots(figsize=(13, max(2.5, min(20, 0.32*n+1.5))))
     yt=[]; ytl=[]
     for i,r in enumerate(reads):
