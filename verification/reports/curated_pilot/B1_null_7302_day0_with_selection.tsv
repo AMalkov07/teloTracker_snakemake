@@ -1,0 +1,33 @@
+chr_end	n_reads	n_recomb	pct_recomb	n_recomb_nonloss	pct_recomb_nonloss	n_loss	pct_loss	n_loss_confirmed_end	n_gain	n_first_change	n_yp_recomb	n_spacer_switch	n_x_switch	n_ambiguous	n_armless_source	nonloss_sources	verdict
+chr1L	428	1	0.2	1	0.2	0	0.0	0	1	0	0	0	1	0	0	chr14R:1	PASS
+chr1R	213	4	1.9	4	1.9	0	0.0	0	3	0	0	0	1	0	0	chr14R:3,chr1L:1	FAIL
+chr2L	424	2	0.5	1	0.2	1	0.2	0	0	1	0	0	0	2	0	ambiguous:1	PASS
+chr2R	507	3	0.6	3	0.6	0	0.0	0	2	0	0	0	1	0	1	chr13L:1,chr7:1,chr10R:1	PASS
+chr3L	627	0	0.0	0	0.0	0	0.0	0	0	0	0	0	0	0	0		PASS
+chr3R	628	3	0.5	3	0.5	0	0.0	0	3	0	0	0	1	0	0	chr12R:1,chr6L:1,chr8L:1	PASS
+chr4L	273	3	1.1	3	1.1	0	0.0	0	2	0	0	0	3	0	0	chr10L:2,chr10R:1	FAIL
+chr4R	113	14	12.4	1	0.9	13	11.5	11	1	0	0	0	0	13	0	chr4R:1	PASS
+chr5L	609	0	0.0	0	0.0	0	0.0	0	0	0	0	0	0	0	0		PASS
+chr5R	582	6	1.0	5	0.9	1	0.2	0	1	2	0	0	2	3	0	ambiguous:2,chr3L:2,chr14L:1	PASS
+chr6L	595	27	4.5	14	2.4	13	2.2	9	7	7	0	0	1	13	1	chr14L:10,chr4R:1,chr12R:1,chr14:1	FAIL
+chr6R	817	2	0.2	2	0.2	0	0.0	0	2	0	0	0	1	0	0	chr4R:1,chr14R:1	PASS
+chr7L	557	0	0.0	0	0.0	0	0.0	0	0	0	0	0	0	0	0		PASS
+chr7R	418	2	0.5	2	0.5	0	0.0	0	2	0	0	0	0	0	0	chr12R:1,chr13L:1	PASS
+chr8L	600	3	0.5	3	0.5	0	0.0	0	2	0	0	1	0	0	0	chr14L:1,chr4R:1,chr9R:1	PASS
+chr8R	228	2	0.9	1	0.4	1	0.4	0	0	1	0	0	0	1	0	chr2L:1	PASS
+chr9L	371	0	0.0	0	0.0	0	0.0	0	0	0	0	0	0	0	0		PASS
+chr9R	639	2	0.3	2	0.3	0	0.0	0	2	0	0	0	0	0	0	chr6L:2	PASS
+chr10L	359	0	0.0	0	0.0	0	0.0	0	0	0	0	0	0	0	0		PASS
+chr10R	395	5	1.3	5	1.3	0	0.0	0	1	0	0	0	4	0	0	chr4L:4,chr14L:1	FAIL
+chr11L	436	0	0.0	0	0.0	0	0.0	0	0	0	0	0	0	0	0		PASS
+chr11R	519	7	1.3	7	1.3	0	0.0	0	2	0	0	2	5	0	1	chr3L:3,chr14L:1,chr8:1,chr1L:1	FAIL
+chr12L	513	6	1.2	5	1.0	1	0.2	1	0	1	0	4	1	0	0	chr2L:3,chr14L:1,chr9L:1	PASS
+chr12R	123	9	7.3	1	0.8	8	6.5	8	1	0	0	0	0	8	0	chr12R:1	PASS
+chr13L	292	15	5.1	3	1.0	12	4.1	7	2	0	1	0	0	12	0	chr13L:3	FAIL
+chr13R	432	11	2.5	11	2.5	0	0.0	0	10	0	0	1	3	3	0	chr13L:3,ambiguous:3,chr2L:2,chr16L:1	FAIL
+chr14L	133	14	10.5	1	0.8	13	9.8	13	1	0	0	0	0	13	0	chr14L:1	PASS
+chr14R	536	3	0.6	2	0.4	1	0.2	1	0	2	0	0	0	1	0	chr14L:2	PASS
+chr15L	533	0	0.0	0	0.0	0	0.0	0	0	0	0	0	0	0	0		PASS
+chr15R	363	56	15.4	56	15.4	0	0.0	0	3	53	0	0	0	0	0	chr14L:53,chr15R:2,chr13L:1	FAIL
+chr16L	349	1	0.3	1	0.3	0	0.0	0	1	0	0	0	0	0	0	chr14L:1	PASS
+chr16R	590	0	0.0	0	0.0	0	0.0	0	0	0	0	0	0	0	0		PASS

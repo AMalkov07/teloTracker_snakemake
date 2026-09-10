@@ -1,0 +1,4 @@
+sample	chr_end	n_reads	n_expected_source	pct_expected_source	mean_confidence_expected	pct_complex	sources	verdict
+7172_day4_with_selection	chr11L	301	292	97.0	0.922	6.0	chr11R:292,chr10L:1,chr14R:1,chr2L:1,chr13R:1	PASS
+7172_day6_with_selection	chr11L	133	121	91.0	0.895	22.6	chr11R:121,chr14R:3,chr10L:3,chr4L:2,chr12R:1	PASS
+7172_day9_with_selection	chr11L	105	96	91.4	0.802	42.9	chr11R:96,chr12R:4,chr4R:2,chr10L:1,chr14R:1	PASS

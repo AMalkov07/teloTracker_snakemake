@@ -153,17 +153,28 @@ No existing column was renamed or removed.
 
 ## Effect on results
 
-| check | legacy | v2 (pipeline library) |
-|---|---|---|
-| 7302 chr13L alternating-array truth set, strict (window ≥ 4): reads → chr13L | 1/39 | 36/39 (92 %) |
-| same, all windows ≥ 3 (68 reads) | 1.4 % | 85–89 % |
-| 7172 chr11L → chr11R positive control (day 4 / 6 / 9) | 97 / 91 / 91 % | 97 / 93 / 96 % |
-| day-0 self-run, reads called recombinant (non-Loss) | 0.57 % (7302), 0.69 % (7172) | unchanged apart from removed spurious spacer switches |
-| arm-less `most_common_source` values (`chr13`, `chr14`, ...) | common | none |
+| check | legacy (v1) | v2c, pipeline library | v2 + curated 7302 library (pilot) |
+|---|---|---|---|
+| 7302 chr13L alternating-array truth set, strict (a full period): reads → chr13L | 1/39 (2.6 %) | 36/39 (92.3 %) | 31/32 (96.9 %) |
+| same, all windows ≥ 3 | 1.5 % (68 reads) | 85.3 % (68 reads) | 95.9 % (49 reads) |
+| 7172 chr11L → chr11R positive control (day 4 / 6 / 9) | 97 / 91 / 91 % | 97 / 92.5 / 96.2 % | — |
+| 7302 day-0 self-run, reads called recombinant with a non-Loss Y' status | 0.57 % | 0.61 % (86 / 14202) | 0.96 % (137 / 14202; 53 of the extra are chr15R reads whose `ID2_Red-Dark` copy RepeatMasker labels `ID5_Blue`, 99.2 % identical) |
+| 7172 day-0 spacer switches | 16 | 38 (v2b with the 50-kb library: 83, of which 51 chr12R→chr3R) | — |
+| arm-less `most_common_source` values (`chr13`, `chr14`, ...) | common | none | none |
+| 7302 day-5 multi-Y' gains with a unique donor (IDs / IDs+ITS / unresolved / self) | — | 100 / 40 / 39 / 23 of 202 | 117 / 26 / 37 / 23 of 203 |
+
+The curated library resolves more donors (chr13L's short copy is its own variant, `ID7`) but
+costs per-read noise where curated variants are nearly identical: on single ONT reads
+RepeatMasker sometimes prefers a sister variant of another family, which the array
+comparison then reports as a "1st Y' Change" (chr15R above). A library clustered at a high
+identity threshold (~99.5 %, keeping `ID7`-like distinct variants but merging 99.9 %-identical
+sisters) is the likely sweet spot; not done yet.
 
 Detection (`recombination_detected`, `y_prime_recombination_status`) is identical between
-legacy and v2 for every read except reads whose only "evidence" was a spacer switch called
-from Y' chunks; only the *source*, its confidence, and the new columns change otherwise.
+legacy and v2 for every read except reads whose only "evidence" was a spacer switch (called
+from Y' chunks in v1, or from a spacer chunk in v2c); only the *source*, its confidence, and
+the new columns change otherwise. All numbers above are from the Argon runs, reproduced
+locally by `--reprocess-tsv` (Part B reports in `verification/reports/`).
 
 Things to state when reporting results produced with v2:
 

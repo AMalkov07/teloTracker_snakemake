@@ -1,0 +1,11 @@
+check	value	ok
+run_config	verification/snapshot/7302_day0_with_selection/run_config.yaml	True
+config_strain	7302_day0_with_selection	True
+y_prime_lib_override_present	False	True
+y_prime_lib_resolved	results/7302_day0_with_selection/_pipeline/pretelomeric_labels/extracted_yprimes_7302_day0_with_selection.fasta	True
+ours_lib_md5	1814ac330402a2f0c37409b9048b89cb	True
+bed_yprimes_not_in_lib	-	True
+lib_yprimes_not_in_bed	-	True
+n_bed_yprimes	36	True
+n_lib_yprime_locations	36	True
+n_lib_unique_variants	23	True

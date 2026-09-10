@@ -1,0 +1,11 @@
+check	value	ok
+run_config	verification/snapshot/6991_day0_reference/run_config.yaml	True
+config_strain	6991_day0_reference	True
+y_prime_lib_override_present	False	True
+y_prime_lib_resolved	results/6991_day0_reference/_pipeline/pretelomeric_labels/extracted_yprimes_6991_day0_reference.fasta	True
+ours_lib_md5	5c5412b5785e086661719b3e1279fb37	True
+bed_yprimes_not_in_lib	-	True
+lib_yprimes_not_in_bed	-	True
+n_bed_yprimes	33	True
+n_lib_yprime_locations	33	True
+n_lib_unique_variants	22	True

@@ -1,0 +1,11 @@
+check	value	ok
+run_config	verification/snapshot/6991_day0_TeloTag_with_selection/run_config.yaml	True
+config_strain	6991_day0_TeloTag_with_selection	True
+y_prime_lib_override_present	False	True
+y_prime_lib_resolved	results/6991_day0_TeloTag_with_selection/_pipeline/pretelomeric_labels/extracted_yprimes_6991_day0_TeloTag_with_selection.fasta	True
+ours_lib_md5	f5cce9552c77c9672cf39b25bc61d83b	True
+bed_yprimes_not_in_lib	-	True
+lib_yprimes_not_in_bed	-	True
+n_bed_yprimes	34	True
+n_lib_yprime_locations	34	True
+n_lib_unique_variants	22	True

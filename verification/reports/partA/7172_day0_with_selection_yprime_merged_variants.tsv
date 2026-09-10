@@ -1,0 +1,5 @@
+our_id	curated_variant_a	curated_variant_b	pident	coverage_pct	size_a	size_b
+ID1	ID2_Red	ID5_Blue-Dark	99.234	100.1	Long	Long
+ID1	ID2_Red	ID5_Blue-Light	99.264	100.1	Long	Long
+ID1	ID5_Blue-Dark	ID5_Blue-Light	99.97	100.0	Long	Long
+ID2	ID1_Gray	ID3_Orange	99.599	99.9	Short	Short

@@ -1,0 +1,78 @@
+read_id	chr_end	y_prime_recombination_status_a	recombination_source_a	recombination_detected_a	overall_confidence_a	is_complex_event_a	recombination_mechanism_a	y_prime_recombination_status_b	recombination_source_b	recombination_detected_b	overall_confidence_b	is_complex_event_b	recombination_mechanism_b	status_changed	source_changed	detected_changed	dconf
+SRR33298452.573441	chr10L	1st Y' Change	chr14R	True	0.33	False	donor_transfer	No Change		False	0.95	False		True	True	True	0.62
+SRR33298452.41111	chr11R	Y' Gain	chr4R	True	0.33	False	donor_transfer_candidates:8	Y' Gain	chr14L	True	0.33	False	donor_transfer_candidates:3	False	True	False	0.0
+SRR33298452.199787	chr12L	Y' Gain	chr12R	True	0.33	False	donor_transfer	1st Y' Change	chr14L	True	0.44	False	donor_transfer	True	True	False	0.11
+SRR33298452.632669	chr13R	Y' Gain	ambiguous	True	0.3	False	donor_transfer_candidates:5	Y' Gain	chr13L	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298452.520829	chr13R	Y' Gain	ambiguous	True	0.3	False	donor_transfer_candidates:5	Y' Gain	chr13L	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298452.246202	chr14R	1st Y' Change	ambiguous	True	0.3	False	donor_transfer_candidates:8	1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	False	True	False	0.03
+SRR33298452.217955	chr14R	1st Y' Change	ambiguous	True	0.3	False	donor_transfer_candidates:8	1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	False	True	False	0.03
+SRR33298452.159905	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.492027	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.267479	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.347847	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.231456	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.460094	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.400115	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.199294	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.399999	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.524751	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.371839	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.403937	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.557647	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.381906	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.510932	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.517230	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.479429	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.143183	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.368645	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.53481	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.429422	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.144636	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.389365	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.293807	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.390671	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.447499	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.236062	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.275430	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.493597	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.640481	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.230254	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.607803	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.314410	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.303198	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.161131	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.348708	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.369216	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.131520	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.238361	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.274272	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.637550	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.585596	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.546544	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.584408	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.469391	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.556750	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.593421	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.246042	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.201656	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.263022	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.95186	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.523206	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.571494	chr15R	No Change		False	0.95	False		1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	True	True	True	-0.62
+SRR33298452.426382	chr16L	Y' Gain	chr16L	True	0.33	False	tandem_amplification_same_end	Y' Gain	chr14L	True	0.33	False	donor_transfer_candidates:5	False	True	False	0.0
+SRR33298452.396812	chr16R	Y' Gain	chr16R	True	0.33	False	tandem_amplification_same_end	No Change		False	0.95	False		True	True	True	0.62
+SRR33298452.294105	chr2R	Y' Gain	chr14R	True	0.33	False	donor_transfer	Y' Gain	chr7	True	0.3	False	donor_transfer_candidates:4	False	True	False	-0.03
+SRR33298452.314713	chr4R	No Change		False	0.95	False		Y' Loss	ambiguous	True	0.3	False	array_contraction	True	True	True	-0.65
+SRR33298452.485827	chr5R	1st Y' Change	chr10L	True	0.33	False	donor_transfer_candidates:2	1st Y' Change	ambiguous	True	0.3	False	donor_transfer_candidates:4	False	True	False	-0.03
+SRR33298452.241882	chr5R	1st Y' Change	chr14R	True	0.33	False	donor_transfer	1st Y' Change	ambiguous	True	0.3	False	donor_transfer_candidates:4	False	True	False	-0.03
+SRR33298452.622861	chr6L	Y' Gain	chr5L	True	0.33	False	donor_transfer	Y' Gain	chr14	True	0.33	False	donor_transfer_candidates:4	False	True	False	0.0
+SRR33298452.207964	chr6L	Y' Gain	chr13	True	0.33	False	donor_transfer_candidates:5	Y' Gain	chr14L	True	0.33	False	donor_transfer	False	True	False	0.0
+SRR33298452.592850	chr6L	Y' Gain	chr13	True	0.33	False	donor_transfer_candidates:5	Y' Gain	chr14L	True	0.33	False	donor_transfer	False	True	False	0.0
+SRR33298452.628067	chr6L	Y' Gain	chr13	True	0.33	False	donor_transfer_candidates:5	Y' Gain	chr14L	True	0.33	False	donor_transfer	False	True	False	0.0
+SRR33298452.485661	chr6L	1st Y' Change	ambiguous	True	0.3	False	donor_transfer_candidates:8	1st Y' Change	chr14L	True	0.33	False	donor_transfer_candidates:3	False	True	False	0.03
+SRR33298452.419935	chr6L	1st Y' Change	chr14R	True	0.33	False	donor_transfer	1st Y' Change	ambiguous	True	0.3	False	donor_transfer_candidates:4	False	True	False	-0.03
+SRR33298452.427945	chr6L	1st Y' Change	ambiguous	True	0.3	False	donor_transfer_candidates:5	1st Y' Change	chr14L	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298452.400002	chr6L	1st Y' Change	ambiguous	True	0.3	False	donor_transfer_candidates:5	1st Y' Change	chr14L	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298452.272227	chr6L	1st Y' Change	ambiguous	True	0.3	False	donor_transfer_candidates:5	1st Y' Change	chr14L	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298452.220014	chr6L	1st Y' Change	ambiguous	True	0.3	False	donor_transfer_candidates:5	1st Y' Change	chr14L	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298452.400093	chr6L	1st Y' Change	ambiguous	True	0.3	False	donor_transfer_candidates:5	1st Y' Change	chr14L	True	0.33	False	donor_transfer	False	True	False	0.03

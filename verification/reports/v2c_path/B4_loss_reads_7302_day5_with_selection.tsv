@@ -1,0 +1,84 @@
+read_id	chr_end	read_length	telo_side	y_prime_count_on_read	ref_count	y_prime_probe_count	y_prime_observed_array	end_confirmed	repeat_length	tail_bp	recombination_source	overall_confidence	loss_class
+SRR33298447.277827	chr12R	45571	end	5	6	5.0	ID5,ID1,ID1,ID1,ID1	True	132.0	143	ambiguous	0.3	real_contraction
+SRR33298447.319502	chr12R	44965	beginning	5	6	5.0	ID5,ID1,ID1,ID1,ID1	True	182.0	226	ambiguous	0.3	real_contraction
+SRR33298447.151232	chr12R	44924	beginning	5	6	5.0	ID5,ID1,ID1,ID1,ID1	True	122.0	152	ambiguous	0.3	real_contraction
+SRR33298447.175596	chr12R	44682	beginning	5	6	5.0	ID5,ID1,ID1,ID1,ID1	True	109.0	153	ambiguous	0.3	real_contraction
+SRR33298447.207020	chr12R	44887	beginning	5	6	5.0	ID5,ID1,ID1,ID1,ID1	True	102.0	139	ambiguous	0.3	real_contraction
+SRR33298447.130492	chr12R	44894	beginning	5	6	5.0	ID5,ID1,ID1,ID1,ID1	True	126.0	159	ambiguous	0.3	real_contraction
+SRR33298447.163514	chr12R	44870	beginning	5	6	5.0	ID5,ID1,ID1,ID1,ID1	True	76.0	118	ambiguous	0.3	real_contraction
+SRR33298447.490811	chr12R	44865	end	5	6	5.0	ID5,ID1,ID1,ID1,ID1	False	88.0	89	ambiguous	0.15	unconfirmed_end
+SRR33298447.279509	chr12R	44767	beginning	5	6	5.0	ID5,ID1,ID1,ID1,ID1	True	132.0	168	ambiguous	0.3	real_contraction
+SRR33298447.149204	chr12R	44668	beginning	4	6	5.0	ID5,ID1,ID1,ID1	True	88.0	127	ambiguous	0.3	rm_miss
+SRR33298447.378206	chr12R	36559	end	4	6	4.0	ID5,ID1,ID1,ID1	True	142.0	150	ambiguous	0.3	real_contraction
+SRR33298447.288232	chr12R	38162	beginning	4	6	4.0	ID5,ID1,ID1,ID1	True	143.0	178	ambiguous	0.3	real_contraction
+SRR33298447.457430	chr12R	37993	beginning	4	6	3.0	ID5,ID1,ID1,ID1	False	124.0	156	ambiguous	0.15	unconfirmed_end
+SRR33298447.347913	chr12R	37681	beginning	4	6	4.0	ID5,ID5,ID5,ID5	True	92.0	126	ambiguous	0.3	real_contraction
+SRR33298447.160289	chr12R	31337	beginning	3	6	3.0	ID5,ID1,ID1	True	161.0	218	ambiguous	0.3	real_contraction
+SRR33298447.90454	chr12R	31254	beginning	3	6	3.0	ID5,ID1,ID1	True	110.0	141	ambiguous	0.3	real_contraction
+SRR33298447.90489	chr12R	30330	beginning	3	6	3.0	ID5,ID1,ID1	True	96.0	134	ambiguous	0.3	real_contraction
+SRR33298447.285433	chr12R	24509	beginning	2	6	2.0	ID5,ID1	True	142.0	173	ambiguous	0.3	real_contraction
+SRR33298447.184933	chr12R	24392	beginning	2	6	2.0	ID5,ID1	True	79.0	113	ambiguous	0.3	real_contraction
+SRR33298447.67319	chr12R	24403	beginning	2	6	2.0	ID5,ID1	True	58.0	96	ambiguous	0.3	real_contraction
+SRR33298447.371359	chr12R	23268	end	2	6	2.0	ID5,ID1	True	114.0	124	ambiguous	0.3	real_contraction
+SRR33298447.327680	chr12R	17677	beginning	1	6	1.0	ID5	True	149.0	190	ambiguous	0.3	real_contraction
+SRR33298447.87158	chr12R	17015	beginning	2	6	1.0	ID2,ID1	True	82.0	124	ambiguous	0.3	real_contraction
+SRR33298447.182319	chr12R	9510	end	0	6	0.0		False	97.0	-1	ambiguous	0.15	unconfirmed_end
+SRR33298447.136027	chr13L	30803	end	3	4	3.0	ID2,ID1,ID2	False	2559.0	2560	ambiguous	0.15	unconfirmed_end
+SRR33298447.83739	chr13L	28640	beginning	3	4	3.0	ID2,ID1,ID2	True	113.0	153	ambiguous	0.3	real_contraction
+SRR33298447.187167	chr13L	28436	beginning	3	4	3.0	ID2,ID1,ID2	True	160.0	204	ambiguous	0.3	real_contraction
+SRR33298447.119881	chr13L	27909	end	3	4	3.0	ID2,ID1,ID2	False	162.0	164	ambiguous	0.15	unconfirmed_end
+SRR33298447.336353	chr13L	28379	beginning	3	4	3.0	ID2,ID1,ID2	False	139.0	164	ambiguous	0.15	unconfirmed_end
+SRR33298447.97614	chr13L	28343	beginning	3	4	3.0	ID2,ID1,ID2	True	91.0	130	ambiguous	0.3	real_contraction
+SRR33298447.346639	chr13L	28331	end	3	4	3.0	ID2,ID1,ID2	True	46.0	56	ambiguous	0.3	real_contraction
+SRR33298447.335218	chr13L	28322	beginning	3	4	3.0	ID2,ID1,ID2	True	88.0	123	ambiguous	0.3	real_contraction
+SRR33298447.6810	chr13L	28306	end	3	4	3.0	ID2,ID1,ID2	True	70.0	78	ambiguous	0.3	real_contraction
+SRR33298447.164319	chr13L	28297	end	3	4	3.0	ID2,ID1,ID2	False	96.0	99	ambiguous	0.15	unconfirmed_end
+SRR33298447.10849	chr13L	28258	end	3	4	3.0	ID2,ID1,ID2	False	72.0	75	ambiguous	0.15	unconfirmed_end
+SRR33298447.397886	chr13L	22802	beginning	2	4	2.0	ID2,ID1	True	150.0	225	ambiguous	0.3	real_contraction
+SRR33298447.452618	chr13L	22778	beginning	2	4	2.0	ID2,ID1	True	159.0	199	ambiguous	0.3	real_contraction
+SRR33298447.14632	chr13L	22776	beginning	2	4	2.0	ID2,ID1	True	130.0	167	ambiguous	0.3	real_contraction
+SRR33298447.13769	chr13L	20368	end	2	4	2.0	ID2,ID1	False	143.0	157	ambiguous	0.15	unconfirmed_end
+SRR33298447.448132	chr13L	22707	beginning	2	4	2.0	ID2,ID1	True	85.0	129	ambiguous	0.3	real_contraction
+SRR33298447.17518	chr13L	22707	beginning	2	4	2.0	ID2,ID1	True	85.0	122	ambiguous	0.3	real_contraction
+SRR33298447.440599	chr13L	22656	end	2	4	2.0	ID2,ID1	False	81.0	81	ambiguous	0.15	unconfirmed_end
+SRR33298447.380293	chr13L	22627	beginning	2	4	2.0	ID2,ID1	False	25.0	66	ambiguous	0.15	unconfirmed_end
+SRR33298447.165110	chr13L	15974	beginning	1	4	1.0	ID2	True	139.0	187	ambiguous	0.3	real_contraction
+SRR33298447.124146	chr13L	15920	beginning	1	4	1.0	ID2	True	121.0	163	ambiguous	0.3	real_contraction
+SRR33298447.412639	chr13L	15886	end	1	4	1.0	ID2	False	135.0	149	ambiguous	0.15	unconfirmed_end
+SRR33298447.26849	chr14L	40284	beginning	4	5	4.0	ID1,ID1,ID2,ID2	True	143.0	181	ambiguous	0.3	real_contraction
+SRR33298447.6346	chr14L	40263	beginning	4	5	4.0	ID1,ID1,ID2,ID2	True	123.0	156	ambiguous	0.3	real_contraction
+SRR33298447.271080	chr14L	40216	beginning	4	5	3.0	ID1,ID1,ID2,ID2	False	108.0	148	ambiguous	0.15	unconfirmed_end
+SRR33298447.108352	chr14L	40196	end	4	5	4.0	ID1,ID1,ID2,ID2	False	83.0	88	ambiguous	0.15	unconfirmed_end
+SRR33298447.515578	chr14L	40104	beginning	4	5	4.0	ID1,ID1,ID2,ID2	True	83.0	128	ambiguous	0.3	real_contraction
+SRR33298447.299713	chr14L	34631	beginning	3	5	3.0	ID1,ID1,ID2	True	143.0	183	ambiguous	0.3	real_contraction
+SRR33298447.262727	chr14L	26579	beginning	2	5	2.0	ID2,ID2	True	82.0	127	ambiguous	0.3	real_contraction
+SRR33298447.165261	chr14L	15382	beginning	0	5	0.0		True	268.0	-1	ambiguous	0.3	real_contraction
+SRR33298447.258248	chr14L	15341	beginning	0	5	0.0		False	250.0	-1	ambiguous	0.15	unconfirmed_end
+SRR33298447.265598	chr14L	15263	beginning	0	5	0.0		True	204.0	-1	ambiguous	0.3	real_contraction
+SRR33298447.149828	chr14L	15279	beginning	0	5	0.0		True	184.0	-1	ambiguous	0.3	real_contraction
+SRR33298447.434301	chr14R	9165	beginning	0	1	0.0		True	89.0	-1	ambiguous	0.3	real_contraction
+SRR33298447.440410	chr14R	9144	beginning	0	1	0.0		True	64.0	-1	ambiguous	0.3	real_contraction
+SRR33298447.258874	chr4R	40244	end	5	7	5.0	ID1,ID1,ID1,ID1,ID1	False	145.0	146	ambiguous	0.15	unconfirmed_end
+SRR33298447.335222	chr4R	41651	beginning	5	7	5.0	ID1,ID1,ID1,ID1,ID1	True	108.0	142	ambiguous	0.3	real_contraction
+SRR33298447.171384	chr4R	41640	beginning	5	7	5.0	ID1,ID1,ID1,ID1,ID1	True	103.0	140	ambiguous	0.3	real_contraction
+SRR33298447.435761	chr4R	34836	beginning	4	7	4.0	ID1,ID1,ID1,ID1	True	96.0	134	ambiguous	0.3	real_contraction
+SRR33298447.16624	chr4R	34761	beginning	4	7	4.0	ID1,ID1,ID1,ID1	True	77.0	112	ambiguous	0.3	real_contraction
+SRR33298447.231635	chr4R	28458	beginning	3	7	3.0	ID1,ID1,ID1	True	104.0	142	ambiguous	0.3	real_contraction
+SRR33298447.299600	chr4R	28265	beginning	3	7	3.0	ID1,ID1,ID1	False	94.0	126	ambiguous	0.15	unconfirmed_end
+SRR33298447.319792	chr4R	28132	beginning	3	7	3.0	ID1,ID1,ID1	True	63.0	107	ambiguous	0.3	real_contraction
+SRR33298447.456907	chr4R	27373	beginning	3	7	3.0	ID1,ID1,ID2	True	131.0	173	chr8	0.3	real_contraction
+SRR33298447.480089	chr4R	21573	beginning	2	7	2.0	ID1,ID1	True	167.0	209	ambiguous	0.3	real_contraction
+SRR33298447.179850	chr4R	16704	end	2	7	0.0	ID1,ID1	False	472.0	636	ambiguous	0.15	unconfirmed_end
+SRR33298447.287599	chr4R	14791	beginning	1	7	1.0	ID1	True	40.0	74	ambiguous	0.3	real_contraction
+SRR33298447.309877	chr4R	8054	beginning	0	7	0.0		True	347.0	-1	ambiguous	0.3	real_contraction
+SRR33298447.488564	chr4R	7975	beginning	0	7	0.0		True	279.0	-1	ambiguous	0.3	real_contraction
+SRR33298447.997	chr4R	7979	beginning	0	7	0.0		True	274.0	-1	ambiguous	0.3	real_contraction
+SRR33298447.186561	chr4R	7926	beginning	0	7	0.0		True	220.0	-1	ambiguous	0.3	real_contraction
+SRR33298447.378233	chr4R	7488	beginning	0	7	0.0		True	210.0	-1	ambiguous	0.3	real_contraction
+SRR33298447.308857	chr6L	18253	beginning	0	1	0.0		False	174.0	-1	chr3R	0.5	unconfirmed_end
+SRR33298447.426118	chr6L	18181	beginning	0	1	0.0		True	79.0	-1	ambiguous	0.3	real_contraction
+SRR33298447.175160	chr6L	18070	end	0	1	0.0		False	30.0	-1	ambiguous	0.15	unconfirmed_end
+SRR33298447.240936	chr8L	6092	end	0	1	0.0		False	114.0	-1	chr15L	0.3324	unconfirmed_end
+SRR33298447.64275	chr8L	4728	end	0	1	0.0		False	1142.0	-1	ambiguous	0.15	unconfirmed_end
+SRR33298447.247610	chr8R	35301	end	0	1	0.0		False	129.0	-1	ambiguous	0.15	unconfirmed_end
+SRR33298447.512986	chr8R	34180	end	0	1	0.0		False	53.0	-1	ambiguous	0.15	unconfirmed_end

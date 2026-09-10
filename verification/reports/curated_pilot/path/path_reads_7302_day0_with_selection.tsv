@@ -1,0 +1,20 @@
+read_id	chr_end	y_prime_observed_array	y_prime_gained_segment	y_prime_path	cat	recombination_source	overall_confidence
+SRR33298452.152834	chr10R	ID5,ID3,ID3,ID3,ID3,ID3	ID5,ID3,ID3,ID3,ID3,ID3	chr14L?[1]:ID5 > chr14L[3]:ID3,ID3,ID3,ID3,ID3(circ x5.0 moderate | alt chr14L[3-5] + chr14L[3-4])	unique donor by IDs	chr14L	0.66
+SRR33298452.199787	chr12L	ID3,ID2,ID2,ID2	ID3,ID2,ID2,ID2	chr14L[3]:ID3 > chr12R[2-3]:ID2,ID2,ID2(circ x1.5 moderate | alt chr12R[2-3] + chr12R[2])	unique donor by IDs	chr14L	0.44
+SRR33298452.135139	chr12R	ID1,ID2,ID2,ID2,ID2,ID2,ID2,ID2,ID2	ID2,ID2,ID2	self[2-4]:ID2,ID2,ID2	self (tandem amplification)	chr12R	0.33
+SRR33298452.58509	chr13L	ID7,ID2,ID7,ID6,ID7,ID2	ID6,ID7,ID2	chr10L|chr14R|chr5L|chr9L:ID6 > self[1-2]:ID7,ID2	self (tandem amplification)	chr13L	0.33
+SRR33298452.543719	chr13R	ID7,ID2,ID7,ID2	ID7,ID2,ID7,ID2	chr13L[1-2]:ID7,ID2,ID7,ID2(circ x2.0 moderate | alt chr13L[1-2] + chr13L[1-2])	unique donor by IDs	chr13L	0.66
+SRR33298452.662592	chr13R	ID6,ID2	ID6,ID2	chr10L|chr14R|chr5L|chr9L:ID6 > chr12R|chr13L|chr14L|chr15R|chr4R:ID2	unresolved	ambiguous	0.3
+SRR33298452.354451	chr13R	ID6,ID2	ID6,ID2	chr10L|chr14R|chr5L|chr9L:ID6 > chr12R|chr13L|chr14L|chr15R|chr4R:ID2	unresolved	ambiguous	0.3
+SRR33298452.592938	chr15R	ID2,ID7,ID2	ID7,ID2	chr13L[1-2]:ID7,ID2	unique donor by IDs	chr13L	0.44
+SRR33298452.234887	chr1L	ID6,ID2,ID7,ID2	ID6,ID2,ID7,ID2	chr10L|chr14R|chr5L|chr9L:ID6 > chr13L[2-4]:ID2,ID7,ID2	unique donor by IDs	chr14R	0.4904
+SRR33298452.183418	chr2R	ID7,ID2,ID7,ID2	ID7,ID2,ID7,ID2	chr13L[1-4]:ID7,ID2,ID7,ID2	unique donor by IDs	chr13L	0.66
+SRR33298452.416110	chr3R	ID1,ID2,ID2,ID2,ID2	ID1,ID2,ID2,ID2,ID2	chr12R[1-5]:ID1,ID2,ID2,ID2,ID2	unique donor by IDs	chr12R	0.66
+SRR33298452.153572	chr6L	ID4,ID2,ID2,ID2,ID2,ID2,ID2	ID2,ID2,ID2,ID2,ID2,ID2	chr12R[2-6]:ID2,ID2,ID2,ID2,ID2,ID2(circ x1.2 moderate | alt chr12R[2] + chr12R[2-6])	unique donor by IDs	chr4R	0.66
+SRR33298452.369003	chr6L	ID4,ID2,ID3,ID3	ID2,ID3,ID3	chr14L[2-4]:ID2,ID3,ID3	unique donor by IDs	chr14L	0.66
+SRR33298452.571112	chr6L	ID4,ID2,ID2	ID2,ID2	chr12R|chr4R:ID2,ID2	unresolved	chr12R	0.33
+SRR33298452.308487	chr6R	ID2,ID2,ID2	ID2,ID2,ID2	chr4R[5-7]:ID2,ID2,ID2	unique donor by IDs+ITS	chr4R	0.33
+SRR33298452.19676	chr7R	ID5,ID2,ID2	ID2,ID2	chr12R|chr4R:ID2,ID2	unresolved	chr12R	0.33
+SRR33298452.288464	chr7R	ID5,ID7,ID2	ID7,ID2	chr13L[1-2]:ID7,ID2	unique donor by IDs	chr13L	0.44
+SRR33298452.153408	chr8L	ID1,ID3,ID3,ID3	ID3,ID3,ID3	chr14L[3-4]:ID3,ID3,ID3(circ x1.5 moderate | alt chr14L[3] + chr14L[3-4])	unique donor by IDs	chr14L	0.66
+SRR33298452.395085	chr8L	ID1,ID2,ID2	ID2,ID2	chr4R[1-2]:ID2,ID2	unique donor by IDs+ITS	chr4R	0.33

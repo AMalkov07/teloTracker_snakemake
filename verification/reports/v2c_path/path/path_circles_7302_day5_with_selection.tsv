@@ -1,0 +1,54 @@
+chr_end	donor	unit	repeats	support	read_id	path	source
+chr11L	chr14L[2-3]	ID1,ID2	2.0	moderate	SRR33298447.149279	chr14L?[2]:ID1 > chr14L[2-3]:ID1,ID2,ID1,ID2(circ x2.0 moderate | alt chr14L[2-3] + chr14L[2-3])	chr13L
+chr11R	chr4R[3-7]	ID1,ID1,ID1,ID1,ID1	1.4	moderate	SRR33298447.334512	chr4R[3-7]:ID1,ID1,ID1,ID1,ID1,ID1,ID1(circ x1.4 moderate | alt chr4R[1-2] + chr4R[3-7])	chr4R
+chr11R	chr13L[1-3]	ID2,ID1,ID2	1.7	strong	SRR33298447.268817	chr13L[1-3]:ID2,ID1,ID2,ID2,ID1(circ x1.7 strong) > chr12R|chr13L|chr14L|chr15R|chr16L|chr4R|chr5R|chr7R:ID1	chr14L
+chr12L	chr12R|chr13L|chr14L|chr4R	ID1	9.0	na	SRR33298447.254996	chr12R|chr13L|chr14L|chr4R:ID1,ID1,ID1,ID1,ID1,ID1,ID1,ID1,ID1(circ x9.0)	chr4R
+chr12L	chr13L[2-3]	ID1,ID2	1.5	moderate	SRR33298447.28086	chr13L[2-3]:ID1,ID2,ID1(circ x1.5 moderate | alt chr13L[2-3] + chr13L[2])	chr13L
+chr12R	self[2-4]	ID1,ID1,ID1	1.3	moderate	SRR33298447.133475	chr13L?[2]:ID1 > self[2-4]:ID1,ID1,ID1,ID1(circ x1.3 moderate | alt chr12R[2] + chr12R[2-4])	chr12R
+chr12R	self[2-5]	ID1,ID1,ID1,ID1	1.2	moderate	SRR33298447.230089	self[2-5]:ID1,ID1,ID1,ID1,ID1(circ x1.2 moderate | alt chr12R[2-5] + chr12R[2])	chr12R
+chr12R	self[2-4]	ID1,ID1,ID1	1.3	moderate	SRR33298447.484056	self[2-4]:ID1,ID1,ID1,ID1(circ x1.3 moderate | alt chr12R[2] + chr12R[2-4])	chr12R
+chr13L	self[1-2]	ID1,ID2	3.5	strong	SRR33298447.234153	chr14L?[3]:ID2 > self[1-2]:ID1,ID2,ID1,ID2,ID1,ID2,ID1(circ x3.5 strong) > self[2-3]:ID1,ID2	chr13L
+chr13L	self[2-4]	ID1,ID1,ID2	1.3	moderate	SRR33298447.285573	self[1-2]:ID2,ID1 > self[2-4]:ID1,ID1,ID2,ID1(circ x1.3 moderate | alt chr13L[2] + chr13L[2-4])	chr13L
+chr13L	self[1-3]	ID2,ID2,ID1	1.3	moderate	SRR33298447.28156	self[1-3]:ID2,ID2,ID1,ID2(circ x1.3 moderate | alt chr13L[1] + chr13L[1-3])	chr14L
+chr13R	chr4R[1-5]	ID1,ID1,ID1,ID1,ID1	1.2	moderate	SRR33298447.230163	chr4R[2-5]:ID1,ID1,ID1,ID1 > chr4R[1-5]:ID1,ID1,ID1,ID1,ID1,ID1(circ x1.2 moderate | alt chr4R[3-7] + chr4R[1])	chr4R
+chr13R	chr4R[1-4]	ID1,ID1,ID1,ID1	1.2	moderate	SRR33298447.247443	chr4R[1-4]:ID1,ID1,ID1,ID1,ID1(circ x1.2 moderate | alt chr4R[1-4] + chr4R[1]) > chr4R[2-4]:ID1,ID1,ID1,ID1(circ x1.3 moderate | alt chr4R[1-2] + chr4R[1-2])	chr4R
+chr13R	chr4R[2-4]	ID1,ID1,ID1	1.3	moderate	SRR33298447.247443	chr4R[1-4]:ID1,ID1,ID1,ID1,ID1(circ x1.2 moderate | alt chr4R[1-4] + chr4R[1]) > chr4R[2-4]:ID1,ID1,ID1,ID1(circ x1.3 moderate | alt chr4R[1-2] + chr4R[1-2])	chr4R
+chr14L	self[2-4]	ID1,ID2,ID2	1.3	moderate	SRR33298447.14392	self[2-5]:ID1,ID2,ID2,ID2 > self[2-4]:ID1,ID2,ID2,ID1(circ x1.3 moderate | alt chr14L[2-4] + chr14L[1])	chr14L
+chr14L	self[3-5]	ID2,ID2,ID2	1.3	moderate	SRR33298447.138740	self[3-5]:ID2,ID2,ID2,ID2(circ x1.3 moderate | alt chr14L[3] + chr14L[3-5])	chr14L
+chr14R	chr4R[2-5]	ID1,ID1,ID1,ID1	1.2	moderate	SRR33298447.490698	chr4R[2-5]:ID1,ID1,ID1,ID1,ID1(circ x1.2 moderate | alt chr4R[1] + chr4R[2-5])	chr4R
+chr14R	chr13L[1-2]	ID1,ID2	2.0	moderate	SRR33298447.85642	chr13L[1-2]:ID1,ID2,ID1,ID2(circ x2.0 moderate | alt chr13L[2-4] + chr13L[1])	chr13L
+chr15R	chr12R[2-5]	ID1,ID1,ID1,ID1	1.2	moderate	SRR33298447.287982	chr12R[2-5]:ID1,ID1,ID1,ID1,ID1(circ x1.2 moderate | alt chr12R[2] + chr12R[2-5])	chr12R
+chr15R	chr13L[1-2]	ID2,ID1	2.0	weak	SRR33298447.151294	chr13L[1-2]:ID2,ID1,ID2,ID1(circ x2.0 weak | alt chr13L[1-4]) > self[1]:ID1	chr13L
+chr15R	chr12R|chr14L|chr4R	ID1,ID1	1.5	na	SRR33298447.62578	chr12R|chr14L|chr4R:ID1,ID1,ID1(circ x1.5)	chr12R
+chr16R	chr4R[1-5]	ID1,ID1,ID1,ID1,ID1	1.2	moderate	SRR33298447.340905	chr4R[1-5]:ID1,ID1,ID1,ID1,ID1,ID1(circ x1.2 moderate | alt chr4R[3-7] + chr4R[1])	chr4R
+chr16R	chr13L[2-4]	ID1,ID1,ID2	1.3	moderate	SRR33298447.502469	chr13L?[2]:ID1 > chr13L[2-4]:ID1,ID1,ID2,ID1(circ x1.3 moderate | alt chr13L[2] + chr13L[2-4])	chr14L
+chr16R	chr12L|chr13L|chr14L|chr8L|chr8R	ID2	3.0	na	SRR33298447.490031	chr12L|chr13L|chr14L|chr8L|chr8R:ID2,ID2,ID2(circ x3.0)	chr14L
+chr1L	chr12R|chr14L|chr4R	ID1,ID1	1.5	na	SRR33298447.239039	chr12R|chr14L|chr4R:ID1,ID1,ID1(circ x1.5) > chr4R[2-6]:ID1,ID1,ID1,ID1,ID1,ID1(circ x1.2 moderate | alt chr4R[1-3] + chr4R[4-6])	chr4R
+chr1L	chr4R[2-6]	ID1,ID1,ID1,ID1,ID1	1.2	moderate	SRR33298447.239039	chr12R|chr14L|chr4R:ID1,ID1,ID1(circ x1.5) > chr4R[2-6]:ID1,ID1,ID1,ID1,ID1,ID1(circ x1.2 moderate | alt chr4R[1-3] + chr4R[4-6])	chr4R
+chr1L	chr13L[1-2]	ID1,ID2	2.0	moderate	SRR33298447.328635	chr13L[1-2]:ID1,ID2,ID1,ID2(circ x2.0 moderate | alt chr13L[2-4] + chr13L[1])	chr13L
+chr1R	chr4R[2-7]	ID1,ID1,ID1,ID1,ID1,ID1	1.2	moderate	SRR33298447.262919	chr4R[2-7]:ID1,ID1,ID1,ID1,ID1,ID1,ID1(circ x1.2 moderate | alt chr4R[1] + chr4R[2-7])	chr4R
+chr1R	chr13L[1-2]	ID2,ID1	2.5	strong	SRR33298447.148608	chr13L[1-2]:ID2,ID1,ID2,ID1,ID2(circ x2.5 strong)	chr13L
+chr2L	chr4R[3-7]	ID1,ID1,ID1,ID1,ID1	1.2	moderate	SRR33298447.254460	chr4R[3-7]:ID1,ID1,ID1,ID1,ID1,ID1(circ x1.2 moderate | alt chr4R[5-7] + chr4R[3-5]) > chr14L[3-4]:ID2,ID2	chr14L
+chr2L	chr13L[2-3]	ID1,ID2	1.5	moderate	SRR33298447.151907	chr13L[2-3]:ID1,ID2,ID1(circ x1.5 moderate | alt chr13L[2-3] + chr13L[2])	chr13L
+chr2R	chr13L[1-3]	ID2,ID1,ID2	1.7	strong	SRR33298447.149253	chr13L[1-3]:ID2,ID1,ID2,ID2,ID1(circ x1.7 strong)	chr14L
+chr2R	chr14L[2-3]	ID2,ID1	2.0	moderate	SRR33298447.129927	chr14L[2-3]:ID2,ID1,ID2,ID1(circ x2.0 moderate)	chr13L
+chr2R	chr13L[2-3]	ID2,ID1	2.0	moderate	SRR33298447.460402	chr13L[2-3]:ID2,ID1,ID2,ID1(circ x2.0 moderate | alt chr13L[1-3] + chr13L[2])	chr13L
+chr3R	chr13L[1-2]	ID1,ID2	2.0	moderate	SRR33298447.9362	chr10L|chr9L:ID3 > chr13L[2-4]:ID1,ID2,ID1 > chr13L[1-2]:ID1,ID2,ID1,ID2(circ x2.0 moderate | alt chr13L[2-4] + chr13L[1])	chr13L
+chr3R	chr13L[1-3]	ID2,ID1,ID2	2.0	strong	SRR33298447.180074	chr13L[1-3]:ID2,ID1,ID2,ID2,ID1,ID2(circ x2.0 strong)	chr13L
+chr3R	chr14L[1-2]	ID1,ID1	1.5	moderate	SRR33298447.342210	chr12R[1-2]:ID5,ID1 > chr14L[1-2]:ID1,ID1,ID1(circ x1.5 moderate | alt chr14L[1-2] + chr14L[1])	chr12R
+chr3R	chr13L[2-4]	ID1,ID2,ID1	1.3	moderate	SRR33298447.490300	chr12L|chr14L|chr8L|chr8R:ID2 > chr13L[2-4]:ID1,ID2,ID1,ID1(circ x1.3 moderate | alt chr13L[2-4] + chr13L[2])	chr13L
+chr4R	self[1-5]	ID1,ID1,ID1,ID1,ID1	1.2	moderate	SRR33298447.204657	self[1-4]:ID1,ID1,ID1,ID1 > self[1-5]:ID1,ID1,ID1,ID1,ID1,ID1(circ x1.2 moderate | alt chr4R[1-4] + chr4R[4-5])	chr4R
+chr4R	self[1-5]	ID1,ID1,ID1,ID1,ID1	1.2	moderate	SRR33298447.316158	self[1-4]:ID1,ID1,ID1,ID1 > self[1-5]:ID1,ID1,ID1,ID1,ID1,ID1(circ x1.2 moderate | alt chr4R[1-4] + chr4R[4-5])	chr4R
+chr5L	chr4R[2-5]	ID1,ID1,ID1,ID1	1.2	moderate	SRR33298447.330460	chr14L?[2]:ID1 > chr4R[2-5]:ID1,ID1,ID1,ID1,ID1(circ x1.2 moderate | alt chr4R[3-5] + chr4R[1-2])	chr4R
+chr5L	chr12R|chr14L|chr4R	ID1,ID1	1.5	na	SRR33298447.458491	chr12R|chr14L|chr4R:ID1,ID1,ID1(circ x1.5)	chr12R
+chr5L	chr14L[2-3]	ID2,ID1	1.5	moderate	SRR33298447.16244	chr14L[2-3]:ID2,ID1,ID2(circ x1.5 moderate | alt chr14L[3] + chr14L[2-3])	chr13L
+chr5R	chr12R|chr4R	ID1,ID1,ID1	2.0	na	SRR33298447.315720	chr12R|chr4R:ID1,ID1,ID1 > chr12R|chr4R:ID1,ID1,ID1,ID1,ID1,ID1(circ x2.0)	chr4R
+chr5R	chr14L[2-3]	ID2,ID1	1.5	moderate	SRR33298447.318447	chr14L[2-3]:ID2,ID1,ID2(circ x1.5 moderate | alt chr14L[3] + chr14L[2-3]) > chr14L[3-4]:ID2,ID2,ID2(circ x1.5 moderate | alt chr14L[3-4] + chr14L[3]) > chr13L?[1]:ID2 > chr2L|chr6L:ID4	chr14L
+chr5R	chr14L[3-4]	ID2,ID2	1.5	moderate	SRR33298447.318447	chr14L[2-3]:ID2,ID1,ID2(circ x1.5 moderate | alt chr14L[3] + chr14L[2-3]) > chr14L[3-4]:ID2,ID2,ID2(circ x1.5 moderate | alt chr14L[3-4] + chr14L[3]) > chr13L?[1]:ID2 > chr2L|chr6L:ID4	chr14L
+chr5R	chr12R|chr13L|chr14L|chr4R	ID1	3.0	na	SRR33298447.138438	chr12R|chr13L|chr14L|chr4R:ID1,ID1,ID1(circ x3.0)	chr12R
+chr7R	chr4R[1-4]	ID1,ID1,ID1,ID1	1.2	moderate	SRR33298447.280347	chr4R[1-4]:ID1,ID1,ID1,ID1,ID1(circ x1.2 moderate | alt chr4R[1-4] + chr4R[1])	chr4R
+chr7R	chr13L[1-3]	ID2,ID1,ID2	1.3	moderate	SRR33298447.508772	chr13L[1-3]:ID2,ID1,ID2,ID2(circ x1.3 moderate | alt chr13L[1-3] + chr13L[1])	chr14L
+chr7R	chr14L[2-3]	ID1,ID2	1.5	moderate	SRR33298447.150844	chr14L[2-3]:ID1,ID2,ID1(circ x1.5 moderate | alt chr14L[2-3] + chr14L[1])	chr13L
+chr8L	chr4R[3-4]	ID1,ID1	2.5	moderate	SRR33298447.404240	chr4R[3-4]:ID1,ID1,ID1,ID1,ID1(circ x2.5 moderate | alt chr4R[4-5] + chr4R[5-7])	chr6L
+chr8R	chr12R[2-5]	ID1,ID1,ID1,ID1	1.8	strong	SRR33298447.247339	chr12R|chr13L|chr14L|chr15R|chr16L|chr4R|chr5R|chr7R:ID1 > chr12R[2-5]:ID1,ID1,ID1,ID1,ID1,ID1,ID1(circ x1.8 strong)	chr4R
+chr9L	chr4R[2-7]	ID1,ID1,ID1,ID1,ID1,ID1	1.2	moderate	SRR33298447.335578	chr4R[2-7]:ID1,ID1,ID1,ID1,ID1,ID1,ID1(circ x1.2 moderate | alt chr4R[1] + chr4R[2-7])	chr4R

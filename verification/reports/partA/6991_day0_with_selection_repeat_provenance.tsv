@@ -1,0 +1,11 @@
+check	value	ok
+run_config	verification/snapshot/6991_day0_with_selection_repeat/run_config.yaml	True
+config_strain	6991_day0_with_selection_repeat	True
+y_prime_lib_override_present	False	True
+y_prime_lib_resolved	results/6991_day0_with_selection_repeat/_pipeline/pretelomeric_labels/extracted_yprimes_6991_day0_with_selection_repeat.fasta	True
+ours_lib_md5	d7e347e07da5b0509605ec9afbb2f501	True
+bed_yprimes_not_in_lib	-	True
+lib_yprimes_not_in_bed	-	True
+n_bed_yprimes	34	True
+n_lib_yprime_locations	34	True
+n_lib_unique_variants	21	True

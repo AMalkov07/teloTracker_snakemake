@@ -1,0 +1,218 @@
+chr_end	feature	ftype	length_curated	length_ours	dlen	offset_curated	offset_ours	doffset	verdict	severity
+chr1L	anchor	anchor	5040	5043.0	3.0	-5039	-5042.0	-3.0	ok	
+chr1L	space_between_anchor	spacer	10014	10034.0	20.0	1	1.0	0.0	ok	
+chr1L	x_core_element	x_core	463	461.0	-2.0	10015	10035.0	20.0	ok	
+chr1L	x_variable_element	x_variable	287	287.0	0.0	10478	10495.0	17.0	ok	
+chr1L	Telomere_Repeat	telomere	240			10765			expected_absent_in_ours	
+chr1R	anchor	anchor	5040	5040.0	0.0	-5039	-5039.0	0.0	ok	
+chr1R	space_between_anchor	spacer	24967	24989.0	22.0	1	1.0	0.0	ok	
+chr1R	x_core_element	x_core	458	453.0	-5.0	24968	24990.0	22.0	ok	
+chr1R	x_variable_element	x_variable	285	285.0	0.0	25426	25442.0	16.0	ok	
+chr1R	Telomere_Repeat	telomere	200			25711			expected_absent_in_ours	
+chr2L	anchor	anchor	5040	5040.0	0.0	-5039	-5039.0	0.0	ok	
+chr2L	space_between_anchor	spacer	3998	4002.0	4.0	1	1.0	0.0	ok	
+chr2L	x_core_element	x_core	470	468.0	-2.0	3999	4003.0	4.0	ok	
+chr2L	x_variable_element	x_variable	292	293.0	1.0	4469	4470.0	1.0	ok	
+chr2L	Y_Prime_1	y_prime	5976	5976.0	0.0	4761	4762.0	1.0	ok	
+chr2L	Telomere_Repeat	telomere	310			10737			expected_absent_in_ours	
+chr2R	anchor	anchor	5040	5040.0	0.0	-5039	-5039.0	0.0	ok	
+chr2R	space_between_anchor	spacer	10000	10007.0	7.0	1	1.0	0.0	ok	
+chr2R	x_core_element	x_core	470	469.0	-1.0	10001	10008.0	7.0	ok	
+chr2R	x_variable_element	x_variable	289	287.0	-2.0	10471	10476.0	5.0	ok	
+chr2R	Telomere_Repeat	telomere	299			10760			expected_absent_in_ours	
+chr3L	anchor	anchor	5040	5043.0	3.0	-5039	-5042.0	-3.0	ok	
+chr3L	space_between_anchor	spacer	9932	9938.0	6.0	1	1.0	0.0	ok	
+chr3L	x_core_element	x_core	460	459.0	-1.0	9933	9939.0	6.0	ok	
+chr3L	x_variable_element	x_variable	297	295.0	-2.0	10393	10397.0	4.0	ok	
+chr3L	Telomere_Repeat	telomere	323			10690			expected_absent_in_ours	
+chr3R	anchor	anchor	5039	5042.0	3.0	-5038	-5041.0	-3.0	ok	
+chr3R	space_between_anchor	spacer	9992	10004.0	12.0	1	1.0	0.0	ok	
+chr3R	x_core_element	x_core	407	401.0	-6.0	9993	10005.0	12.0	ok	
+chr3R	x_variable_element	x_variable	311	311.0	0.0	10400	10405.0	5.0	ok	
+chr3R	Telomere_Repeat	telomere	351			10711			expected_absent_in_ours	
+chr4L	anchor	anchor	5040	5040.0	0.0	-5039	-5039.0	0.0	ok	
+chr4L	space_between_anchor	spacer	20087	20091.0	4.0	1	1.0	0.0	ok	
+chr4L	x_core_element	x_core	460	459.0	-1.0	20088	20092.0	4.0	ok	
+chr4L	x_variable_element	x_variable	258	256.0	-2.0	20548	20550.0	2.0	ok	
+chr4L	Telomere_Repeat	telomere	201			20806			expected_absent_in_ours	
+chr4R	anchor	anchor	5041	5044.0	3.0	-5040	-5043.0	-3.0	ok	
+chr4R	space_between_anchor	spacer	1898	1899.0	1.0	1	1.0	0.0	ok	
+chr4R	x_core_element	x_core	465	464.0	-1.0	1899	1900.0	1.0	ok	
+chr4R	x_variable_element	x_variable	275	272.0	-3.0	2364	2363.0	-1.0	ok	
+chr4R	ITS_Y_Prime_0-1	its	381	386.0	5.0	2639	2635.0	-4.0	ok	
+chr4R	Y_Prime_1	y_prime	6654	6653.0	-1.0	3020	3021.0	1.0	ok	
+chr4R	ITS_Y_Prime_1-2	its	8	10.0	2.0	9674	9674.0	0.0	ok	
+chr4R	Y_Prime_2	y_prime	6654	6653.0	-1.0	9682	9684.0	2.0	ok	
+chr4R	ITS_Y_Prime_2-3	its	8	10.0	2.0	16336	16337.0	1.0	ok	
+chr4R	Y_Prime_3	y_prime	6655	6653.0	-2.0	16344	16347.0	3.0	ok	
+chr4R	ITS_Y_Prime_3-4	its	8	10.0	2.0	22999	23000.0	1.0	ok	
+chr4R	Y_Prime_4	y_prime	6655	6653.0	-2.0	23007	23010.0	3.0	ok	
+chr4R	ITS_Y_Prime_4-5	its	169	171.0	2.0	29662	29663.0	1.0	ok	
+chr4R	Y_Prime_5	y_prime	6655	6653.0	-2.0	29831	29834.0	3.0	ok	
+chr4R	ITS_Y_Prime_5-6	its	170	172.0	2.0	36486	36487.0	1.0	ok	
+chr4R	Y_Prime_6	y_prime	6654	6653.0	-1.0	36656	36659.0	3.0	ok	
+chr4R	ITS_Y_Prime_6-7	its	8	10.0	2.0	43310	43312.0	2.0	ok	
+chr4R	Y_Prime_7	y_prime	6655	6653.0	-2.0	43318	43322.0	4.0	ok	
+chr4R	Telomere_Repeat	telomere	251			49973			expected_absent_in_ours	
+chr5L	anchor	anchor	5040	5040.0	0.0	-5039	-5039.0	0.0	ok	
+chr5L	space_between_anchor	spacer	635	636.0	1.0	1	1.0	0.0	ok	
+chr5L	x_core_element	x_core	91	111.0	20.0	636	637.0	1.0	ok	
+chr5L	ITS_Y_Prime_0-1	its	25			747			missing_in_ours	minor
+chr5L	Y_Prime_1	y_prime	6482	6481.0	-1.0	772	772.0	0.0	ok	
+chr5L	Telomere_Repeat	telomere	274			7254			expected_absent_in_ours	
+chr5R	anchor	anchor	5040	5040.0	0.0	-5039	-5039.0	0.0	ok	
+chr5R	space_between_anchor	spacer	1481	1483.0	2.0	1	1.0	0.0	ok	
+chr5R	x_core_element	x_core	462	460.0	-2.0	1482	1484.0	2.0	ok	
+chr5R	x_variable_element	x_variable	164	165.0	1.0	1944	1943.0	-1.0	ok	
+chr5R	ITS_Y_Prime_0-1	its	15	16.0	1.0	2108	2108.0	0.0	ok	
+chr5R	Y_Prime_1	y_prime	6696	6694.0	-2.0	2123	2124.0	1.0	ok	
+chr5R	Telomere_Repeat	telomere	197			8819			expected_absent_in_ours	
+chr6L	anchor	anchor	5040	5040.0	0.0	-5039	-5039.0	0.0	ok	
+chr6L	space_between_anchor	spacer	12322	12327.0	5.0	1	1.0	0.0	ok	
+chr6L	x_core_element	x_core	463	461.0	-2.0	12323	12328.0	5.0	ok	
+chr6L	x_variable_element	x_variable	248	246.0	-2.0	12786	12788.0	2.0	ok	
+chr6L	ITS_Y_Prime_0-1	its	111	115.0	4.0	13034	13034.0	0.0	ok	
+chr6L	Y_Prime_1	y_prime	5978	5976.0	-2.0	13145	13149.0	4.0	ok	
+chr6L	Telomere_Repeat	telomere	199			19113			expected_absent_in_ours	
+chr6R	anchor	anchor	5040	5041.0	1.0	-5039	-5040.0	-1.0	ok	
+chr6R	space_between_anchor	spacer	5446	5447.0	1.0	1	1.0	0.0	ok	
+chr6R	x_core_element	x_core	382	381.0	-1.0	5447	5448.0	1.0	ok	
+chr6R	Telomere_Repeat	telomere	245			5831			expected_absent_in_ours	
+chr7L	anchor	anchor	5040	5040.0	0.0	-5039	-5039.0	0.0	ok	
+chr7L	space_between_anchor	spacer	987	988.0	1.0	1	1.0	0.0	ok	
+chr7L	x_core_element	x_core	464	463.0	-1.0	988	989.0	1.0	ok	
+chr7L	x_variable_element	x_variable	284	284.0	0.0	1452	1451.0	-1.0	ok	
+chr7L	Telomere_Repeat	telomere	255			1736			expected_absent_in_ours	
+chr7R	anchor	anchor	5041	5042.0	1.0	-5040	-5041.0	-1.0	ok	
+chr7R	space_between_anchor	spacer	8284	8289.0	5.0	1	1.0	0.0	ok	
+chr7R	x_core_element	x_core	458	456.0	-2.0	8285	8290.0	5.0	ok	
+chr7R	x_variable_element	x_variable	253	255.0	2.0	8743	8745.0	2.0	ok	
+chr7R	Y_Prime_1	y_prime	6656	6656.0	0.0	8996	8998.0	2.0	ok	
+chr7R	Telomere_Repeat	telomere	270			15652			expected_absent_in_ours	
+chr8L	anchor	anchor	5039	5040.0	1.0	-5038	-5039.0	-1.0	ok	
+chr8L	space_between_anchor	spacer	203	205.0	2.0	1	1.0	0.0	ok	
+chr8L	x_core_element	x_core	454	454.0	0.0	204	206.0	2.0	ok	
+chr8L	Y_Prime_1	y_prime	5062	5060.0	-2.0	757	758.0	1.0	ok	
+chr8L	Telomere_Repeat	telomere	272			5819			expected_absent_in_ours	
+chr8R	anchor	anchor	5039	5041.0	2.0	-5038	-5040.0	-2.0	ok	
+chr8R	space_between_anchor	spacer	29420	29444.0	24.0	1	1.0	0.0	ok	
+chr8R	x_core_element	x_core	471	469.0	-2.0	29421	29445.0	24.0	ok	
+chr8R	x_variable_element	x_variable	256	254.0	-2.0	29892	29913.0	21.0	ok	
+chr8R	ITS_Y_Prime_0-1	its	154	158.0	4.0	30148	30167.0	19.0	ok	
+chr8R	Y_Prime_1	y_prime	5472	5470.0	-2.0	30302	30325.0	23.0	ok	
+chr8R	Telomere_Repeat	telomere	249			35774			expected_absent_in_ours	
+chr9L	anchor	anchor	5039	5040.0	1.0	-5038	-5039.0	-1.0	ok	
+chr9L	space_between_anchor	spacer	18015	18017.0	2.0	1	1.0	0.0	ok	
+chr9L	x_core_element	x_core	463	463.0	0.0	18016	18018.0	2.0	ok	
+chr9L	x_variable_element	x_variable	373	375.0	2.0	18479	18480.0	1.0	ok	
+chr9L	Y_Prime_1	y_prime	6871	6871.0	0.0	18852	18852.0	0.0	ok	
+chr9L	Telomere_Repeat	telomere	318			25723			expected_absent_in_ours	
+chr9R	anchor	anchor	5040	5041.0	1.0	-5039	-5040.0	-1.0	ok	
+chr9R	space_between_anchor	spacer	9953	9956.0	3.0	1	1.0	0.0	ok	
+chr9R	x_core_element	x_core	466	465.0	-1.0	9954	9957.0	3.0	ok	
+chr9R	x_variable_element	x_variable	282	282.0	0.0	10420	10421.0	1.0	ok	
+chr9R	Telomere_Repeat	telomere	334			10702			expected_absent_in_ours	
+chr10L	anchor	anchor	5040	5040.0	0.0	-5039	-5039.0	0.0	ok	
+chr10L	space_between_anchor	spacer	13035	13035.0	0.0	1	1.0	0.0	ok	
+chr10L	x_core_element	x_core	463	463.0	0.0	13036	13036.0	0.0	ok	
+chr10L	x_variable_element	x_variable	373	375.0	2.0	13499	13498.0	-1.0	ok	
+chr10L	Y_Prime_1	y_prime	6870	6870.0	0.0	13872	13870.0	-2.0	ok	
+chr10L	Telomere_Repeat	telomere	357			20741			expected_absent_in_ours	
+chr10R	anchor	anchor	5040	5040.0	0.0	-5039	-5039.0	0.0	ok	
+chr10R	space_between_anchor	spacer	15001	15006.0	5.0	1	1.0	0.0	ok	
+chr10R	x_core_element	x_core	460	459.0	-1.0	15002	15007.0	5.0	ok	
+chr10R	x_variable_element	x_variable	303	302.0	-1.0	15462	15465.0	3.0	ok	
+chr10R	Telomere_Repeat	telomere	221			15765			expected_absent_in_ours	
+chr11L	anchor	anchor	5042	5042.0	0.0	-5041	-5041.0	0.0	ok	
+chr11L	space_between_anchor	spacer	5088	5090.0	2.0	1	1.0	0.0	ok	
+chr11L	x_core_element	x_core	462	460.0	-2.0	5089	5091.0	2.0	ok	
+chr11L	x_variable_element	x_variable	279	279.0	0.0	5551	5550.0	-1.0	ok	
+chr11L	Telomere_Repeat	telomere	243			5830			expected_absent_in_ours	
+chr11R	anchor	anchor	5040	5040.0	0.0	-5039	-5039.0	0.0	ok	
+chr11R	space_between_anchor	spacer	10007	10006.0	-1.0	1	1.0	0.0	ok	
+chr11R	x_core_element	x_core	461	463.0	2.0	10008	10007.0	-1.0	ok	
+chr11R	x_variable_element	x_variable	242	239.0	-3.0	10469	10469.0	0.0	ok	
+chr11R	Telomere_Repeat	telomere	284			10711			expected_absent_in_ours	
+chr12L	anchor	anchor	5040	5042.0	2.0	-5039	-5041.0	-2.0	ok	
+chr12L	space_between_anchor	spacer	129	130.0	1.0	1	1.0	0.0	ok	
+chr12L	x_core_element	x_core	421	416.0	-5.0	130	131.0	1.0	ok	
+chr12L	Y_Prime_1	y_prime	5192	5192.0	0.0	575	574.0	-1.0	ok	
+chr12L	Telomere_Repeat	telomere	253			5767			expected_absent_in_ours	
+chr12R	anchor	anchor	5040	5041.0	1.0	-5039	-5040.0	-1.0	ok	
+chr12R	space_between_anchor	spacer	5098	5103.0	5.0	1	1.0	0.0	ok	
+chr12R	x_core_element	x_core	467	466.0	-1.0	5099	5104.0	5.0	ok	
+chr12R	x_variable_element	x_variable	283	282.0	-1.0	5566	5569.0	3.0	ok	
+chr12R	ITS_Y_Prime_0-1	its	125	128.0	3.0	5849	5851.0	2.0	ok	
+chr12R	Y_Prime_1	y_prime	6486	6484.0	-2.0	5974	5979.0	5.0	ok	
+chr12R	ITS_Y_Prime_1-2	its	158	160.0	2.0	12460	12463.0	3.0	ok	
+chr12R	Y_Prime_2	y_prime	6655	6653.0	-2.0	12618	12623.0	5.0	ok	
+chr12R	ITS_Y_Prime_2-3	its	168	170.0	2.0	19273	19276.0	3.0	ok	
+chr12R	Y_Prime_3	y_prime	6655	6653.0	-2.0	19441	19446.0	5.0	ok	
+chr12R	ITS_Y_Prime_3-4	its	170	172.0	2.0	26096	26099.0	3.0	ok	
+chr12R	Y_Prime_4	y_prime	6655	6653.0	-2.0	26266	26271.0	5.0	ok	
+chr12R	ITS_Y_Prime_4-5	its	170	172.0	2.0	32921	32924.0	3.0	ok	
+chr12R	Y_Prime_5	y_prime	6655	6653.0	-2.0	33091	33096.0	5.0	ok	
+chr12R	ITS_Y_Prime_5-6	its	170	172.0	2.0	39746	39749.0	3.0	ok	
+chr12R	Y_Prime_6	y_prime	6651	6649.0	-2.0	39916	39921.0	5.0	ok	
+chr12R	ITS_Y_Prime_6-7	its	158	160.0	2.0	46567	46570.0	3.0	ok	
+chr12R	Y_Prime_7	y_prime	6651	6649.0	-2.0	46725	46730.0	5.0	ok	
+chr12R	ITS_Y_Prime_7-8	its	158	160.0	2.0	53376	53379.0	3.0	ok	
+chr12R	Y_Prime_8	y_prime	6651	6649.0	-2.0	53534	53539.0	5.0	ok	
+chr12R	Telomere_Repeat	telomere	151			60185			expected_absent_in_ours	
+chr13L	anchor	anchor	5040	5040.0	0.0	-5039	-5039.0	0.0	ok	
+chr13L	space_between_anchor	spacer	4462	4464.0	2.0	1	1.0	0.0	ok	
+chr13L	x_core_element	x_core	470	470.0	0.0	4463	4465.0	2.0	ok	
+chr13L	x_variable_element	x_variable	289	286.0	-3.0	4933	4934.0	1.0	ok	
+chr13L	ITS_Y_Prime_0-1	its	48	52.0	4.0	5222	5220.0	-2.0	ok	
+chr13L	Y_Prime_1	y_prime	5486	5484.0	-2.0	5270	5272.0	2.0	ok	
+chr13L	Telomere_Repeat	telomere	245			10756			expected_absent_in_ours	
+chr13R	anchor	anchor	5039	5045.0	6.0	-5038	-5044.0	-6.0	length_diff	minor
+chr13R	space_between_anchor	spacer	5047	5051.0	4.0	1	1.0	0.0	ok	
+chr13R	x_core_element	x_core	465	464.0	-1.0	5048	5052.0	4.0	ok	
+chr13R	x_variable_element	x_variable	301	299.0	-2.0	5513	5515.0	2.0	ok	
+chr13R	Telomere_Repeat	telomere	263			5814			expected_absent_in_ours	
+chr14L	anchor	anchor	5040	5040.0	0.0	-5039	-5039.0	0.0	ok	
+chr14L	space_between_anchor	spacer	9296	9301.0	5.0	1	1.0	0.0	ok	
+chr14L	x_core_element	x_core	465	463.0	-2.0	9297	9302.0	5.0	ok	
+chr14L	x_variable_element	x_variable	272	273.0	1.0	9762	9764.0	2.0	ok	
+chr14L	ITS_Y_Prime_0-1	its	263	264.0	1.0	10034	10037.0	3.0	ok	
+chr14L	Y_Prime_1	y_prime	6657	6655.0	-2.0	10297	10301.0	4.0	ok	
+chr14L	ITS_Y_Prime_1-2	its	169	169.0	0.0	16952	16956.0	4.0	ok	
+chr14L	Y_Prime_2	y_prime	6655	6653.0	-2.0	17121	17125.0	4.0	ok	
+chr14L	ITS_Y_Prime_2-3	its	172	172.0	0.0	23774	23778.0	4.0	ok	
+chr14L	Y_Prime_3	y_prime	5488	5486.0	-2.0	23946	23950.0	4.0	ok	
+chr14L	Telomere_Repeat	telomere	178			29433			expected_absent_in_ours	
+chr14R	anchor	anchor	5040	5040.0	0.0	-5039	-5039.0	0.0	ok	
+chr14R	space_between_anchor	spacer	3254	3255.0	1.0	1	1.0	0.0	ok	
+chr14R	x_core_element	x_core	477	477.0	0.0	3255	3256.0	1.0	ok	
+chr14R	x_variable_element	x_variable	322	320.0	-2.0	3732	3732.0	0.0	ok	
+chr14R	ITS_Y_Prime_0-1	its	72	76.0	4.0	4054	4052.0	-2.0	ok	
+chr14R	Y_Prime_1	y_prime	6462	6531.0	69.0	4126	4128.0	2.0	ok	
+chr14R	Telomere_Repeat	telomere	355			10588			expected_absent_in_ours	
+chr15L	anchor	anchor	5040	5040.0	0.0	-5039	-5039.0	0.0	ok	
+chr15L	space_between_anchor	spacer	838	840.0	2.0	1	1.0	0.0	ok	
+chr15L	x_core_element	x_core	459	457.0	-2.0	839	841.0	2.0	ok	
+chr15L	x_variable_element	x_variable	274	271.0	-3.0	1298	1297.0	-1.0	ok	
+chr15L	Telomere_Repeat	telomere	297			1572			expected_absent_in_ours	
+chr15R	anchor	anchor	5040	5040.0	0.0	-5039	-5039.0	0.0	ok	
+chr15R	space_between_anchor	spacer	13474	13487.0	13.0	1	1.0	0.0	ok	
+chr15R	x_core_element	x_core	446	445.0	-1.0	13475	13488.0	13.0	ok	
+chr15R	x_variable_element	x_variable	252	254.0	2.0	13921	13932.0	11.0	ok	
+chr15R	Y_Prime_1	y_prime	6651	6651.0	0.0	14173	14184.0	11.0	ok	
+chr15R	Telomere_Repeat	telomere	239			20824			expected_absent_in_ours	
+chr16L	anchor	anchor	5040	5040.0	0.0	-5039	-5039.0	0.0	ok	
+chr16L	space_between_anchor	spacer	13373	13389.0	16.0	1	1.0	0.0	ok	
+chr16L	x_core_element	x_core	446	445.0	-1.0	13374	13390.0	16.0	ok	
+chr16L	x_variable_element	x_variable	164	165.0	1.0	13820	13834.0	14.0	ok	
+chr16L	ITS_Y_Prime_0-1	its	6	11.0	5.0	13984	13999.0	15.0	ok	
+chr16L	Y_Prime_1	y_prime	6738	6732.0	-6.0	13990	14010.0	20.0	ok	
+chr16L	ITS_Y_Prime_1-2	its	170	172.0	2.0	20728	20742.0	14.0	ok	
+chr16L	Y_Prime_2	y_prime	6654	6653.0	-1.0	20898	20914.0	16.0	ok	
+chr16L	ITS_Y_Prime_2-3	its	8	10.0	2.0	27552	27567.0	15.0	ok	
+chr16L	Y_Prime_3	y_prime	6655	6653.0	-2.0	27560	27577.0	17.0	ok	
+chr16L	Telomere_Repeat	telomere	266			34215			expected_absent_in_ours	
+chr16R	anchor	anchor	5040	5042.0	2.0	-5039	-5041.0	-2.0	ok	
+chr16R	space_between_anchor	spacer	898	900.0	2.0	1	1.0	0.0	ok	
+chr16R	x_core_element	x_core	376	376.0	0.0	899	901.0	2.0	ok	
+chr16R	Y_Prime_1	y_prime	5303	5303.0	0.0	1311	1310.0	-1.0	ok	
+chr16R	Telomere_Repeat	telomere	286			6614			expected_absent_in_ours	

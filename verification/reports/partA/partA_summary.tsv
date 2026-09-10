@@ -1,0 +1,11 @@
+ref	strain	A1_counts	n_count_mismatch	A2_features	n_feature_major	n_feature_minor	A3_grouping	ari_variant	ari_family	n_our_clusters	n_curated_variants	n_common_elements	n_concordant	n_split_in_curated	n_merged_in_curated	n_conflict	seq_min_pident	inherited_id_match_frac	A4_provenance
+6991_day0	6991	PASS	0	PASS	0	3	FAIL	0.54	0.599	8	10	34	6	21	2	5	99.98	1.0	PASS
+6991_day0_TeloTag	6991	FAIL	1	FAIL	10	7	FAIL	0.37	0.44	8	10	27	6	14	2	5	99.96	1.0	PASS
+6991_day0_TeloTag_with_selection	6991	PASS	0	PASS	0	3	FAIL	0.54	0.599	8	10	34	6	21	2	5	99.98	1.0	PASS
+6991_day0_reference	6991	FAIL	1	FAIL	2	3	FAIL	0.521	0.582	8	10	33	6	20	2	5	99.98	1.0	PASS
+6991_day0_reference_promethion	6991	PASS	0	PASS	0	3	FAIL	0.54	0.599	8	10	34	6	21	2	5	99.98	1.0	PASS
+6991_day0_with_selection	6991	PASS	0	FAIL	9	3	FAIL	0.54	0.599	8	10	34	6	21	2	5	99.98	1.0	PASS
+6991_day0_with_selection_repeat	6991	PASS	0	PASS	0	3	FAIL	0.54	0.599	8	10	34	6	21	2	5	99.98	1.0	PASS
+6991_day0_with_selection_repeat2	6991	PASS	0	PASS	0	3	FAIL	0.54	0.599	8	10	34	6	21	2	5	99.98	1.0	PASS
+7172_day0_with_selection	7172	PASS	0	PASS	0	2	FAIL	0.732	0.722	8	9	34	6	22	2	4	100.0	0.471	PASS
+7302_day0_with_selection	7302	PASS	0	PASS	0	3	FAIL	0.543	0.604	8	12	36	4	26	2	4	99.98	0.833	PASS
