@@ -6,7 +6,8 @@ gray, telomere side = black. Right label = copy count + composition and, when th
 features TSV carries v2 path columns, the inferred origin path
 ("gained from: chr13L[1-2]:ID2,ID1,ID2,ID1(circ x2.0 strong) > chr4R[1-2]:ID1,ID1").
 
-Usage: plot_yprime_copies.py <features_dir> <base_name> <output_dir> [--only-gain] [--reads <file with read_ids>]
+Usage: plot_yprime_copies.py <features_dir> <base_name> <output_dir> [--only-gain] [--schematic]
+                             [--reads <file with read_ids>] [--id-map <sample>_read_id_map.tsv]
 Row labels carry the chr_end when the TSV has a chr_end column (so a combined file of reads
 from several ends stays readable).
 """
@@ -21,6 +22,16 @@ only_gain = "--only-gain" in sys.argv[4:]
 # --schematic: not to scale -- every Y' copy the same width, a fixed gap between copies with
 # the measured ITS length (bp) printed above it; anchor and telomere side as fixed blocks.
 schematic = "--schematic" in sys.argv[4:]
+# --id-map <tsv>: translate pipeline read_ids (e.g. SRR33298449.63573) to the original
+# ONT read names (UUIDs) in the row labels; TSV with columns read_id, original_name.
+id_map = {}
+if "--id-map" in sys.argv[4:]:
+    with open(sys.argv[sys.argv.index("--id-map") + 1]) as fh:
+        next(fh)
+        for line in fh:
+            a, b = line.rstrip("\n").split("\t")[:2]; id_map[a] = b
+def show_id(rid):
+    return id_map.get(rid, rid)
 keep_ids = None
 if "--reads" in sys.argv[4:]:
     keep_ids = {l.strip() for l in open(sys.argv[sys.argv.index("--reads") + 1]) if l.strip()}
@@ -97,7 +108,7 @@ for f in sorted(glob.glob(f"{feat_dir}/{base}_chr*_features.tsv")):
             if r["path"]:
                 path=r["path"] if len(r["path"])<=150 else r["path"][:147]+"..."
                 ax.text(x+0.15, y-0.2, f"gained from: {path}", va="center", fontsize=6.5, fontweight="bold", color="#222222")
-            yt.append(y); ytl.append(f'{r["ce"]} {r["rid"][-8:]} [{r["status"][:8]}]')
+            yt.append(y); ytl.append(f'{r["ce"]} {show_id(r["rid"]) if id_map else r["rid"][-8:]} [{r["status"][:8]}]')
         ax.set_yticks(yt); ax.set_yticklabels(ytl, fontsize=6)
         ax.set_ylim(-0.7, n-0.3); ax.set_xlim(-0.2, maxx+12); ax.set_xticks([])
         for sp in ("top","right","bottom"): ax.spines[sp].set_visible(False)
@@ -132,7 +143,7 @@ for f in sorted(glob.glob(f"{feat_dir}/{base}_chr*_features.tsv")):
         label=f"{ncop}× ({rle_str(ids)})"
         if r["path"]: label+=f"   gained from: {r['path']}"
         ax.text(r["rlen"]*1.005, y, label, va="center", fontsize=6)
-        yt.append(y); ytl.append(f'{r["ce"]} {r["rid"][-8:]} [{r["status"][:8]}]')
+        yt.append(y); ytl.append(f'{r["ce"]} {show_id(r["rid"]) if id_map else r["rid"][-8:]} [{r["status"][:8]}]')
     ax.set_yticks(yt); ax.set_yticklabels(ytl, fontsize=6)
     ax.set_ylim(-0.5, n-0.5); ax.set_xlim(0, maxlen*(1.85 if any(r["path"] for r in reads) else 1.30))
     ax.set_xlabel("Position on read (bp)     ← anchor (centromere-proximal)          (telomere-distal) →")
