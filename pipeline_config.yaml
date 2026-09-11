@@ -47,10 +47,9 @@ yprime_identity_threshold: 97.0
 
 # -- Recombination Analysis -- Step 3 ------------------------------------------
 
-# Day-0 sample that has already had create_ref + label_regions run against it.
-# The recombination step uses its reference when analyzing later time points.
-# Defaults to base_name if omitted.
-# day0_base_name: "dorado_7302_day0_PromethION_no_tag_yes_rejection"
+# base_name above is treated as the day-0 reference sample for recombination:
+# the step reads results/<base_name>/_pipeline/{assembly_<strain>,pretelomeric_labels}
+# and analyzes each entry of timepoint_samples against it.
 
 # Time-point samples to analyze against the day-0 reference.
 # Each is run as: snakemake recombination_summary -c THREADS with the

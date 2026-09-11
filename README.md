@@ -131,10 +131,9 @@ yprime_identity_threshold: 97.0
 # Optional — custom reference for label_regions
 # reference_fasta: "path/to/custom_reference.fasta"
 
-# Recombination — day-0 reference and time-point samples
-# day0_base_name defaults to base_name if omitted
-# day0_base_name: "dorado_7302_day0_PromethION_no_tag_yes_rejection"
-
+# Recombination — base_name above is treated as the day-0 reference sample.
+# Recombination reads results/<base_name>/_pipeline/{assembly_<strain>,pretelomeric_labels}
+# and analyzes each entry of timepoint_samples against it.
 timepoint_samples:
   - "dorado_7302_day3_PromethION_no_tag_yes_rejection"
   - "dorado_7302_day6_PromethION_no_tag_yes_rejection"
@@ -223,9 +222,9 @@ Note: `run_pipeline.py` itself does **not** call `qsub` — it runs the shell sc
 
 ### `config.yaml` (written, not patched)
 
-Each run, the wrapper overwrites `config.yaml` at the repo root with a freshly generated file based on your `pipeline_config.yaml` values. The keys it emits are the ones the Snakefile reads at module load (`base_name`, `day0_base_name`, `anchor_set`, `bam_dir`, `strain`, `min_raw_gapped_score`, `yprime_identity_threshold`, `references.*`).
+Each run, the wrapper overwrites `config.yaml` at the repo root with a freshly generated file based on your `pipeline_config.yaml` values. The keys it emits are the ones the Snakefile reads at module load (`base_name`, `anchor_set`, `bam_dir`, `strain`, `min_raw_gapped_score`, `yprime_identity_threshold`, `references.*`).
 
-For the `recombination` step with multiple `timepoint_samples`, `config.yaml` is **rewritten between samples** so each `snakemake recombination_summary` call targets the right time point while keeping `day0_base_name` pinned to the reference.
+For the `recombination` step with multiple `timepoint_samples`, `config.yaml` is **rewritten between samples**: `base_name` becomes the current time-point sample, while `references.day0_ref` / `day0_bed` / `y_prime_lib` / `spacer_lib_dir` / `x_element_lib` keep pointing back at the original day-0 sample's directory (so Snakemake reads timepoint reads from `results/<timepoint>/` but pulls the reference + labels from `results/<day0>/`).
 
 ### `create_ref.sh` and `label_regions.sh` (patched in memory)
 
@@ -301,7 +300,7 @@ Optional filters for `--list-reads`: `--chr-end chr10R` (single chromosome end),
 The script auto-detects the Y′ library at `results/*/_pipeline/pretelomeric_labels/extracted_yprimes_*.fasta` and reads the per-ID color names from the FASTA headers. If you have several runs with different libraries, pin the right one explicitly:
 
 ```bash
---yprime-lib results/<day0_base_name>/_pipeline/pretelomeric_labels/extracted_yprimes_<strain>.fasta
+--yprime-lib results/<base_name>/_pipeline/pretelomeric_labels/extracted_yprimes_<strain>.fasta
 ```
 
 ### Reading the diagram

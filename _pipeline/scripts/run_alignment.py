@@ -177,6 +177,16 @@ def main():
     if n_reads == 0:
         print('  No reads -- writing empty output')
         write_results_tsv([], args.output_tsv)
+        os.makedirs(os.path.dirname(args.output_bam) or '.', exist_ok=True)
+        _sq = []
+        with open(args.day0_ref + '.fai') as _fai:
+            for _line in _fai:
+                _c = _line.split('\t')
+                _sq.append({'SN': _c[0], 'LN': int(_c[1])})
+        _hdr = {'HD': {'VN': '1.6', 'SO': 'coordinate'}, 'SQ': _sq}
+        with pysam.AlignmentFile(args.output_bam, 'wb', header=_hdr):
+            pass
+        pysam.index(args.output_bam)
         return
 
     # Run minimap2

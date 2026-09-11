@@ -73,13 +73,19 @@ def histogram_plot_500bp_chr_facet(dataframe, size=(16, 11)):
 
     g.map(sns.histplot, 'repeat_length', binwidth=25, binrange=(0, 500), stat="percent", alpha=0.5)
 
-    for ax, (anchor_name, subset) in zip(g.axes.flat, dataframe.groupby("anchor_name", sort=False)):
+    # FacetGrid shares one y axis, so set_ylim inside the loop rescaled every
+    # panel rather than the current one, compounding 1.1x over all 32 facets.
+    y_max = 50
+
+    for ax, anchor_name in zip(g.axes.flat, chr_list):
+        subset = dataframe[dataframe['anchor_name'] == anchor_name]
         median_value = np.round(subset['repeat_length'].median())
         ax.axvline(median_value, color='black', linestyle='--', linewidth=2)
-        ax.text(ax.get_xlim()[1] * 0.9, ax.get_ylim()[1] * 0.9, f'Median: {int(median_value)}',
+        ax.text(ax.get_xlim()[1] * 0.9, y_max * 0.9, f'Median: {int(median_value)}',
                 horizontalalignment='right', fontsize=12, fontweight='bold', color='black')
-        max_y = ax.get_ylim()[1]
-        ax.set_ylim(0, max_y * 1.1)
+
+    for ax in g.axes.flat:
+        ax.set_ylim(0, y_max)
 
     g.set_titles("{col_name}")
     g.set_axis_labels('Telomere Repeat Length (bp)', "Frequency (%)")

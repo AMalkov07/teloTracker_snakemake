@@ -1,0 +1,133 @@
+==============================================================================
+ TeloTracker Snakemake -- Quickstart (Argon HPC)
+==============================================================================
+
+This guide walks you from a fresh clone to a full pipeline run, starting from
+a basecalled .bam file.
+
+
+------------------------------------------------------------------------------
+ 1. Clone the repository
+------------------------------------------------------------------------------
+
+  git clone https://github.com/AMalkov07/teloTracker_snakemake.git
+  cd teloTracker_snakemake
+
+
+------------------------------------------------------------------------------
+ 2. Create the conda environment
+------------------------------------------------------------------------------
+
+  conda env create -f consensus.yaml
+  conda activate consensus
+
+NOTE: building the environment can take a while (often 15-30+ minutes)
+
+
+------------------------------------------------------------------------------
+ 3. Drop in your input .bam file
+------------------------------------------------------------------------------
+
+If your starting point is a basecalled .bam file, put it in the input
+directory that ships with the repo:
+
+  samples_dorado_basecalled/your_sample.bam
+
+------------------------------------------------------------------------------
+ 4. Edit pipeline_config.yaml
+------------------------------------------------------------------------------
+
+Open pipeline_config.yaml and change these three values:
+
+  base_name:    the name of your .bam file WITHOUT the .bam extension.
+                e.g. if the file is  my_strain_day0.bam
+                then set:  base_name: "my_strain_day0"
+
+  strain:       your new strain identifier.
+                e.g.  strain: "1234"
+
+  dorado_image: point it at the shared Dorado Singularity image:
+                dorado_image: "/Shared/malkova_lab/dorado_files/docker_images_of_dorado/dorado-11-26-2025.sif"
+
+------------------------------------------------------------------------------
+ 5. (Later) Add future time points
+------------------------------------------------------------------------------
+
+When you have later time points to analyze against the day-0 reference, add
+them at the END of pipeline_config.yaml under timepoint_samples, one per line:
+
+  timepoint_samples:
+    - "my_strain_day3"
+    - "my_strain_day6"
+
+These are analyzed by the recombination step against the day-0 reference you
+built in step 4. (Each name is again the .bam file name without the extension,
+and those .bam files also go in samples_dorado_basecalled/.)
+
+
+------------------------------------------------------------------------------
+ 6. Create a submission wrapper for Argon (qsub)
+------------------------------------------------------------------------------
+
+Create a file -- e.g. run_pipeline.sh -- in the repo root with the following
+contents:
+
+  #!/bin/bash
+  #$ -q UI-GPU
+  #$ -pe smp 56
+  #$ -l gpu=true
+  #$ -j y
+  #$ -cwd
+
+  # Full pipeline: create_ref + label_regions + recombination.
+  # Reads pipeline_config.yaml.
+  #
+  # The GPU is requested because create_ref uses dorado polish via Singularity.
+
+  # qsub spawns a non-interactive shell that doesn't source .bashrc;
+  # `conda activate` is undefined until we source conda.sh.
+  source "$(conda info --base)/etc/profile.d/conda.sh"
+  conda activate consensus
+
+  python run_pipeline.py --config pipeline_config.yaml --steps all
+
+Submit it with:
+
+  qsub run_pipeline.sh
+
+NOTE on the queue: the UI-GPU queue (and `-l gpu=true`) is only needed for the
+REFERENCE-CREATION step, because that step runs `dorado polish` on the GPU.
+The labeling and recombination steps do NOT need a GPU -- if you are only
+running those, you can submit to an ordinary CPU queue (drop the
+`#$ -q UI-GPU` and `#$ -l gpu=true` lines, or change the queue) and save GPU
+allocation.
+
+
+------------------------------------------------------------------------------
+ 7. Which steps run? (the --steps flag)
+------------------------------------------------------------------------------
+
+The pipeline has three stages: reference creation, region labeling, and
+recombination analysis. Control which run with --steps:
+
+  python run_pipeline.py --config pipeline_config.yaml --steps all
+      -> runs the ENTIRE pipeline:
+         reference creation + labeling + recombination
+         (needs the GPU queue for the reference-creation part)
+
+  python run_pipeline.py --config pipeline_config.yaml --steps recombination
+      -> runs ONLY the recombination analysis on your time-point samples
+         (no GPU needed; use a CPU queue)
+
+  python run_pipeline.py --config pipeline_config.yaml
+      -> NO --steps flag = the default: reference creation + labeling only
+         (this is the "day0" setup: build the reference and label it, but
+          don't run recombination yet)
+
+Typical workflow:
+  1) First, build + label the day-0 reference (default, or --steps day0).
+  2) Later, as time points come in, add them under timepoint_samples and
+     run --steps recombination.
+  Or just run --steps all to do everything in one shot.
+
+==============================================================================
