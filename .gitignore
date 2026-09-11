@@ -50,3 +50,5 @@ Thumbs.db
 verification/snapshot*/
 verification/labels_curated/
 verification/read_id_maps/
+verification/reports/onion_skin/
+verification/snapshot_curated_all/

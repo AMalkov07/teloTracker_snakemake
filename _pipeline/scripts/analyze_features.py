@@ -1294,10 +1294,15 @@ def analyze_y_primes(read_id, y_prime_hits, telo_side, ref_y_primes, name_to_inf
 
     # Per-Y-prime positions on the read (anchor-to-telomere order)
     yp_positions = []
+    yp_entries = []
     for hit in hits:
         info = name_to_info.get(hit['y_prime_name'], {})
         yp_id = info.get('id', hit['y_prime_name'])
         yp_positions.append(f"{yp_id}:{hit['match_start']}-{hit['match_end']}")
+        # the library ENTRY this copy matched, e.g. 'chr13L4' or 'chr12R2,3,4,5;chr4R1,2,3,4,6,7'.
+        # Entries are finer than any ID level, so recording them makes every coarser
+        # grouping derivable afterwards without re-running RepeatMasker.
+        yp_entries.append(re.sub(r'^Y_Prime_', '', info.get('origin', hit['y_prime_name'])))
 
     # Overall Y prime region on the read
     if hits:
@@ -1311,6 +1316,7 @@ def analyze_y_primes(read_id, y_prime_hits, telo_side, ref_y_primes, name_to_inf
         'y_prime_count_on_read': len(hits),
         'y_prime_observed_array': cmp['y_prime_observed_array'],
         'y_prime_positions': ';'.join(yp_positions) if yp_positions else '',
+        'y_prime_entries': '|'.join(yp_entries) if yp_entries else '',
         'y_prime_start': yp_region_start,
         'y_prime_end': yp_region_end,
         'y_prime_size': yp_region_end - yp_region_start if hits else 0,
