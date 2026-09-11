@@ -1,0 +1,18 @@
+34 elements
+  Merged 14 variants: chr12R2, chr12R3, chr12R4, chr12R5, chr12R6, chr12R7, chr14L2, chr4R1, chr4R2, chr4R3, chr4R4, chr4R5, chr4R6, chr4R7
+  Merged 3 variants: chr14L1, chr16L1, chr7R1
+  Merged 3 variants: chr14L3, chr14L4, chr14L5
+silhouette: k=8  best score=0.699
+threshold 97.0: 10 clusters on the deduped set
+threshold 99.0: 12 clusters on the deduped set
+
+scheme             groups   sizes
+element                34   [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+condensed              17   [14, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+silhouette              8   [19, 7, 2, 2, 1, 1, 1, 1]
+cut97                  10   [19, 5, 2, 2, 1, 1, 1, 1, 1, 1]
+cut99                  12   [18, 4, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1]
+curated_variant        10   [14, 7, 3, 2, 2, 2, 1, 1, 1, 1]
+curated_family          6   [15, 7, 4, 3, 3, 2]
+
+written to verification/grouping_benchmark/parts_6991_day0_fixed

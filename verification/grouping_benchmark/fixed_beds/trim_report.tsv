@@ -1,0 +1,9 @@
+bed	element	old_len	trim	new_len	n_donors
+pretelomeric_regions_6991_day0_simp.bed	chr16L_Y_Prime_1	6732	77	6655	17
+pretelomeric_regions_6991_day0_TeloTag_simp.bed	chr16L_Y_Prime_1	6731	77	6654	10
+pretelomeric_regions_6991_day0_TeloTag_with_selection_simp.bed	chr16L_Y_Prime_1	6732	77	6655	17
+pretelomeric_regions_6991_day0_reference_simp.bed	chr16L_Y_Prime_1	6731	77	6654	16
+pretelomeric_regions_6991_day0_reference_promethion_simp.bed	chr16L_Y_Prime_1	6732	77	6655	17
+pretelomeric_regions_6991_day0_with_selection_simp.bed	chr16L_Y_Prime_1	6731	77	6654	16
+pretelomeric_regions_6991_day0_with_selection_repeat_simp.bed	chr16L_Y_Prime_1	6732	77	6655	17
+pretelomeric_regions_6991_day0_with_selection_repeat2_simp.bed	chr16L_Y_Prime_1	6732	77	6655	17
