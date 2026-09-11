@@ -9,6 +9,10 @@ donor blocks in y_prime_path -- consecutive path segments whose candidate-donor 
 intersect are merged, and >= 2 blocks means the template changed.
 
 Usage: compare_paper_switching.py <xlsx> <snapshot> <out_dir>
+                                  [--sheet <name>] [--strains 7172,7302] [--variant]
+Defaults are Supplementary Data 6 ("mph1 template switching", strains 7172 + 7302); pass
+--sheet "Sheet 1" --strains 6991 for Supplementary Data 5 (the WT populations). --variant
+keeps ID2_Red-Light/ID2_Red-Dark apart instead of collapsing to the ID family.
 Sample <-> (strain, PD) is resolved by matching ONT read UUIDs against the read-id maps.
 """
 import os, re, sys, glob, json
@@ -18,15 +22,21 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 from verify_recombination import load_features, md_table
 
 xlsx, snap, out = sys.argv[1], sys.argv[2], sys.argv[3]
+def _opt(flag, default):
+    return sys.argv[sys.argv.index(flag)+1] if flag in sys.argv else default
+SHEET   = _opt('--sheet', 'mph1 template switching')
+STRAINS = [int(x) for x in _opt('--strains', '7172,7302').split(',')]
+VARIANT = '--variant' in sys.argv
 os.makedirs(out, exist_ok=True)
 
-d = pd.read_excel(xlsx, sheet_name='mph1 template switching', header=0)
+d = pd.read_excel(xlsx, sheet_name=SHEET, header=0)
 d.columns = ['strain','PD','read_id','chr_end','yprime_id','yprime_group','sw_score','start','end','switch']
 for c in ['strain','PD','read_id','chr_end']: d[c] = d[c].ffill()
-d = d[d.strain.isin([7172,7302])].copy()
+d = d[d.strain.isin(STRAINS)].copy()
 d['strain'] = d.strain.astype(int); d['PD'] = d.PD.astype(int)
 d['switch'] = d.groupby('read_id')['switch'].ffill()
-d['ID'] = d.yprime_group.str.split('/').str[-1].str.split('_').str[0]
+d['ID'] = d.yprime_group.str.split('/').str[-1]
+if not VARIANT: d['ID'] = d['ID'].str.split('_').str[0]
 
 # read UUID -> (our sample, our read_id)
 uu = set(d.read_id)
@@ -82,7 +92,8 @@ P['our_switch'] = [len(donor_blocks(p,ce))>=2 if isinstance(p,str) else None
                    for p,ce in zip(P.our_path, P.paper_chr_end)]
 P.to_csv(os.path.join(out,'paper_vs_ours_per_read.tsv'), sep='\t', index=False)
 
-rep=[f'# Supplementary Data 6 vs our curated-library calls\n', f'snapshot: `{snap}`\n']
+rep=[f'# `{os.path.basename(xlsx)}` [{SHEET}] vs our curated-library calls\n',
+     f'snapshot: `{snap}`   strains: {STRAINS}   IDs: {"variant" if VARIANT else "family"}\n']
 summary=[]
 for (st,pdv), g in P.groupby(['strain','PD']):
     samples = ', '.join(f"{s} ({n})" for s,n in Counter(g['sample'].dropna()).most_common())
