@@ -61,7 +61,7 @@ gs=fig.add_gridspec(2,2, height_ratios=[2.45,1], width_ratios=[1.35,1], hspace=0
 axA=fig.add_subplot(gs[0,:]); axB=fig.add_subplot(gs[1,0]); axC=fig.add_subplot(gs[1,1])
 
 BW,GAP,STUB,TEL,H = 1.0,0.30,0.75,0.8,0.70
-HILITE = os.environ.get('HILITE','chr13L')
+HILITE = os.environ.get('HILITE','')          # optional: draw a dashed box + note around one end
 HILITE_NOTE = os.environ.get('HILITE_NOTE',
     "the curated ID7 (yellow) occurs only here, so one copy names chr13L;\nthe silhouette group 2 it sits in also covers chr8L, chr8R, chr12L and chr14L")
 for row,chrom in enumerate(range(1,17)):
@@ -81,11 +81,11 @@ for row,chrom in enumerate(range(1,17)):
             x+=sign*BW
             axA.plot([x,x+sign*GAP],[y,y],color="#888",lw=0.9,ls=(0,(2,2)),zorder=1); x+=sign*GAP
         axA.plot([x,x+sign*TEL],[y,y],color="#111",lw=2.4,solid_capstyle="butt",zorder=1)
-        if ce == HILITE and pos:
+        if HILITE and ce == HILITE and pos:
             axA.add_patch(Rectangle((min(sign*1.5, x), y-H/2-0.12), abs(x-sign*1.5), H+0.24,
                                     fill=False, edgecolor="#d62728", lw=1.4, ls=(0,(3,2)), zorder=4))
-            axA.text(sign*(abs(x)+0.35), y, HILITE_NOTE, ha="left" if sign>0 else "right",
-                     va="center", fontsize=7.0, color="#d62728", style="italic", zorder=4, linespacing=1.4)
+            axA.text((sign*1.5 + x)/2, y-H/2-0.34, HILITE_NOTE, ha="center", va="top",
+                     fontsize=7.0, color="#d62728", style="italic", zorder=4, linespacing=1.35)
     axA.text(0,y,f"Chr{ROMAN[chrom-1]}",ha="center",va="center",fontsize=8.5,fontweight="bold")
 axA.set_xlim(-14.5,15.5); axA.set_ylim(-17.0,1.5); axA.axis("off")
 axA.set_title(f"Y′ grouping of the {ref} reference — upper half of each copy = silhouette clustering, "
