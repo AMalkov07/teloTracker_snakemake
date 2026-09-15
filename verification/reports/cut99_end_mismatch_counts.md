@@ -160,3 +160,30 @@ breakdown of any individual row.
 | chr5R | 2 | 0 |
 | chr6L | 7 | 0 |
 | chr8R | 1 | 2 |
+# Combined (all 10 samples)
+
+548 total mismatched copies pooled across all ten samples (160 excluding
+the 388 chr14L-1 reference-defect rows from 6991_day0_with_selection).
+
+| end | recipient (all) | recipient (excl. defect) | donor (all) | donor (excl. defect) |
+|---|---|---|---|---|
+| chr10L | 12 | 12 | 9 | 9 |
+| chr12L | 7 | 7 | 0 | 0 |
+| chr12R | 0 | 0 | 5 | 5 |
+| chr13L | 41 | 41 | 15 | 15 |
+| chr14L | 390 | 2 | 29 | 29 |
+| chr14R | 24 | 24 | 5 | 5 |
+| chr15R | 2 | 2 | 3 | 3 |
+| chr16L | 5 | 5 | 10 | 7 |
+| chr16R | 13 | 13 | 2 | 2 |
+| chr2L | 12 | 12 | 25 | 25 |
+| chr4R | 0 | 0 | 1 | 1 |
+| chr5L | 5 | 5 | 2 | 2 |
+| chr5R | 7 | 7 | 4 | 4 |
+| chr6L | 16 | 16 | 15 | 15 |
+| chr7R | 3 | 3 | 394 | 9 |
+| chr8L | 5 | 5 | 2 | 2 |
+| chr8R | 6 | 6 | 14 | 14 |
+| chr9L | 0 | 0 | 13 | 13 |
+
+| **TOTAL** | **548** | **160** | **548** | **160** |
