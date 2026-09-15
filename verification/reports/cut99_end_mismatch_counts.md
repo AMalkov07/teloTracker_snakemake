@@ -186,4 +186,32 @@ the 388 chr14L-1 reference-defect rows from 6991_day0_with_selection).
 | chr8R | 6 | 6 | 14 | 14 |
 | chr9L | 0 | 0 | 13 | 13 |
 
-| **TOTAL** | **548** | **160** | **548** | **160** |
+| **TOTAL** | **548** | **160** | **548** | **160** |# 6991 combined, excluding 6991_day0_with_selection
+
+Pooled across the seven 6991 day-0 samples other than 6991_day0_with_selection, whose
+chr14L-1 is mis-assembled (5,720 bp vs 6,654 bp) and produces 388 artefactual rows.
+Samples included: 6991_day0, 6991_day0_TeloTag, 6991_day0_TeloTag_with_selection, 6991_day0_reference, 6991_day0_reference_promethion, 6991_day0_with_selection_repeat, 6991_day0_with_selection_repeat2
+
+91 total mismatched copies.
+
+| end | recipient (mismatched) | donor (mistaken-for) |
+|---|---|---|
+| chr10L | 6 | 3 |
+| chr12L | 5 | 0 |
+| chr12R | 0 | 5 |
+| chr13L | 23 | 12 |
+| chr14L | 2 | 15 |
+| chr14R | 14 | 2 |
+| chr15R | 2 | 2 |
+| chr16L | 3 | 3 |
+| chr16R | 9 | 2 |
+| chr2L | 8 | 12 |
+| chr4R | 0 | 1 |
+| chr5L | 5 | 2 |
+| chr5R | 1 | 2 |
+| chr6L | 5 | 11 |
+| chr7R | 2 | 3 |
+| chr8L | 3 | 1 |
+| chr8R | 3 | 7 |
+| chr9L | 0 | 8 |
+| **TOTAL** | **91** | **91** |
