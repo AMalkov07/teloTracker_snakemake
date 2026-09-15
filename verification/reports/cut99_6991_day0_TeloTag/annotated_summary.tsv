@@ -1,0 +1,7 @@
+strain	sample	read_id	chr_end	copy	expected_element	expected_group	donor_element	donor_group	anchorHalf_vs_expected	anchorHalf_vs_donor	anchor_margin	teloHalf_vs_expected	teloHalf_vs_donor	telo_margin	pair_longest_homology_bp	pair_homology_identity	evidence	explanation	telo_side
+6991	6991_day0_TeloTag	SRR33298460.274149	chr14R	1/1	chr14R-1	G11	chr14L-1	G9	98.92%	96.54%	+2.38	94.47%	98.15%	+3.68	4973	96.70%	strong	mid-Y' recombination (both halves favour the right reference)	beginning
+6991	6991_day0_TeloTag	SRR33298460.568401	chr14R	1/1	chr14R-1	G11	chr14L-1	G9	99.52%	97.13%	+2.39	95.38%	98.66%	+3.28	4973	96.70%	strong	mid-Y' recombination (both halves favour the right reference)	end
+6991	6991_day0_TeloTag	SRR33298460.128649	chr7R	1/1	chr7R-1	G9	chr5R-1	G10	97.36%	90.20%	+7.16	97.32%	98.22%	+0.90	6657	98.78%	weak	mid-Y' recombination (correct direction, margins < 1.5 %)	beginning
+6991	6991_day0_TeloTag	SRR33298460.150620	chr13L	1/1	chr13L-1	G2	chr8R-1	G3							5495	98.54%	no junction	no junction found; donor wins across the element or signal too weak	beginning
+6991	6991_day0_TeloTag	SRR33298460.108378	chr14R	1/1	chr14R-1	G11	chr13L-1	G2							1974	95.90%	no junction	no junction found; donor wins across the element or signal too weak	end
+6991	6991_day0_TeloTag	SRR33298460.275124	chr16R	1/1	chr16R-1	G6	chr13L-1	G2							3588	98.61%	no junction	no junction found; donor wins across the element or signal too weak	end
