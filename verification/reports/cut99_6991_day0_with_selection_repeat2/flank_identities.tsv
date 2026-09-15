@@ -1,0 +1,14 @@
+read_id	chr_end	expected_element	donor_element	junction_in_read	anchor_half_bp	telo_half_bp	anchorHalf_vs_expected	anchorHalf_vs_donor	teloHalf_vs_expected	teloHalf_vs_donor	note
+SRR33298384.498901	chr10L	chr10L-1	chr7R-1	21060	4200	2794	99.68% (4010bp)	98.13% (4019bp)	94.86% (2042bp)	99.65% (2595bp)	anchor half -> expected, telo half -> donor
+SRR33298384.151130	chr10L	chr10L-1	chr7R-1	2850	4094	2850	95.83% (3909bp)	94.44% (3917bp)	93.29% (2056bp)	96.36% (2749bp)	anchor half -> expected, telo half -> donor
+SRR33298384.443822	chr12L	chr12L-1	chr14L-5	3193	2438	3150	99.14% (2219bp)	98.38% (2218bp)	98.86% (2983bp)	99.73% (2982bp)	anchor half -> expected, telo half -> donor
+SRR33298384.550794	chr12L	chr12L-1	chr13L-1	7805	2400	3083	98.69% (2211bp)	97.96% (2210bp)	98.19% (2992bp)	99.06% (2995bp)	anchor half -> expected, telo half -> donor
+SRR33298384.185796	chr13L	chr13L-1	chr6L-1	5804	567	5775	98.54% (343bp)	99.12% (343bp)	95.29% (3548bp)	98.56% (5643bp)	pattern not clean
+SRR33298384.45869	chr13L	chr13L-1	chr6L-1								no clean junction
+SRR33298384.220455	chr13L	chr13L-1	chr16R-1	11074	675	5007	98.68% (680bp)	95.69% (487bp)	98.81% (3100bp)	99.34% (4819bp)	anchor half -> expected, telo half -> donor
+SRR33298384.285744	chr14R	chr14R-1	chr6L-1	5383	1052	5325	99.51% (819bp)	93.51% (832bp)	96.23% (1962bp)	99.63% (5169bp)	anchor half -> expected, telo half -> donor
+SRR33298384.129326	chr15R	chr15R-1	chr9L-1	20420	1350	5868	100.00% (1199bp)	96.39% (1163bp)	96.03% (3855bp)	99.23% (5724bp)	anchor half -> expected, telo half -> donor
+SRR33298384.538094	chr16R	chr16R-1	chr13L-1	3375	2221	3375	98.24% (1992bp)	96.64% (1997bp)	95.40% (2042bp)	98.24% (3233bp)	anchor half -> expected, telo half -> donor
+SRR33298384.248800	chr16R	chr16R-1	chr14L-5	8323	2175	3284	100.00% (1976bp)	98.39% (1981bp)	96.51% (2035bp)	99.29% (3222bp)	anchor half -> expected, telo half -> donor
+SRR33298384.467718	chr2L	chr2L-1	chr8R-1								no clean junction
+SRR33298384.313055	chr2L	chr2L-1	chr8R-1								no clean junction

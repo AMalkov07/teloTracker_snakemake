@@ -1,0 +1,14 @@
+sample	read_id	chr_end	copy_index	n_copies	true_element	true_group	matched_element	matched_group	donor_end	same_end	telo_side	read_length	yp_start	yp_end
+6991_day0_with_selection_repeat2	SRR33298384.498901	chr10L	1	1	E-chr10L-1	G7	E-chr7R-1	G8	chr7R	False	end	23872	17060	23654
+6991_day0_with_selection_repeat2	SRR33298384.151130	chr10L	1	1	E-chr10L-1	G7	E-chr7R-1	G8	chr7R	False	beginning	25566	176	6744
+6991_day0_with_selection_repeat2	SRR33298384.443822	chr12L	1	1	E-chr12L-1	G4	E-chr14L-5	G2	chr14L	False	beginning	11042	243	5431
+6991_day0_with_selection_repeat2	SRR33298384.550794	chr12L	1	1	E-chr12L-1	G4	E-chr13L-1	G2	chr13L	False	end	10888	5605	10790
+6991_day0_with_selection_repeat2	SRR33298384.185796	chr13L	1	1	E-chr13L-1	G2	E-chr6L-1	G1	chr6L	False	beginning	16491	229	6171
+6991_day0_with_selection_repeat2	SRR33298384.45869	chr13L	1	1	E-chr13L-1	G2	E-chr6L-1	G1	chr6L	False	beginning	16454	203	6126
+6991_day0_with_selection_repeat2	SRR33298384.220455	chr13L	1	1	E-chr13L-1	G2	E-chr16R-1	G6	chr16R	False	end	16133	10599	15881
+6991_day0_with_selection_repeat2	SRR33298384.285744	chr14R	1	1	E-chr14R-1	G10	E-chr6L-1	G1	chr6L	False	beginning	15099	258	6235
+6991_day0_with_selection_repeat2	SRR33298384.129326	chr15R	1	1	E-chr15R-1	G8	E-chr9L-1	G7	chr9L	False	end	26296	19270	26130
+6991_day0_with_selection_repeat2	SRR33298384.538094	chr16R	1	1	E-chr16R-1	G6	E-chr13L-1	G2	chr13L	False	beginning	11736	192	5396
+6991_day0_with_selection_repeat2	SRR33298384.248800	chr16R	1	1	E-chr16R-1	G6	E-chr14L-5	G2	chr14L	False	end	11615	6348	11537
+6991_day0_with_selection_repeat2	SRR33298384.467718	chr2L	1	1	E-chr2L-1	G1	E-chr8R-1	G3	chr8R	False	beginning	15714	143	5933
+6991_day0_with_selection_repeat2	SRR33298384.313055	chr2L	1	1	E-chr2L-1	G1	E-chr8R-1	G3	chr8R	False	beginning	15138	104	5335

@@ -1,0 +1,7 @@
+sample	read_id	chr_end	copy_index	n_copies	true_element	true_group	matched_element	matched_group	donor_end	same_end	telo_side	read_length	yp_start	yp_end
+6991_day0_TeloTag	SRR33298460.150620	chr13L	1	1	E-chr13L-1	G2	E-chr8R-1	G3	chr8R	False	beginning	15662	261	5650
+6991_day0_TeloTag	SRR33298460.274149	chr14R	1	1	E-chr14R-1	G11	E-chr14L-1	G9	chr14L	False	beginning	15968	177	6784
+6991_day0_TeloTag	SRR33298460.568401	chr14R	1	1	E-chr14R-1	G11	E-chr14L-1	G9	chr14L	False	end	15899	9132	15745
+6991_day0_TeloTag	SRR33298460.108378	chr14R	1	1	E-chr14R-1	G11	E-chr13L-1	G2	chr13L	False	end	14079	8436	13915
+6991_day0_TeloTag	SRR33298460.275124	chr16R	1	1	E-chr16R-1	G6	E-chr13L-1	G2	chr13L	False	end	11285	6346	11149
+6991_day0_TeloTag	SRR33298460.128649	chr7R	1	1	E-chr7R-1	G9	E-chr5R-1	G10	chr5R	False	beginning	20835	252	6911

@@ -1,0 +1,10 @@
+expected_element	donor_element	expected_len	donor_len	n_blocks	total_homologous_bp	longest_block_bp	longest_block_identity	longest_block_in_expected	longest_block_in_donor	usable_for_crossover
+chr13L-1	chr6L-1	5483	5975	2	5918	3884	97.27%	1-3870	1-3858	yes
+chr13L-1	chr2L-1	5483	5975	2	5917	3883	97.12%	1-3870	3-3858	yes
+chr14R-1	chr9L-1	6530	6870	2	6840	4903	97.88%	48-4926	3-4905	yes
+chr14R-1	chr2L-1	6530	5975	1	1963	1963	96.23%	2966-4926	1812-3750	yes
+chr16R-1	chr13L-1	5302	5483	2	5626	3588	98.61%	1-3583	295-3870	yes
+chr2L-1	chr8R-1	5975	5469	2	5889	3855	99.14%	4-3858	1-3855	yes
+chr5R-1	chr9L-1	6693	6870	2	7039	5000	96.74%	137-5070	3-5002	yes
+chr8L-1	chr13L-1	5058	5483	1	5058	5058	98.16%	1-5058	444-5483	yes
+chr8R-1	chr14L-5	5469	5484	1	5493	5493	98.47%	1-5466	2-5481	yes

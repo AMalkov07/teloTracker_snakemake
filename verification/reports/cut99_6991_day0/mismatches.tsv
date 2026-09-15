@@ -1,0 +1,5 @@
+sample	read_id	chr_end	copy_index	n_copies	true_element	true_group	matched_element	matched_group	donor_end	same_end	telo_side	read_length	yp_start	yp_end
+6991_day0	SRR33298461.57209	chr10L	1	1	E-chr10L-1	G7	E-chr7R-1	G8	chr7R	False	beginning	25597	119	6701
+6991_day0	SRR33298461.44252	chr13L	1	1	E-chr13L-1	G2	E-chr2L-1	G1	chr2L	False	beginning	16211	183	5933
+6991_day0	SRR33298461.168936	chr14L	5	5	E-chr14L-5	G2	E-chr4R-6	G8	chr4R	False	end	38536	12741	38320
+6991_day0	SRR33298461.181020	chr6L	1	1	E-chr6L-1	G1	E-chr13L-1	G2	chr13L	False	beginning	23796	218	5636

@@ -1,0 +1,28 @@
+read_id	chr_end	expected_element	donor_element	junction_in_read	anchor_half_bp	telo_half_bp	anchorHalf_vs_expected	anchorHalf_vs_donor	teloHalf_vs_expected	teloHalf_vs_donor	note
+SRR33298378.151832	chr12L	chr12L-1	chr2L-1	8414	3000	2748	98.30% (2816bp)	97.23% (2709bp)	94.49% (2034bp)	92.31% (2303bp)	pattern not clean
+SRR33298378.55891	chr12L	chr12L-1	chr16R-1	7884	2475	3098	98.91% (2289bp)	97.52% (2298bp)	96.03% (2040bp)	96.12% (3014bp)	anchor half -> expected, telo half -> donor
+SRR33298378.479559	chr12L	chr12L-1	chr13L-1	7811	2400	3161	98.59% (2204bp)	98.14% (2203bp)	97.84% (3005bp)	98.67% (3007bp)	anchor half -> expected, telo half -> donor
+SRR33298378.275479	chr13L	chr13L-1	chr9L-1	6585	584	6525	86.77% (393bp)	88.22% (331bp)	90.07% (2084bp)	93.39% (4856bp)	pattern not clean
+SRR33298378.42439	chr13L	chr13L-1	chr10L-1								no clean junction
+SRR33298378.265251	chr13L	chr13L-1	chr2L-1	12809	2700	3578	98.37% (2514bp)	96.55% (2520bp)	94.48% (2064bp)	97.56% (3521bp)	anchor half -> expected, telo half -> donor
+SRR33298378.159765	chr13L	chr13L-1	chr2L-1	1125	5167	1125	95.64% (3898bp)	95.48% (4981bp)	95.65% (1057bp)	95.19% (1060bp)	pattern not clean
+SRR33298378.714719	chr14R	chr14R-1	chr9L-1	13909	4875	2508	97.76% (4772bp)	97.24% (4668bp)	93.11% (1959bp)	91.05% (2324bp)	pattern not clean
+SRR33298378.9482	chr14R	chr14R-1	chr9L-1	12086	3075	4156	99.35% (2921bp)	98.28% (2911bp)	94.91% (2003bp)	98.16% (3976bp)	anchor half -> expected, telo half -> donor
+SRR33298378.566178	chr14R	chr14R-1	chr9L-1	11926	3075	3947	99.42% (2926bp)	98.35% (2902bp)	97.87% (2019bp)	93.95% (2198bp)	pattern not clean
+SRR33298378.240117	chr14R	chr14R-1	chr5L-1	10871	1725	5163	98.36% (1706bp)	90.09% (1281bp)	94.66% (2885bp)	98.30% (5054bp)	anchor half -> expected, telo half -> donor
+SRR33298378.306956	chr14R	chr14R-1	chr15R-1	5550	1430	5550	98.50% (1196bp)	94.56% (1213bp)	95.80% (3782bp)	99.21% (5466bp)	anchor half -> expected, telo half -> donor
+SRR33298378.651427	chr15R	chr15R-1	chr13L-1	22679	3675	2209	99.51% (1645bp)	99.17% (3481bp)	98.96% (2020bp)	98.61% (2018bp)	pattern not clean
+SRR33298378.290053	chr16L	chr16L-1	chr10L-1	23806	4875	2604	98.61% (4744bp)	97.39% (4602bp)	96.52% (2041bp)	92.43% (2313bp)	pattern not clean
+SRR33298378.305547	chr16L	chr16L-1	chr5L-1	19998	900	5945	98.20% (890bp)	90.88% (702bp)	94.99% (2935bp)	99.01% (5849bp)	anchor half -> expected, telo half -> donor
+SRR33298378.400808	chr16R	chr16R-1	chr14L-5	8315	2175	3353	97.99% (1987bp)	96.39% (1992bp)	94.40% (2035bp)	97.30% (3224bp)	anchor half -> expected, telo half -> donor
+SRR33298378.69401	chr2L	chr2L-1	chr14L-5	1650	4317	1650	97.81% (3979bp)	97.33% (3893bp)	97.53% (1499bp)	98.53% (1502bp)	anchor half -> expected, telo half -> donor
+SRR33298378.722027	chr2L	chr2L-1	chr8R-1	13559	3975	1847	98.52% (3786bp)	98.18% (3783bp)	98.02% (1714bp)	96.78% (1710bp)	pattern not clean
+SRR33298378.427420	chr2L	chr2L-1	chr8R-1								no clean junction
+SRR33298378.334381	chr5L	chr5L-1	chr5R-1	4875	1858	4875	96.13% (1680bp)	93.55% (1256bp)	93.48% (2943bp)	97.28% (4736bp)	anchor half -> expected, telo half -> donor
+SRR33298378.381146	chr5L	chr5L-1	chr12R-1	3000	3655	3000	95.79% (3466bp)	94.65% (3479bp)	91.99% (2061bp)	94.15% (2925bp)	anchor half -> expected, telo half -> donor
+SRR33298378.151924	chr6L	chr6L-1	chr14L-5	3375	2477	3375	98.95% (2288bp)	96.76% (2314bp)	95.07% (2049bp)	98.56% (3197bp)	anchor half -> expected, telo half -> donor
+SRR33298378.95349	chr6L	chr6L-1	chr13L-1	20148	2175	3506	99.24% (2105bp)	97.61% (2130bp)	95.74% (2041bp)	98.96% (3371bp)	anchor half -> expected, telo half -> donor
+SRR33298378.180346	chr6L	chr6L-1	chr14L-5	20248	2250	3402	98.99% (2186bp)	96.75% (2212bp)	95.79% (2041bp)	98.72% (3289bp)	anchor half -> expected, telo half -> donor
+SRR33298378.296817	chr6L	chr6L-1	chr14L-5	2775	2994	2775	98.95% (2772bp)	97.03% (2798bp)	96.53% (2045bp)	99.56% (2706bp)	anchor half -> expected, telo half -> donor
+SRR33298378.142793	chr8L	chr8L-1	chr2L-1	3150	2743	3150	99.33% (2546bp)	98.12% (2558bp)	95.94% (2044bp)	99.60% (3010bp)	anchor half -> expected, telo half -> donor
+SRR33298378.56289	chr8R	chr8R-1	chr2L-1								no clean junction
