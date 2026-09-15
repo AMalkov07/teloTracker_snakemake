@@ -65,3 +65,50 @@ whole-element replacements, and 1 unexplained -- out of 7,112 reads scored.
 
 Note the weak calls cluster with low overall identity: SRR33298452.400093 sits at 93-95 % against
 both references, so its +2.09 / +1.34 margins rest on a noisy read rather than a clean signal.
+
+## Is there homology for a crossover in every pair? Yes -- but at 96-98 %, not 99 %+
+
+`verification/pair_homology.py` aligns each recipient/donor element pair and reports the
+high-identity blocks available for strand invasion.
+
+| recipient | donor | longest block | identity | blocks | total homologous bp | evidence class |
+|---|---|---|---|---|---|---|
+| chr14R-1 | chr14L-1 | 4,973 bp | 96.70% | 2 | 6,920 | strong |
+| chr5R-1 | chr14R-1 | 4,962 bp | 96.41% | 2 | 6,909 | strong |
+| chr6L-1 | chr8R-1 | 3,864 bp | 97.67% | 2 | 5,898 | strong |
+| chr6L-1 | chr14L-5 | 3,884 bp | 97.35% | 2 | 5,923 | strong |
+| chr6L-1 | chr14R-1 | 1,963 bp | 96.23% | 1 | 1,963 | strong |
+| chr6L-1 | chr16L-1 | 2,047 bp | 97.36% | 3 | 5,741 | strong |
+| chr10L-1 | chr14R-1 | 4,902 bp | 97.63% | 2 | 6,839 | weak |
+| chr5R-1 | chr10L-1 | 4,999 bp | 96.86% | 2 | 7,038 | FAILS |
+| chr2L-1 | chr8R-1 | 3,855 bp | **99.14%** | 2 | 5,889 | no junction |
+| chr8R-1 | chr2L-1 | 3,855 bp | **99.14%** | 2 | 5,889 | no junction |
+
+**No pair lacks a homologous region.** Every one has at least ~2 kb of contiguous homology,
+most have 4-5 kb, and total homologous sequence runs 1.9-7.0 kb. There is always somewhere a
+crossover could occur.
+
+But the identity is **96-98 %, not 99 %+**. At a >= 98 % threshold, eight of the ten pairs
+have no qualifying block at all. These are homeologous rather than identical partners:
+~3 % divergence, which is well within range for homologous recombination in yeast but is not
+the near-perfect identity the word "homologous area" might suggest.
+
+### The one pair that is different, and what it may explain
+
+`chr2L-1` / `chr8R-1` is the only pair reaching **99.14 %** -- and it is exactly the pair
+behind both "whole Y' replaced, no junction" reads (SRR33298452.59861 and .555243, which are
+reciprocal: chr2L->chr8R and chr8R->chr2L).
+
+That is consistent, though not proven here: when two elements are 99.1 % identical across
+3.8 kb, a crossover anywhere in that block produces almost the same sequence, so there is no
+localisable junction to find. "Whole element replaced" and "junction present but unlocalisable"
+are indistinguishable at this identity. These two reads should not be reported as a
+mechanistically distinct class on this evidence alone.
+
+### What could not be established
+
+Mapping each junction back to a coordinate in the recipient element, to test whether it falls
+*inside* the homology block, did not produce reliable positions -- several junctions mapped to
+position ~1, which is an alignment-endpoint artifact rather than a real junction. That
+containment test needs a proper pairwise alignment of read to both references (not BLAST HSP
+endpoints) and is not reported here.
