@@ -14,53 +14,54 @@ window along the read's Y' and scores each window against the expected element a
 observed one. A crossover -- one winning a run of windows at one end of the read, the other
 at the other end -- is the recombinant signature.
 
-| read | end | expected | observed | group | explanation |
-|---|---|---|---|---|---|
-| SRR33298452.573441 | chr10L | chr10L-1 | chr14R-1 | G7→G10 | recombination part-way through the Y'; donor on telomere side |
-| SRR33298452.217955 | chr14R | chr14R-1 | chr14L-1 | G10→G8 | recombination part-way through the Y'; donor on telomere side |
-| SRR33298452.246202 | chr14R | chr14R-1 | chr14L-1 | G10→G8 | recombination part-way through the Y'; donor on telomere side |
-| SRR33298452.241882 | chr5R | chr5R-1 | chr14R-1 | G9→G10 | recombination part-way through the Y'; donor on telomere side |
-| SRR33298452.485827 | chr5R | chr5R-1 | chr10L-1 | G9→G7 | recombination part-way through the Y'; direction not resolvable |
-| SRR33298452.220014 | chr6L | chr6L-1 | chr8R-1 | G1→G3 | recombination part-way through the Y'; donor on telomere side |
-| SRR33298452.272227 | chr6L | chr6L-1 | chr14L-5 | G1→G2 | recombination part-way through the Y'; donor on telomere side |
-| SRR33298452.400002 | chr6L | chr6L-1 | chr14L-5 | G1→G2 | recombination part-way through the Y'; donor on telomere side |
-| SRR33298452.400093 | chr6L | chr6L-1 | chr14L-5 | G1→G2 | recombination part-way through the Y'; donor on telomere side |
-| SRR33298452.419935 | chr6L | chr6L-1 | chr14R-1 | G1→G10 | recombination part-way through the Y'; direction not resolvable |
-| SRR33298452.485661 | chr6L | chr6L-1 | chr16L-1 | G1→G8 | recombination part-way through the Y'; donor on telomere side |
-| SRR33298452.59861 | chr2L | chr2L-1 | chr8R-1 | G1→G3 | **whole Y' replaced** -- donor wins across the element, no junction |
-| SRR33298452.555243 | chr8R | chr8R-1 | chr2L-1 | G3→G1 | **whole Y' replaced** -- donor wins across the element, no junction |
-| SRR33298452.427945 | chr6L | chr6L-1 | chr14L-5 | G1→G2 | alternating signal: possible double crossover, or noise |
+## Per-read evidence: how each half of the Y' matches
 
-Summary: **11 partial (mid-Y') recombination, 2 whole-element replacement, 1 ambiguous.**
-Of the 11, 9 resolve a direction and all 9 put the donor on the telomere side -- the BIR /
-template-switch expectation. The other 2 have crossovers too diffuse to orient.
+`verification/flank_identities.py` locates the junction from the window scan, splits the Y' there,
+and aligns each half to BOTH references. A genuine mid-Y' switch must show the anchor-side half
+favouring the expected element AND the telomere-side half favouring the donor. Halves are named by
+biological side using `telo_side`, so reads sequenced in either direction are comparable.
+Delta is (expected - donor) on the anchor half and (donor - expected) on the telomere half; both
+must be positive. "strong" = both margins >= 1.5 %.
 
-## The donor is a group, not an element
+| read | end | expected | donor | anchor half: exp / donor | Δ | telo half: exp / donor | Δ | evidence |
+|---|---|---|---|---|---|---|---|---|
+| SRR33298452.217955 | chr14R | chr14R-1 | chr14L-1 | 99.34% / 96.40% | +2.94 | 96.07% / 99.61% | +3.54 | **strong** |
+| SRR33298452.246202 | chr14R | chr14R-1 | chr14L-1 | 99.71% / 97.36% | +2.35 | 95.48% / 99.27% | +3.79 | **strong** |
+| SRR33298452.241882 | chr5R | chr5R-1 | chr14R-1 | 99.35% / 95.32% | +4.03 | 96.45% / 99.55% | +3.10 | **strong** |
+| SRR33298452.220014 | chr6L | chr6L-1 | chr8R-1 | 96.92% / 94.83% | +2.09 | 95.79% / 98.16% | +2.37 | **strong** |
+| SRR33298452.272227 | chr6L | chr6L-1 | chr14L-5 | 99.04% / 96.79% | +2.25 | 95.39% / 98.15% | +2.76 | **strong** |
+| SRR33298452.400002 | chr6L | chr6L-1 | chr14L-5 | 99.86% / 97.62% | +2.24 | 96.72% / 99.55% | +2.83 | **strong** |
+| SRR33298452.419935 | chr6L | chr6L-1 | chr14R-1 | 99.77% / 95.50% | +4.27 | 95.78% / 99.27% | +3.49 | **strong** |
+| SRR33298452.485661 | chr6L | chr6L-1 | chr16L-1 | 99.48% / 97.05% | +2.43 | 97.22% / 99.82% | +2.60 | **strong** |
+| SRR33298452.573441 | chr10L | chr10L-1 | chr14R-1 | 99.55% / 98.33% | +1.22 | 97.68% / 99.67% | +1.99 | weak |
+| SRR33298452.400093 | chr6L | chr6L-1 | chr14L-5 | 95.08% / 92.99% | +2.09 | 93.96% / 95.30% | +1.34 | weak |
+| SRR33298452.427945 | chr6L | chr6L-1 | chr14L-5 | 97.58% / 96.94% | +0.64 | 98.42% / 99.41% | +0.99 | weak |
+| SRR33298452.485827 | chr5R | chr5R-1 | chr10L-1 | 98.86% / 96.85% | +2.01 | 96.28% / 92.34% | -3.94 | **FAILS** |
+| SRR33298452.59861 | chr2L | chr2L-1 | chr8R-1 | — | — | — | — | no junction |
+| SRR33298452.555243 | chr8R | chr8R-1 | chr2L-1 | — | — | — | — | no junction |
 
-The "observed" element is only the best-scoring member of a set of near-identical sequences.
-The real donor cannot be narrowed below its group:
+| evidence | reads |
+|---|---|
+| **strong** -- both halves clearly favour the right reference | **8** |
+| weak -- correct direction, margins under 1.5 % | 3 |
+| **FAILS** -- telomere half still favours the expected element | 1 |
+| no junction -- whole Y' replaced, donor wins throughout | 2 |
 
-| read | donor called | indistinguishable alternatives |
-|---|---|---|
-| SRR33298452.217955 / .246202 | chr14L-1 | 18 others in G8 (chr4R-1..7, chr12R-2..6, chr13L-2, chr13L-4, chr14L-2, chr15R-1, chr16L-1, chr7R-1) |
-| SRR33298452.485661 | chr16L-1 | 18 others in G8 |
-| SRR33298452.272227 / .400002 / .400093 / .427945 | chr14L-5 | chr13L-1, chr13L-3, chr14L-3, chr14L-4 |
-| SRR33298452.485827 | chr10L-1 | chr9L-1 |
-| SRR33298452.555243 | chr2L-1 | chr6L-1 |
-| SRR33298452.573441 / .241882 / .419935 | chr14R-1 | (unique in its group) |
-| SRR33298452.220014 / .59861 | chr8R-1 | (unique in its group) |
+### What the flank test changed
 
-Four donors *are* uniquely identified (chr14R-1 and chr8R-1 are alone in G10 and G3).
+The window scan alone called 11 of these recombinant. Measuring both halves against both
+references revises that:
 
-## Caveats
+* **SRR33298452.485827** (chr5R, donor chr10L-1) **fails**. Its anchor half behaves correctly
+  (+2.01 for the expected element) but its telomere half *also* favours the expected element
+  (-3.94). There is no half that the donor explains better, so a mid-Y' switch to chr10L-1 is not
+  supported. It was one of the 11; it should not be counted.
+* **SRR33298452.427945**, previously "mixed/ambiguous", now shows the correct direction on both
+  halves, though weakly (+0.64 / +0.99).
+* The 2 whole-element replacements have no junction to split at, as expected.
 
-* **A native anchor is established; an untouched spacer and X element are not.** Reads were
-  assigned to their end by anchor match, and their Y' copy count matches the reference, but
-  the spacer and X element between anchor and Y' were not tested for recombination.
-* **Library chimerism is not excluded** -- a prep chimera would also join at homology. The
-  telomere-side polarity argues against it but does not rule it out.
-* **0.20% is a floor**, not a rate estimate: a recombinant is only visible when donor and
-  recipient fall in different groups at this cutoff, and 19 of the 36 elements sit in G8.
+So the defensible count for 7302 day-0 is **8 strong + 3 weak mid-Y' recombination events**, 2
+whole-element replacements, and 1 unexplained -- out of 7,112 reads scored.
 
-Files: `cut99_mismatches_annotated.tsv` (this table plus window patterns),
-`cut99_mismatches.tsv` (raw), `groups_7302.json` (the grouping).
+Note the weak calls cluster with low overall identity: SRR33298452.400093 sits at 93-95 % against
+both references, so its +2.09 / +1.34 margins rest on a noisy read rather than a clean signal.

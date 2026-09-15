@@ -1,0 +1,15 @@
+read_id	chr_end	expected_element	donor_element	junction_in_read	anchor_half_bp	telo_half_bp	anchorHalf_vs_expected	anchorHalf_vs_donor	teloHalf_vs_expected	teloHalf_vs_donor	note	d_anchor	d_telo	strength
+SRR33298452.573441	chr10L	chr10L-1	chr14R-1	22675	3975	2928	99.55% (3782bp)	98.33% (3780bp)	97.68% (1938bp)	99.67% (2731bp)	anchor half -> expected, telo half -> donor	+1.22	+1.99	weak
+SRR33298452.246202	chr14R	chr14R-1	chr14L-1	3000	3983	3000	99.71% (3748bp)	97.36% (3783bp)	95.48% (1945bp)	99.27% (2877bp)	anchor half -> expected, telo half -> donor	+2.35	+3.79	strong
+SRR33298452.217955	chr14R	chr14R-1	chr14L-1	11745	2775	4194	99.34% (2581bp)	96.40% (2614bp)	96.07% (2366bp)	99.61% (4048bp)	anchor half -> expected, telo half -> donor	+2.94	+3.54	strong
+SRR33298452.59861	chr2L	chr2L-1	chr8R-1								no clean junction			no junction
+SRR33298452.485827	chr5R	chr5R-1	chr10L-1	11968	4875	2600	98.86% (4815bp)	96.85% (4670bp)	96.28% (2045bp)	92.34% (2312bp)	pattern not clean	+2.01	-3.94	FAILS
+SRR33298452.241882	chr5R	chr5R-1	chr14R-1	9310	2250	4629	99.35% (2145bp)	95.32% (2095bp)	96.45% (2872bp)	99.55% (4463bp)	anchor half -> expected, telo half -> donor	+4.03	+3.10	strong
+SRR33298452.485661	chr6L	chr6L-1	chr16L-1	5250	1770	5250	99.48% (1539bp)	97.05% (1559bp)	97.22% (2049bp)	99.82% (5101bp)	anchor half -> expected, telo half -> donor	+2.43	+2.60	strong
+SRR33298452.419935	chr6L	chr6L-1	chr14R-1	19388	1425	5332	99.77% (1281bp)	95.50% (1377bp)	95.78% (1966bp)	99.27% (5173bp)	anchor half -> expected, telo half -> donor	+4.27	+3.49	strong
+SRR33298452.427945	chr6L	chr6L-1	chr14L-5	1125	4710	1125	97.58% (3885bp)	96.94% (4504bp)	98.42% (1014bp)	99.41% (1016bp)	anchor half -> expected, telo half -> donor	+0.64	+0.99	weak
+SRR33298452.400002	chr6L	chr6L-1	chr14L-5	3450	2394	3450	99.86% (2163bp)	97.62% (2189bp)	96.72% (2040bp)	99.55% (3310bp)	anchor half -> expected, telo half -> donor	+2.24	+2.83	strong
+SRR33298452.272227	chr6L	chr6L-1	chr14L-5	20230	2250	3396	99.04% (2186bp)	96.79% (2212bp)	95.39% (2039bp)	98.15% (3292bp)	anchor half -> expected, telo half -> donor	+2.25	+2.76	strong
+SRR33298452.220014	chr6L	chr6L-1	chr8R-1	3000	2789	3000	96.92% (2569bp)	94.83% (2574bp)	95.79% (2043bp)	98.16% (2938bp)	anchor half -> expected, telo half -> donor	+2.09	+2.37	strong
+SRR33298452.400093	chr6L	chr6L-1	chr14L-5	20126	2250	3394	95.08% (2215bp)	92.99% (2241bp)	93.96% (2052bp)	95.30% (3299bp)	anchor half -> expected, telo half -> donor	+2.09	+1.34	weak
+SRR33298452.555243	chr8R	chr8R-1	chr2L-1								no clean junction			no junction
