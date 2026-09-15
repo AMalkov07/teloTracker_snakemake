@@ -33,8 +33,35 @@ p.add_argument('--results-root', default='/home/andrey/argon_scratch/telo_sra_ru
 p.add_argument('--tag', default='elemYPfix')
 p.add_argument('--thresholds', nargs='+', type=float, default=[95, 96, 97, 98, 99, 99.5])
 p.add_argument('--threads', type=int, default=8)
+p.add_argument('--curated-root', default='verification/curated_refs',
+               help='dir holding <strain>_features/repeatmasker_<strain>_all_y_primes.fasta')
 p.add_argument('--out', default='verification/reports/threshold_sweep.tsv')
 a = p.parse_args()
+
+
+def curated_map(strain, level, curated_root):
+    """element id -> curated group, mapped by array position from the curated library headers.
+
+    Headers look like  >Y_Prime_chr4R1,2,3,6,7;chr12R6,7#Long/Tandem/ID2_Red-Light
+    so one entry can name several positions across several ends. `level` is 'variant'
+    (ID2_Red-Light) or 'family' (ID2).
+    """
+    fa = os.path.join(curated_root, f'{strain}_features',
+                      f'repeatmasker_{strain}_all_y_primes.fasta')
+    if not os.path.exists(fa): return None
+    m = {}
+    for line in open(fa):
+        if not line.startswith('>'): continue
+        name_part, cls = (line.strip().lstrip('>').split('#', 1) + [''])[:2]
+        parts = cls.split('/')
+        grp = parts[2] if len(parts) >= 3 else ''
+        if level == 'family': grp = grp.split('_', 1)[0]
+        for chunk in name_part.replace('Y_Prime_', '').split(';'):
+            mm = re.match(r'^(chr\w+?[LR])((?:\d+)(?:,\d+)*)$', chunk)
+            if not mm: continue
+            for n in mm.group(2).split(','):
+                m[f'E-{mm.group(1)}-{n}'] = grp
+    return m
 
 
 def load_lib(fa):
@@ -84,6 +111,17 @@ for fa in sorted(glob.glob(os.path.join(a.libs, 'elem_*_fixed.fasta'))):
         schemes[f'{t:g}'] = push(lb, 'T')
     k, _, _, lb = find_clusters_silhouette(dist, linkage_method='average')
     schemes['silhouette'] = push(lb, 'S')
+
+    # curated schemes, mapped onto the same elements by array position
+    strain = sample.split('_')[0]
+    for level, label in (('variant', 'curated_variant'), ('family', 'curated_family')):
+        cm = curated_map(strain, level, a.curated_root)
+        if cm is None: continue
+        missing = [i for i in ids if i not in cm]
+        if missing:
+            print(f'  {sample} {label}: {len(missing)} element(s) absent from the curated '
+                  f'library ({", ".join(missing[:4])}) -> grouped as UNASSIGNED', file=sys.stderr)
+        schemes[label] = {i: cm.get(i, 'UNASSIGNED') for i in ids}
 
     # read the sample's element-level calls once
     end_of = {i: re.match(r'^E-(chr\w+?[LR])-\d+$', i).group(1) for i in ids}
