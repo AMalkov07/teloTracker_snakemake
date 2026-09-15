@@ -1,0 +1,15 @@
+read_id	chr_end	copy_index	n_copies	true_element	true_group	matched_element	matched_group	donor_end	same_end	telo_side	read_length	yp_start	yp_end
+SRR33298452.573441	chr10L	1	1	E-chr10L-1	G7	E-chr14R-1	G10	chr14R	False	end	25603	18900	25405
+SRR33298452.246202	chr14R	1	1	E-chr14R-1	G10	E-chr14L-1	G8	chr14L	False	beginning	14366	160	6783
+SRR33298452.217955	chr14R	1	1	E-chr14R-1	G10	E-chr14L-1	G8	chr14L	False	end	15939	9170	15786
+SRR33298452.59861	chr2L	1	1	E-chr2L-1	G1	E-chr8R-1	G3	chr8R	False	end	15415	9773	15242
+SRR33298452.485827	chr5R	1	1	E-chr5R-1	G9	E-chr10L-1	G7	chr10L	False	end	14580	7293	14368
+SRR33298452.241882	chr5R	1	1	E-chr5R-1	G9	E-chr14R-1	G10	chr14R	False	end	13946	7260	13762
+SRR33298452.485661	chr6L	1	1	E-chr6L-1	G1	E-chr16L-1	G8	chr16L	False	beginning	25004	187	6820
+SRR33298452.419935	chr6L	1	1	E-chr6L-1	G1	E-chr14R-1	G10	chr14R	False	end	24846	18163	24677
+SRR33298452.427945	chr6L	1	1	E-chr6L-1	G1	E-chr14L-5	G2	chr14L	False	beginning	23816	143	5635
+SRR33298452.400002	chr6L	1	1	E-chr6L-1	G1	E-chr14L-5	G2	chr14L	False	beginning	23810	176	5644
+SRR33298452.272227	chr6L	1	1	E-chr6L-1	G1	E-chr14L-5	G2	chr14L	False	end	23752	18180	23635
+SRR33298452.220014	chr6L	1	1	E-chr6L-1	G1	E-chr8R-1	G3	chr8R	False	beginning	23728	111	5589
+SRR33298452.400093	chr6L	1	1	E-chr6L-1	G1	E-chr14L-5	G2	chr14L	False	end	23653	18076	23504
+SRR33298452.555243	chr8R	1	1	E-chr8R-1	G3	E-chr2L-1	G1	chr2L	False	beginning	41425	151	6116
