@@ -1,0 +1,69 @@
+sample	read_id	chr_end	y_prime_status	observed_array	window_len	window_start	expected_source	recombination_source	overall_confidence	compatible_ends	fingerprint_source	mechanism	hit
+7302_day5_with_selection	SRR33298447.322782	chr10R	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.490537	chr11L	Y' Gain	ID2,ID1,ID2,ID1,ID2,ID2,ID2,ID2,ID2,ID2,ID2	5	0	chr13L	chr13L	-0.0026	chr12L,chr13L,chr8L,chr8R	chr13L	subtelomere_switch	True
+7302_day5_with_selection	SRR33298447.149279	chr11L	Y' Gain	ID1,ID1,ID2,ID1,ID2	4	1	chr13L	chr13L	0.0036	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	subtelomere_switch	True
+7302_day5_with_selection	SRR33298447.146060	chr11L	Y' Gain	ID2,ID1,ID2	3	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.268817	chr11R	Y' Gain	ID2,ID1,ID2,ID2,ID1,ID1	3	0	chr13L	chr14L	0.66	chr12L,chr13L,chr8L,chr8R	chr14L	donor_transfer	False
+7302_day5_with_selection	SRR33298447.12915	chr11R	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.28086	chr12L	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.170876	chr13R	Y' Gain	ID2,ID1,ID2,ID1,ID1,ID2,ID1	4	0	chr13L	chr13L	0.0013	chr12L,chr13L,chr8L,chr8R		subtelomere_switch	True
+7302_day5_with_selection	SRR33298447.85642	chr14R	1st Y' Change	ID1,ID2,ID1,ID2	4	0	chr13L	chr13L	0.66	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.151294	chr15R	Y' Gain	ID1,ID2,ID1,ID2,ID1,ID1	5	0	chr13L	chr13L	0.66	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.78734	chr15R	Y' Gain	ID1,ID1,ID2,ID1	3	1	chr13L	chr13L	0.66	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.335886	chr16L	Y' Gain	ID1,ID2,ID1,ID1	3	0	chr13L	chr13L	0.33	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R		donor_transfer_candidates:2	True
+7302_day5_with_selection	SRR33298447.108657	chr16L	Y' Gain	ID1,ID2,ID1	3	0	chr13L	chr13L	0.44	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.502469	chr16R	Y' Gain	ID7,ID1,ID1,ID1,ID2,ID1	3	3	chr13L	chr14L	0.66	chr16R	chr14L	donor_transfer	False
+7302_day5_with_selection	SRR33298447.328635	chr1L	Y' Gain	ID1,ID2,ID1,ID2	4	0	chr13L	chr13L	0.66	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.148608	chr1R	Y' Gain	ID2,ID1,ID2,ID1,ID2	5	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.118629	chr1R	Y' Gain	ID2,ID1,ID2	3	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.151907	chr2L	Y' Gain	ID4,ID1,ID2,ID1	3	1	chr13L	chr13L	0.66	chr2L,chr6L	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.318819	chr2R	Y' Gain	ID2,ID1,ID2,ID1,ID1,ID1	4	0	chr13L	chr13L	0.008	chr12L,chr13L,chr8L,chr8R	chr13L	subtelomere_switch	True
+7302_day5_with_selection	SRR33298447.149253	chr2R	Y' Gain	ID2,ID1,ID2,ID2,ID1	3	0	chr13L	chr14L	0.66	chr12L,chr13L,chr8L,chr8R	chr14L	donor_transfer	False
+7302_day5_with_selection	SRR33298447.129927	chr2R	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.74716	chr2R	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.460402	chr2R	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.33469	chr2R	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.9362	chr3R	Y' Gain	ID3,ID1,ID2,ID1,ID1,ID2,ID1,ID2	4	4	chr13L	chr13L	0.0051	chr10L,chr9L		subtelomere_switch	True
+7302_day5_with_selection	SRR33298447.180074	chr3R	Y' Gain	ID2,ID1,ID2,ID2,ID1,ID2	3	0	chr13L	chr13L	0.33	chr12L,chr13L,chr8L,chr8R		donor_transfer_candidates:2	True
+7302_day5_with_selection	SRR33298447.490300	chr3R	Y' Gain	ID2,ID1,ID2,ID1,ID1	4	0	chr13L	chr13L	-0.0007	chr12L,chr13L,chr8L,chr8R	chr13L	subtelomere_switch	True
+7302_day5_with_selection	SRR33298447.207200	chr3R	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.168241	chr4L	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.434153	chr4L	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.295395	chr5L	Y' Gain	ID8,ID1,ID2,ID1	3	1	chr13L	chr13L	0.66	chr5L	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.16244	chr5L	Y' Gain	ID8,ID2,ID1,ID2	3	1	chr13L	chr13L	0.66	chr5L	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.318447	chr5R	Y' Gain	ID1,ID2,ID1,ID2,ID2,ID2,ID2,ID2,ID4	4	0	chr13L	chr14L	0.66	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr14L	donor_transfer	False
+7302_day5_with_selection	SRR33298447.325287	chr5R	Y' Gain	ID1,ID2,ID1	3	0	chr13L	chr13L	0.44	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.498649	chr5R	Y' Gain	ID1,ID2,ID1	3	0	chr13L	chr13L	0.44	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.22803	chr7R	Y' Gain	ID1,ID2,ID1,ID2,ID1	5	0	chr13L	chr13L	0.66	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.508772	chr7R	Y' Gain	ID1,ID2,ID1,ID2,ID2	4	0	chr13L	chr14L	0.66	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr14L	donor_transfer	False
+7302_day5_with_selection	SRR33298447.150844	chr7R	Y' Gain	ID1,ID1,ID2,ID1	3	1	chr13L	chr13L	0.66	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.329763	chr7R	Y' Gain	ID1,ID2,ID1	3	0	chr13L	chr13L	0.44	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day5_with_selection	SRR33298447.18466	chr7R	Y' Gain	ID1,ID2,ID1	3	0	chr13L	chr13L	0.44	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day6_with_selection_repeat	SRR33298446.373861	chr5R	Y' Gain	ID1,ID1,ID2,ID1	3	1	chr13L	chr13L	0.66	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day6_with_selection_repeat	SRR33298446.252236	chr5R	Y' Gain	ID1,ID2,ID1	3	0	chr13L	chr13L	0.44	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day4_with_selection	SRR33298449.327615	chr10R	Y' Gain	ID2,ID1,ID2,ID1,ID2	5	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day4_with_selection	SRR33298449.274261	chr10R	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr14L	0.3559	chr12L,chr13L,chr8L,chr8R	chr13L	subtelomere_switch	False
+7302_day4_with_selection	SRR33298449.368231	chr14R	1st Y' Change	ID2,ID1,ID2	3	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day4_with_selection	SRR33298449.497101	chr15L	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr13L	-0.0009	chr12L,chr13L,chr8L,chr8R	chr13L	subtelomere_switch	True
+7302_day4_with_selection	SRR33298449.293351	chr16L	Y' Gain	ID1,ID1,ID2,ID1	3	1	chr13L	chr13L	0.66	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day4_with_selection	SRR33298449.250891	chr16L	Y' Gain	ID1,ID2,ID1	3	0	chr13L	chr13L	0.44	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day4_with_selection	SRR33298449.444426	chr2R	Y' Gain	ID2,ID1,ID2,ID1,ID2	5	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day4_with_selection	SRR33298449.196678	chr2R	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day4_with_selection	SRR33298449.507268	chr2R	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr13L	0.0002	chr12L,chr13L,chr8L,chr8R	chr13L	subtelomere_switch	True
+7302_day4_with_selection	SRR33298449.564793	chr2R	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day4_with_selection	SRR33298449.567566	chr3R	Y' Gain	ID1,ID1,ID2,ID1	3	1	chr13L	chr7R	0.7	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr14L	subtelomere_switch	False
+7302_day4_with_selection	SRR33298449.486235	chr3R	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day4_with_selection	SRR33298449.43071	chr3R	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day4_with_selection	SRR33298449.277608	chr3R	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day4_with_selection	SRR33298449.4646	chr3R	Y' Gain	ID2,ID1,ID2	3	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day4_with_selection	SRR33298449.23058	chr4L	Y' Gain	ID2,ID1,ID2,ID1,ID2	5	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day4_with_selection	SRR33298449.141373	chr4L	Y' Gain	ID2,ID1,ID2,ID1	4	0	chr13L	chr13L	0.66	chr12L,chr13L,chr8L,chr8R	chr13L	donor_transfer	True
+7302_day4_with_selection	SRR33298449.131857	chr5R	Y' Gain	ID1,ID1,ID2,ID1,ID2,ID1	5	1	chr13L	chr13L	0.66	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day4_with_selection	SRR33298449.463689	chr5R	Y' Gain	ID1,ID2,ID1,ID1	3	0	chr13L	chr13L	0.33	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R		donor_transfer_candidates:2	True
+7302_day4_with_selection	SRR33298449.347234	chr7R	Y' Gain	ID1,ID2,ID1,ID2	4	0	chr13L	chr13L	0.66	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day4_with_selection	SRR33298449.17944	chr8L	1st Y' Change	ID1,ID2,ID1,ID2	4	0	chr13L	chr13L	0.66	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day9_with_selection_repeat	SRR33298445.216902	chr15R	Y' Gain	ID1,ID1,ID2,ID1	3	1	chr13L	chr13L	0.66	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr13L	donor_transfer	True
+7302_day9_with_selection_repeat	SRR33298445.87017	chr1R	Y' Gain	ID1,ID2,ID1,ID1,ID2	3	0	chr13L	chr1L	0.517	chr14L,chr15R,chr16L,chr4R,chr5R,chr7R	chr14L	subtelomere_switch	False
+7302_day9_with_selection_repeat	SRR33298445.127200	chr2R	Y' Gain	ID2,ID1,ID2,ID2,ID2,ID2	3	0	chr13L	chr14L	0.66	chr12L,chr13L,chr8L,chr8R	chr14L	donor_transfer	False
+7302_day9_with_selection_repeat	SRR33298445.36153	chr2R	Y' Gain	ID2,ID1,ID1,ID2,ID1	3	2	chr13L	chr14L	0.66	chr12L,chr13L,chr8L,chr8R	chr14L	donor_transfer	False
+7302_day9_with_selection_repeat	SRR33298445.90156	chr5L	Y' Gain	ID8,ID2,ID1,ID2,ID1,ID1	4	1	chr13L	chr13L	0.66	chr5L	chr13L	donor_transfer	True

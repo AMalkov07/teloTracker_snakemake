@@ -1,0 +1,10 @@
+read_id	chr_end	y_prime_recombination_status	y_prime_observed_array	y_prime_gained_segment	y_prime_fingerprint_window	unit	copies	kind	donor	y_prime_array_matches	recombination_source	overall_confidence	recombination_mechanism	telomere_end_confirmed	circle_class
+SRR33298446.84303	chr12L	Y' Gain	ID2,ID2,ID2,ID2	ID2,ID2,ID2	ID2,ID2,ID2	ID2	3	contiguous	chr14L	chr14L:contiguous	chr14L	0.66	donor_transfer	True	homopolymer_run
+SRR33298446.166333	chr14L	Y' Gain	ID1,ID1,ID2,ID2,ID2,ID2,ID2,ID2	ID2,ID2,ID2	ID2,ID2,ID2	ID2	3	contiguous		chr14L:contiguous	chr14L	0.33	tandem_amplification_same_end	True	homopolymer_run
+SRR33298446.160018	chr14R	Y' Gain	ID6,ID2,ID2,ID2,ID2	ID2,ID2,ID2,ID2	ID2,ID2,ID2,ID2	ID2	4	periodic	chr14L	chr14L:periodic	chr14L	0.66	donor_transfer	True	homopolymer_run
+SRR33298446.194760	chr2R	Y' Gain	ID4,ID4,ID4,ID4,ID4,ID4,ID4	ID4,ID4,ID4,ID4,ID4,ID4,ID4		ID4	7				chr12R	0.0035	subtelomere_switch	False	homopolymer_run
+SRR33298446.268199	chr4L	Y' Gain	ID2,ID2,ID2,ID2,ID2	ID2,ID2,ID2,ID2,ID2	ID2,ID2,ID2,ID2,ID2	ID2	5	periodic	chr14L	chr14L:periodic	chr3R	0.652	subtelomere_switch	True	homopolymer_run
+SRR33298446.125100	chr5L	Y' Gain	ID8,ID1,ID1,ID1,ID1,ID1	ID1,ID1,ID1,ID1,ID1	ID1,ID1,ID1,ID1,ID1	ID1	5	contiguous		chr12R:contiguous;chr14L:periodic;chr4R:contiguous	chr12R	0.33	donor_transfer_candidates:2	True	homopolymer_run
+SRR33298446.345382	chr6L	Y' Gain	ID4,ID2,ID2,ID2	ID2,ID2,ID2	ID2,ID2,ID2	ID2	3	contiguous	chr14L	chr14L:contiguous	chr14L	0.66	donor_transfer	True	homopolymer_run
+SRR33298446.207241	chr7L	Y' Gain	ID1,ID1,ID1	ID1,ID1,ID1	ID1,ID1,ID1	ID1	3	contiguous		chr12R:contiguous;chr14L:periodic;chr4R:contiguous	chr4R	0.0051	subtelomere_switch	True	homopolymer_run
+SRR33298446.47950	chr8R	Y' Gain	ID2,ID2,ID2,ID2	ID2,ID2,ID2	ID2,ID2,ID2	ID2	3	contiguous	chr14L	chr14L:contiguous	chr14L	0.66	donor_transfer	True	homopolymer_run

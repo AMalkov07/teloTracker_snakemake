@@ -1,0 +1,5 @@
+read_id	chr_end	y_prime_recombination_status_a	recombination_source_a	recombination_detected_a	overall_confidence_a	is_complex_event_a	recombination_mechanism_a	y_prime_recombination_status_b	recombination_source_b	recombination_detected_b	overall_confidence_b	is_complex_event_b	recombination_mechanism_b	status_changed	source_changed	detected_changed	dconf
+SRR33298452.399082	chr11R	Y' Gain	chr8	True	-0.0069	False	subtelomere_switch	Y' Gain	chr12R	True	0.9	False	subtelomere_switch	False	True	False	0.907
+SRR33298452.600132	chr13R	Y' Gain	ambiguous	True	0.0045	False	subtelomere_switch	Y' Gain	chr12R	True	0.9	False	subtelomere_switch	False	True	False	0.896
+SRR33298452.520829	chr13R	Y' Gain	ambiguous	True	-0.0068	False	subtelomere_switch	Y' Gain	chr2L	True	0.9	False	subtelomere_switch	False	True	False	0.907
+SRR33298452.345688	chr3R	Y' Gain	chr6L	True	0.0178	False	subtelomere_switch	Y' Gain	chr12R	True	0.9	False	subtelomere_switch	False	True	False	0.882

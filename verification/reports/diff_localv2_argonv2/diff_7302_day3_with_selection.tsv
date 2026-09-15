@@ -1,0 +1,19 @@
+read_id	chr_end	y_prime_recombination_status_a	recombination_source_a	recombination_detected_a	overall_confidence_a	is_complex_event_a	recombination_mechanism_a	y_prime_recombination_status_b	recombination_source_b	recombination_detected_b	overall_confidence_b	is_complex_event_b	recombination_mechanism_b	status_changed	source_changed	detected_changed	dconf
+SRR33298450.113628	chr10R	Y' Gain	chr13L	True	0.0073	False	subtelomere_switch	Y' Gain	chr12R	True	0.9	False	subtelomere_switch	False	True	False	0.893
+SRR33298450.499010	chr11L	Y' Gain	chr12L	True	0.0045	False	subtelomere_switch	Y' Gain	chr4R	True	0.9	False	subtelomere_switch	False	True	False	0.896
+SRR33298450.309295	chr11L	Y' Gain	chr2	True	0.0064	False	subtelomere_switch	Y' Gain	chr4R	True	0.9	False	subtelomere_switch	False	True	False	0.894
+SRR33298450.531449	chr13R	Y' Gain	chr14L	True	0.5869	True	subtelomere_switch	Y' Gain	chr12R	True	0.63	True	subtelomere_switch	False	True	False	0.043
+SRR33298450.336609	chr13R	Y' Gain	ambiguous	True	0.0027	False	subtelomere_switch	Y' Gain	chr12R	True	0.9	False	subtelomere_switch	False	True	False	0.897
+SRR33298450.334785	chr13R	Y' Gain	chr15R	True	0.5943	False	subtelomere_switch	Y' Gain	chr12R	True	0.63	True	subtelomere_switch	False	True	False	0.036
+SRR33298450.579784	chr13R	Y' Gain	chr15R	True	0.65	False	subtelomere_switch	Y' Gain	chr12R	True	0.63	True	subtelomere_switch	False	True	False	-0.02
+SRR33298450.532788	chr15L	Y' Gain	chr14L	True	-0.0008	True	subtelomere_switch	Y' Gain	chr12R	True	0.63	True	subtelomere_switch	False	True	False	0.631
+SRR33298450.334876	chr15L	Y' Gain	chr2L	True	0.2167	True	subtelomere_switch	Y' Gain	chr12R	True	0.27	True	subtelomere_switch	False	True	False	0.053
+SRR33298450.295299	chr15L	Y' Gain	ambiguous	True	-0.0008	False	subtelomere_switch	Y' Gain	chr12R	True	0.9	False	subtelomere_switch	False	True	False	0.901
+SRR33298450.507030	chr2R	Y' Gain	chr7	True	0.0107	False	subtelomere_switch	Y' Gain	chr12R	True	0.9	False	subtelomere_switch	False	True	False	0.889
+SRR33298450.523164	chr2R	Y' Gain	chr7	True	0.0027	False	subtelomere_switch	Y' Gain	chr4R	True	0.9	False	subtelomere_switch	False	True	False	0.897
+SRR33298450.59508	chr2R	No Change	chr10R	True	0.691	False	subtelomere_switch	No Change	chr3R	True	0.63	True	subtelomere_switch	False	True	False	-0.061
+SRR33298450.396814	chr3R	Y' Gain	chr14L	True	0.0025	False	subtelomere_switch	Y' Gain	chr4R	True	0.63	True	subtelomere_switch	False	True	False	0.628
+SRR33298450.273100	chr7L	Y' Gain	chr13L	True	-0.0024	False	subtelomere_switch	Y' Gain	chr12R	True	0.9	False	subtelomere_switch	False	True	False	0.902
+SRR33298450.391007	chr7L	Y' Gain	chr13L	True	-0.0022	True	subtelomere_switch	Y' Gain	chr12R	True	0.63	True	subtelomere_switch	False	True	False	0.632
+SRR33298450.455940	chr7L	Y' Gain	ambiguous	True	0.0017	False	subtelomere_switch	Y' Gain	chr10L	True	0.9	False	subtelomere_switch	False	True	False	0.898
+SRR33298450.259422	chr9R	Y' Gain	chr8L	True	0.994	False	subtelomere_switch	Y' Gain	chr12R	True	0.6325	True	subtelomere_switch	False	True	False	-0.362

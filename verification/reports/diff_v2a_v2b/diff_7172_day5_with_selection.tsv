@@ -1,0 +1,127 @@
+read_id	chr_end	y_prime_recombination_status_a	recombination_source_a	recombination_detected_a	overall_confidence_a	is_complex_event_a	recombination_mechanism_a	y_prime_recombination_status_b	recombination_source_b	recombination_detected_b	overall_confidence_b	is_complex_event_b	recombination_mechanism_b	status_changed	source_changed	detected_changed	dconf
+SRR33298427.560614	chr10L	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr14R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.413490	chr10L	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.543822	chr10R	Y' Gain	chr7	True	0.3	False	single_y_prime_change	Y' Gain	chr14R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.235625	chr10R	Y' Gain	chr9L	True	0.9	False	subtelomere_switch	Y' Gain	chr14R	True	0.33	False	donor_transfer	False	True	False	-0.57
+SRR33298427.63812	chr10R	Y' Gain	chr4R	True	0.99	False	subtelomere_switch	Y' Gain	chr16L	True	0.33	False	donor_transfer_candidates:7	False	True	False	-0.66
+SRR33298427.299121	chr11L	Y' Gain	chr12R	True	0.63	True	subtelomere_switch	Y' Gain	chr11R	True	0.8422	False	subtelomere_switch	False	True	False	0.212
+SRR33298427.547008	chr11R	Y' Gain	chr8L	True	0.7228	False	subtelomere_switch	Y' Gain	chr3L	True	0.63	True	subtelomere_switch	False	True	False	-0.093
+SRR33298427.354881	chr11R	Y' Gain	chr14	True	0.3	False	single_y_prime_change	Y' Gain	chr10L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.15922	chr11R	Y' Gain	chr12R	True	0.9	False	subtelomere_switch	Y' Gain	chr15R	True	0.33	False	donor_transfer_candidates:7	False	True	False	-0.57
+SRR33298427.344500	chr11R	Y' Gain	chr12R	True	0.9	False	subtelomere_switch	Y' Gain	chr14R	True	0.33	False	donor_transfer	False	True	False	-0.57
+SRR33298427.374295	chr12L	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.284322	chr12L	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr16R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.95532	chr12R	Y' Gain	chr12R	True	0.33	False	tandem_amplification_same_end	Y' Gain	chr3R	True	0.9	False	subtelomere_switch	False	True	False	0.57
+SRR33298427.124151	chr12R	No Change		False	0.95	False		No Change	chr3R	True	0.9	False	subtelomere_switch	False	True	True	-0.05
+SRR33298427.341162	chr12R	No Change		False	0.95	False		No Change	chr3R	True	0.9	False	subtelomere_switch	False	True	True	-0.05
+SRR33298427.130718	chr12R	No Change		False	0.95	False		No Change	chr3R	True	0.9	False	subtelomere_switch	False	True	True	-0.05
+SRR33298427.367731	chr12R	No Change		False	0.95	False		No Change	chr3R	True	0.9	False	subtelomere_switch	False	True	True	-0.05
+SRR33298427.123319	chr12R	Y' Loss	ambiguous	True	0.15	False	array_contraction_unconfirmed	Y' Loss	chr3R	True	0.45	False	array_contraction_unconfirmed	False	True	False	0.3
+SRR33298427.531966	chr12R	Y' Loss	ambiguous	True	0.15	False	array_contraction_unconfirmed	Y' Loss	chr3R	True	0.45	False	array_contraction_unconfirmed	False	True	False	0.3
+SRR33298427.140731	chr12R	Y' Loss	ambiguous	True	0.3	False	array_contraction	Y' Loss	chr3R	True	0.9	False	array_contraction	False	True	False	0.6
+SRR33298427.71053	chr12R	Y' Loss	ambiguous	True	0.15	False	array_contraction_unconfirmed	Y' Loss	chr3R	True	0.45	False	array_contraction_unconfirmed	False	True	False	0.3
+SRR33298427.103120	chr12R	Y' Loss	ambiguous	True	0.3	False	array_contraction	Y' Loss	chr3R	True	0.9	False	array_contraction	False	True	False	0.6
+SRR33298427.78705	chr12R	Y' Loss	ambiguous	True	0.15	False	array_contraction_unconfirmed	Y' Loss	chr3R	True	0.45	False	array_contraction_unconfirmed	False	True	False	0.3
+SRR33298427.167027	chr13L	Y' Gain	chr14	True	0.3	False	single_y_prime_change	Y' Gain	chr13L	True	0.33	False	tandem_amplification_same_end	False	True	False	0.03
+SRR33298427.445366	chr13L	Y' Gain	chr14	True	0.3	False	single_y_prime_change	Y' Gain	chr13L	True	0.33	False	tandem_amplification_same_end	False	True	False	0.03
+SRR33298427.367589	chr13L	Y' Gain	chr14	True	0.3	False	single_y_prime_change	Y' Gain	chr13L	True	0.33	False	tandem_amplification_same_end	False	True	False	0.03
+SRR33298427.476043	chr13L	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.185261	chr13R	Y' Gain	chr12R	True	0.63	True	subtelomere_switch	Y' Gain	chr15L	True	0.3884	True	subtelomere_switch	False	True	False	-0.242
+SRR33298427.424513	chr13R	Y' Gain	chr12R	True	0.63	True	subtelomere_switch	Y' Gain	chr14L	True	0.66	False	donor_transfer	False	True	False	0.03
+SRR33298427.97129	chr13R	Y' Gain	chr4R	True	0.6589	True	subtelomere_switch	Y' Gain	chr15R	True	1.0	False	subtelomere_switch	False	True	False	0.341
+SRR33298427.416785	chr13R	Y' Gain	chr16L	True	0.6589	True	subtelomere_switch	Y' Gain	chr15R	True	1.0	False	subtelomere_switch	False	True	False	0.341
+SRR33298427.523725	chr13R	Y' Gain	chr16L	True	0.66	True	subtelomere_switch	Y' Gain	chr15R	True	1.0	False	subtelomere_switch	False	True	False	0.34
+SRR33298427.554817	chr13R	Y' Gain	chr12R	True	0.6599	True	subtelomere_switch	Y' Gain	chr15R	True	1.0	False	subtelomere_switch	False	True	False	0.34
+SRR33298427.558210	chr13R	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr14R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.431073	chr13R	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.421342	chr13R	Y' Gain	chr16R	True	0.9	False	subtelomere_switch	Y' Gain	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	-0.57
+SRR33298427.30384	chr13R	Y' Gain	chr12R	True	0.6536	True	subtelomere_switch	Y' Gain	chr15R	True	1.0	False	subtelomere_switch	False	True	False	0.346
+SRR33298427.323165	chr13R	Y' Gain	chr12R	True	0.9	False	subtelomere_switch	Y' Gain	ambiguous	True	0.3	False	donor_transfer_candidates:5	False	True	False	-0.6
+SRR33298427.197450	chr14L	Y' Gain	chr16L	True	0.33	False	single_y_prime_change	Y' Gain	chr14L	True	0.33	False	tandem_amplification_same_end	False	True	False	0.0
+SRR33298427.187656	chr14L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr14L	True	0.33	False	tandem_amplification_same_end	False	True	False	0.03
+SRR33298427.194000	chr14L	Y' Recombination	ambiguous	True	0.3	False	single_y_prime_change	Y' Recombination	chr14L	True	0.33	False	tandem_amplification_same_end	False	True	False	0.03
+SRR33298427.501317	chr14L	Y' Recombination	ambiguous	True	0.3	False	single_y_prime_change	Y' Recombination	chr14L	True	0.33	False	tandem_amplification_same_end	False	True	False	0.03
+SRR33298427.182307	chr14R	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr10L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.261045	chr15L	Y' Gain	chr14L	True	0.99	False	subtelomere_switch	Y' Gain	chr12R	True	0.33	False	donor_transfer_candidates:2	False	True	False	-0.66
+SRR33298427.441907	chr15L	Y' Gain	chr12R	True	0.63	True	subtelomere_switch	Y' Gain	chr14L	True	0.66	False	donor_transfer	False	True	False	0.03
+SRR33298427.400031	chr15L	Y' Gain	chr4R	True	0.63	True	subtelomere_switch	Y' Gain	chr14L	True	0.44	False	donor_transfer	False	True	False	-0.19
+SRR33298427.196690	chr15L	Y' Gain	chr4R	True	0.63	True	subtelomere_switch	Y' Gain	chr14L	True	0.66	False	donor_transfer	False	True	False	0.03
+SRR33298427.372922	chr15L	Y' Gain	chr12R	True	0.99	False	subtelomere_switch	Y' Gain	ambiguous	True	0.3	False	donor_transfer_candidates:4	False	True	False	-0.69
+SRR33298427.456668	chr15L	Y' Gain	chr12R	True	0.63	True	subtelomere_switch	Y' Gain	chr7R	True	0.9017	False	subtelomere_switch	False	True	False	0.272
+SRR33298427.523425	chr15L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr14R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.328140	chr15L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr14R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.544995	chr15L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr14R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.475702	chr15L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr14R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.308224	chr15L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr14R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.448076	chr15L	Y' Gain	chr4R	True	0.9	False	subtelomere_switch	Y' Gain	chr6L	True	0.33	False	donor_transfer_candidates:2	False	True	False	-0.57
+SRR33298427.323441	chr15L	Y' Gain	chr14L	True	0.9	False	subtelomere_switch	Y' Gain	chr13L	True	0.33	False	donor_transfer_candidates:5	False	True	False	-0.57
+SRR33298427.273530	chr15L	Y' Gain	chr12R	True	0.9	False	subtelomere_switch	Y' Gain	chr13L	True	0.33	False	donor_transfer_candidates:5	False	True	False	-0.57
+SRR33298427.23986	chr15L	Y' Gain	chr14L	True	0.9	False	subtelomere_switch	Y' Gain	chr13L	True	0.33	False	donor_transfer_candidates:5	False	True	False	-0.57
+SRR33298427.424902	chr15R	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr10L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.441544	chr15R	Y' Gain	chr4R	True	0.33	False	single_y_prime_change	Y' Gain	chr15R	True	0.33	False	tandem_amplification_same_end	False	True	False	0.0
+SRR33298427.282885	chr15R	Y' Gain	chr4R	True	0.33	False	single_y_prime_change	Y' Gain	chr15R	True	0.33	False	tandem_amplification_same_end	False	True	False	0.0
+SRR33298427.94736	chr15R	Y' Gain	chr8	True	0.3	False	single_y_prime_change	Y' Gain	chr15R	True	0.33	False	tandem_amplification_same_end	False	True	False	0.03
+SRR33298427.458674	chr15R	Y' Gain	chr4R	True	0.33	False	single_y_prime_change	Y' Gain	chr15R	True	0.33	False	tandem_amplification_same_end	False	True	False	0.0
+SRR33298427.94985	chr15R	Y' Gain	chr4R	True	0.33	False	single_y_prime_change	Y' Gain	chr15R	True	0.33	False	tandem_amplification_same_end	False	True	False	0.0
+SRR33298427.531864	chr15R	Y' Gain	chr4R	True	0.33	False	single_y_prime_change	Y' Gain	chr15R	True	0.33	False	tandem_amplification_same_end	False	True	False	0.0
+SRR33298427.405327	chr15R	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr10L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.355646	chr15R	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.234823	chr16R	Y' Gain	chr14	True	0.3	False	single_y_prime_change	Y' Gain	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.137386	chr16R	Y' Gain	chr14	True	0.3	False	single_y_prime_change	Y' Gain	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.75304	chr16R	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.139999	chr16R	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.173871	chr16R	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.431714	chr1L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr10L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.177232	chr1L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr14R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.105246	chr1L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr14R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.247202	chr1L	Y' Gain	chr14L	True	0.99	False	subtelomere_switch	Y' Gain	ambiguous	True	0.3	False	donor_transfer_candidates:7	False	True	False	-0.69
+SRR33298427.96656	chr1L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.98303	chr1L	Y' Gain	chr4R	True	0.9	False	subtelomere_switch	Y' Gain	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	-0.57
+SRR33298427.282569	chr1L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.170777	chr1L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.563309	chr1L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.535898	chr1L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.50365	chr1L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.176921	chr1L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.328772	chr1L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.168766	chr1L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.3465	chr1L	Y' Gain	chr7R	True	0.9	False	subtelomere_switch	Y' Gain	ambiguous	True	0.3	False	donor_transfer_candidates:5	False	True	False	-0.6
+SRR33298427.339229	chr1L	Y' Gain	chr16R	True	0.63	True	subtelomere_switch	Y' Gain	chr8R	True	0.5401	False	subtelomere_switch	False	True	False	-0.09
+SRR33298427.407458	chr1R	Y' Gain	chr16L	True	0.9	False	subtelomere_switch	Y' Gain	chr13L	True	0.33	False	donor_transfer_candidates:5	False	True	False	-0.57
+SRR33298427.94481	chr2R	Y' Gain	chr12R	True	0.63	True	subtelomere_switch	Y' Gain	chr14L	True	0.66	False	donor_transfer	False	True	False	0.03
+SRR33298427.397505	chr2R	Y' Gain	chr7	True	0.3	False	single_y_prime_change	Y' Gain	chr14R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.192752	chr2R	Y' Gain	chr14L	True	0.9	False	subtelomere_switch	Y' Gain	chr7	True	0.3	False	donor_transfer_candidates:5	False	True	False	-0.6
+SRR33298427.563504	chr3L	Y' Gain	chr12R	True	0.99	False	subtelomere_switch	Y' Gain	chr14L	True	0.33	False	donor_transfer_candidates:4	False	True	False	-0.66
+SRR33298427.495950	chr3L	Y' Gain	chr14	True	0.3	False	single_y_prime_change	Y' Gain	chr10L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.484364	chr3L	Y' Gain	chr8R	True	0.99	False	subtelomere_switch	Y' Gain	chr8	True	0.33	False	donor_transfer_candidates:5	False	True	False	-0.66
+SRR33298427.121473	chr3R	Y' Gain	chr12R	True	0.63	True	subtelomere_switch	Y' Gain	chr14L	True	0.66	False	donor_transfer	False	True	False	0.03
+SRR33298427.523320	chr3R	Y' Gain	chr12R	True	0.9	False	subtelomere_switch	Y' Gain	chr7R	True	0.33	False	donor_transfer_candidates:7	False	True	False	-0.57
+SRR33298427.397927	chr4R	Y' Gain	chr14L	True	0.33	False	single_y_prime_change	Y' Gain	chr4R	True	0.33	False	tandem_amplification_same_end	False	True	False	0.0
+SRR33298427.87672	chr5L	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr10L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.328438	chr5L	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr10L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.403476	chr5L	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr12R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.460710	chr5L	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr12R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.207377	chr5L	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr14R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.378769	chr5L	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr12R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.220847	chr5R	Y' Gain	chr14L	True	0.33	False	single_y_prime_change	Y' Gain	chr5R	True	0.33	False	tandem_amplification_same_end	False	True	False	0.0
+SRR33298427.24121	chr5R	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr10L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.307052	chr6L	Y' Gain	chr14	True	0.3	False	single_y_prime_change	Y' Gain	chr14R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.17066	chr6L	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr10L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.62811	chr6L	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr5L	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.262573	chr6L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr6L	True	0.33	False	tandem_amplification_same_end	False	True	False	0.03
+SRR33298427.122859	chr7L	Y' Gain	chr16L	True	0.63	True	subtelomere_switch	Y' Gain	chr14L	True	0.66	False	donor_transfer	False	True	False	0.03
+SRR33298427.544096	chr7L	Y' Gain	chr4R	True	0.99	False	subtelomere_switch	Y' Gain	ambiguous	True	0.3	False	donor_transfer_candidates:7	False	True	False	-0.69
+SRR33298427.507831	chr7L	Y' Gain	chr12R	True	0.9	False	subtelomere_switch	Y' Gain	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	-0.57
+SRR33298427.351640	chr7L	Y' Gain	chr4R	True	0.9	False	subtelomere_switch	Y' Gain	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	-0.57
+SRR33298427.563347	chr7L	Y' Gain	chr16L	True	0.9	False	subtelomere_switch	Y' Gain	chr8	True	0.33	False	donor_transfer_candidates:5	False	True	False	-0.57
+SRR33298427.390374	chr7R	Y' Gain	chr14L	True	0.33	False	single_y_prime_change	Y' Gain	chr7R	True	0.33	False	tandem_amplification_same_end	False	True	False	0.0
+SRR33298427.199252	chr7R	Y' Gain	chr14L	True	0.33	False	single_y_prime_change	Y' Gain	chr7R	True	0.33	False	tandem_amplification_same_end	False	True	False	0.0
+SRR33298427.246257	chr7R	Y' Gain	chr14L	True	0.33	False	single_y_prime_change	Y' Gain	chr7R	True	0.33	False	tandem_amplification_same_end	False	True	False	0.0
+SRR33298427.188210	chr7R	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr2L	True	0.33	False	donor_transfer_candidates:2	False	True	False	0.03
+SRR33298427.139817	chr8L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr8L	True	0.33	False	tandem_amplification_same_end	False	True	False	0.03
+SRR33298427.95281	chr8L	Y' Gain	ambiguous	True	0.3	False	single_y_prime_change	Y' Gain	chr8L	True	0.33	False	tandem_amplification_same_end	False	True	False	0.03
+SRR33298427.535312	chr8R	Y' Gain	chr14	True	0.3	False	single_y_prime_change	Y' Gain	chr14R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.231452	chr9L	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr14R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.408847	chr9L	1st Y' Change	ambiguous	True	0.3	False	single_y_prime_change	1st Y' Change	chr14R	True	0.33	False	donor_transfer	False	True	False	0.03
+SRR33298427.351634	chr9R	Y' Gain	chr12R	True	0.9	False	subtelomere_switch	Y' Gain	chr14R	True	0.33	False	donor_transfer	False	True	False	-0.57
+SRR33298427.385651	chr9R	Y' Gain	chr12R	True	0.9	False	subtelomere_switch	Y' Gain	chr14R	True	0.33	False	donor_transfer	False	True	False	-0.57

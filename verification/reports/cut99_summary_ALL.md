@@ -9,6 +9,11 @@ BOTH halves to BOTH references.
 | strain | scored reads | mismatches | strong | weak | FAILS | no junction | ref defect |
 |---|---|---|---|---|---|---|---|
 | 6991 (8 day-0 samples) | 79,593 | 530 | 52 | 22 | 30 | 38 | 388 |
+
+6991 is eight independently assembled references, not eight replicates of one; see
+`cut99_summary_6991_by_sample.md` for the per-reference breakdown. Its supported rate ranges
+0.040-0.213 % across the eight, and 388 of its 530 mismatches come from one defective
+reference.
 | 7172 (1 sample) | 4,471 | 4 | 1 | 2 | 1 | 0 | 0 |
 | 7302 (1 sample) | 7,112 | 14 | 8 | 3 | 1 | 2 | 0 |
 

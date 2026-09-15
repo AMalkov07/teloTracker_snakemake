@@ -1,0 +1,13 @@
+read_id	chr_end	y_prime_recombination_status_a	recombination_source_a	recombination_detected_a	overall_confidence_a	is_complex_event_a	recombination_mechanism_a	y_prime_recombination_status_b	recombination_source_b	recombination_detected_b	overall_confidence_b	is_complex_event_b	recombination_mechanism_b	status_changed	source_changed	detected_changed	dconf
+SRR33298432.327511	chr11L	Y' Gain	chr2L	True	0.0067	False	subtelomere_switch	Y' Gain	chr16L	True	0.9	False	subtelomere_switch	False	True	False	0.893
+SRR33298432.125647	chr12R	No Change		False	0.9	False		No Change	chr3R	True	0.9	False	subtelomere_switch	False	True	True	0.0
+SRR33298432.245818	chr12R	No Change		False	0.9	False		No Change	chr3R	True	0.9	False	subtelomere_switch	False	True	True	0.0
+SRR33298432.251921	chr12R	No Change		False	0.9	False		No Change	chr3R	True	0.9	False	subtelomere_switch	False	True	True	0.0
+SRR33298432.173769	chr12R	No Change		False	0.9	False		No Change	chr3R	True	0.9	False	subtelomere_switch	False	True	True	0.0
+SRR33298432.25186	chr12R	No Change		False	0.9	False		No Change	chr3R	True	0.9	False	subtelomere_switch	False	True	True	0.0
+SRR33298432.293915	chr12R	No Change		False	0.9	False		No Change	chr3R	True	0.9	False	subtelomere_switch	False	True	True	0.0
+SRR33298432.160557	chr12R	No Change		False	0.9	False		No Change	chr3R	True	0.9	False	subtelomere_switch	False	True	True	0.0
+SRR33298432.55096	chr12R	No Change		False	0.9	False		No Change	chr3R	True	0.9	False	subtelomere_switch	False	True	True	0.0
+SRR33298432.277970	chr12R	Y' Loss	ambiguous	True	0.0454	False	array_contraction	Y' Loss	chr3R	True	0.9	False	array_contraction	False	True	False	0.855
+SRR33298432.155122	chr13R	Y' Gain	chr15R	True	0.66	True	subtelomere_switch	Y' Gain	chr14L	True	0.66	True	subtelomere_switch	False	True	False	0.0
+SRR33298432.53344	chr6R	Y' Gain	chr14R	True	0.0065	False	subtelomere_switch	Y' Gain	chr9L	True	0.9	False	subtelomere_switch	False	True	False	0.894

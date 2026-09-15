@@ -1,0 +1,9 @@
+chr_end	donor	unit	repeats	support	read_id	path	source
+chr12R	self[2]	ID1	7.0	strong	SRR33298451.326568	self[2]:ID1,ID1,ID1,ID1,ID1,ID1,ID1(circ x7.0 strong)	chr4R
+chr14L	self[3-5]	ID2,ID2,ID2	1.7	moderate	SRR33298451.864185	self[3-5]:ID2,ID2,ID2,ID2,ID2(circ x1.7 moderate | alt chr14L[3-5] + chr14L[3-4])	chr14L
+chr2R	chr13L[1-2]	ID2,ID1	2.5	strong	SRR33298451.481417	chr13L[1-2]:ID2,ID1,ID2,ID1,ID2(circ x2.5 strong)	chr13L
+chr2R	chr13L[1-2]	ID2,ID1	2.5	strong	SRR33298451.723342	chr13L[1-2]:ID2,ID1,ID2,ID1,ID2(circ x2.5 strong)	chr13L
+chr3R	chr4R[5-7]	ID1,ID1,ID1	1.3	moderate	SRR33298451.271004	chr4R[5-7]:ID1,ID1,ID1,ID1(circ x1.3 moderate | alt chr4R[1] + chr4R[5-7])	chr4R
+chr5L	chr13L[1-2]	ID1,ID2	2.0	moderate	SRR33298451.589654	chr13L[1-2]:ID1,ID2,ID1,ID2(circ x2.0 moderate | alt chr13L[2-4] + chr13L[1])	chr13L
+chr6R	chr12R|chr14L	ID1,ID1	2.0	na	SRR33298451.79553	chr12R|chr14L:ID1,ID1,ID1,ID1(circ x2.0)	chr12R
+chr8L	chr14L[2-3]	ID1,ID2	1.5	moderate	SRR33298451.845744	chr14L[2-3]:ID1,ID2,ID1(circ x1.5 moderate | alt chr14L[2-3] + chr14L[1])	chr13L
