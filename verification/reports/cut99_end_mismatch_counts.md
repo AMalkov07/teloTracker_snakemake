@@ -1,0 +1,162 @@
+# Per-sample chr-end mismatch counts
+
+For every sample: how many times each chromosome end had a read whose Y' did not match
+its expected group (recipient), and how many times that end's Y' element was the one
+matched instead (donor / "mistaken-for"). Counts include ALL evidence categories --
+strong, weak, FAILS, no junction, and reference defect -- so this is raw mismatch volume,
+not confirmed recombination. See the per-sample annotated_summary.tsv for the evidence
+breakdown of any individual row.
+
+## 6991_day0  (4 total mismatched copies)
+
+| end | as recipient (mismatched) | as donor (mistaken-for) |
+|---|---|---|
+| chr10L | 1 | 0 |
+| chr13L | 1 | 1 |
+| chr14L | 1 | 0 |
+| chr2L | 0 | 1 |
+| chr4R | 0 | 1 |
+| chr6L | 1 | 0 |
+| chr7R | 0 | 1 |
+
+## 6991_day0_TeloTag  (6 total mismatched copies)
+
+| end | as recipient (mismatched) | as donor (mistaken-for) |
+|---|---|---|
+| chr13L | 1 | 2 |
+| chr14L | 0 | 2 |
+| chr14R | 3 | 0 |
+| chr16R | 1 | 0 |
+| chr5R | 0 | 1 |
+| chr7R | 1 | 0 |
+| chr8R | 0 | 1 |
+
+## 6991_day0_TeloTag_with_selection  (11 total mismatched copies)
+
+| end | as recipient (mismatched) | as donor (mistaken-for) |
+|---|---|---|
+| chr12R | 0 | 4 |
+| chr13L | 1 | 0 |
+| chr14L | 1 | 2 |
+| chr14R | 0 | 2 |
+| chr15R | 0 | 1 |
+| chr16L | 1 | 1 |
+| chr16R | 2 | 0 |
+| chr2L | 1 | 1 |
+| chr5L | 2 | 0 |
+| chr7R | 1 | 0 |
+| chr8L | 1 | 0 |
+| chr8R | 1 | 0 |
+
+## 6991_day0_reference  (27 total mismatched copies)
+
+| end | as recipient (mismatched) | as donor (mistaken-for) |
+|---|---|---|
+| chr10L | 0 | 2 |
+| chr12L | 3 | 0 |
+| chr12R | 0 | 1 |
+| chr13L | 4 | 3 |
+| chr14L | 0 | 5 |
+| chr14R | 5 | 0 |
+| chr15R | 1 | 1 |
+| chr16L | 2 | 0 |
+| chr16R | 1 | 1 |
+| chr2L | 3 | 5 |
+| chr5L | 2 | 2 |
+| chr5R | 0 | 1 |
+| chr6L | 4 | 0 |
+| chr8L | 1 | 0 |
+| chr8R | 1 | 2 |
+| chr9L | 0 | 4 |
+
+## 6991_day0_reference_promethion  (12 total mismatched copies)
+
+| end | as recipient (mismatched) | as donor (mistaken-for) |
+|---|---|---|
+| chr13L | 4 | 3 |
+| chr14L | 0 | 1 |
+| chr14R | 2 | 0 |
+| chr16R | 2 | 0 |
+| chr2L | 1 | 3 |
+| chr5R | 1 | 0 |
+| chr6L | 0 | 2 |
+| chr8L | 1 | 0 |
+| chr8R | 1 | 1 |
+| chr9L | 0 | 2 |
+
+## 6991_day0_with_selection  (439 total mismatched copies) **388 of chr14L's 391 "as recipient" and chr7R's 391 "as donor" are the known chr14L-1 assembly defect (5,720 bp vs 6,654), not real mismatches.**
+
+| end | as recipient (mismatched) | as donor (mistaken-for) |
+|---|---|---|
+| chr10L | 5 | 5 |
+| chr12L | 2 | 0 |
+| chr13L | 18 | 2 |
+| chr14L | 388 | 5 |
+| chr14R | 8 | 0 |
+| chr15R | 0 | 1 |
+| chr16L | 2 | 6 |
+| chr16R | 2 | 0 |
+| chr2L | 3 | 12 |
+| chr5R | 3 | 2 |
+| chr6L | 3 | 4 |
+| chr7R | 1 | 391 |
+| chr8L | 2 | 1 |
+| chr8R | 2 | 5 |
+| chr9L | 0 | 5 |
+
+## 6991_day0_with_selection_repeat  (18 total mismatched copies)
+
+| end | as recipient (mismatched) | as donor (mistaken-for) |
+|---|---|---|
+| chr10L | 3 | 1 |
+| chr13L | 9 | 1 |
+| chr14L | 0 | 3 |
+| chr14R | 3 | 0 |
+| chr16L | 0 | 2 |
+| chr16R | 1 | 0 |
+| chr2L | 1 | 2 |
+| chr5L | 1 | 0 |
+| chr6L | 0 | 6 |
+| chr8L | 0 | 1 |
+| chr8R | 0 | 1 |
+| chr9L | 0 | 1 |
+
+## 6991_day0_with_selection_repeat2  (13 total mismatched copies)
+
+| end | as recipient (mismatched) | as donor (mistaken-for) |
+|---|---|---|
+| chr10L | 2 | 0 |
+| chr12L | 2 | 0 |
+| chr13L | 3 | 2 |
+| chr14L | 0 | 2 |
+| chr14R | 1 | 0 |
+| chr15R | 1 | 0 |
+| chr16R | 2 | 1 |
+| chr2L | 2 | 0 |
+| chr6L | 0 | 3 |
+| chr7R | 0 | 2 |
+| chr8R | 0 | 2 |
+| chr9L | 0 | 1 |
+
+## 7172_day0_with_selection  (4 total mismatched copies)
+
+| end | as recipient (mismatched) | as donor (mistaken-for) |
+|---|---|---|
+| chr13L | 0 | 1 |
+| chr14L | 0 | 3 |
+| chr16R | 2 | 0 |
+| chr5R | 1 | 0 |
+| chr6L | 1 | 0 |
+
+## 7302_day0_with_selection  (14 total mismatched copies)
+
+| end | as recipient (mismatched) | as donor (mistaken-for) |
+|---|---|---|
+| chr10L | 1 | 1 |
+| chr14L | 0 | 6 |
+| chr14R | 2 | 3 |
+| chr16L | 0 | 1 |
+| chr2L | 1 | 1 |
+| chr5R | 2 | 0 |
+| chr6L | 7 | 0 |
+| chr8R | 1 | 2 |
