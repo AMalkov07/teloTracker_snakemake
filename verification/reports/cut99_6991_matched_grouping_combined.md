@@ -469,7 +469,7 @@ final both-halves->=90% confirmation**, the lower of the two sides always landin
 90% (worst case 46-56%, best case 73-90%). **The final high-identity gate, not the trigger, is
 what actually discriminates signal from noise here.**
 
-**Result on the 24 mid-Y' candidates (6991 only in this table; 7172/7302 below): 8 of 24 pass**
+**Result on the 24 mid-Y' candidates (6991 only in this table; 7172/7302 below): 10 of 24 pass**
 against a background of 0/24 false positives on controls -- a real signal, clearly above noise:
 
 | read_id | donor found | breakpoint / total len | fraction native | vs recipient | vs donor | pass |
@@ -498,7 +498,7 @@ against a background of 0/24 false positives on controls -- a real signal, clear
 | SRR33298434.164214 | chr14R-1 | 5700/6587 | 87% | 93.0% | 98.1% | **PASS** |
 | SRR33298377.221175 | chr6L-1 | 900/5452 | 17% | 47.3% | 47.5% | fail |
 
-**Two very different shapes among the 8 passes.** Five have a *late* breakpoint (64-91% of the
+**Two very different shapes among the 10 passes.** Seven have a *late* breakpoint (41-91% of the
 read is native, only the telomere-distal tail switches donor) -- a short, localized
 gene-conversion tract, the most biologically clean signature. Three (all chr10L) have an
 *early* breakpoint at exactly 900bp (14% native) -- given the control check shows the 99%
@@ -508,8 +508,8 @@ three do clear the 90% confirmation bar; they should be read with more caution t
 ones.
 
 **The donor these passes point to almost never matches the donor the whole-read test flagged
-earlier in this document:** only 1 of the 8 (`SRR33298434.164214`, chr7R -> chr14R-1) agrees
-with the earlier whole-Y' BLAST result. The other 7 land on a different element entirely
+earlier in this document:** only 1 of the 10 (`SRR33298434.164214`, chr7R -> chr14R-1) agrees
+with the earlier whole-Y' BLAST result. The other 9 land on a different element entirely
 (`chr12R-2`, `chr14R-1`, `chr12L-1` recurring) -- because this test asks a narrower, different
 question (which single element best explains *this specific short trailing segment*, searched
 open against the whole library) than the whole-read test does (which single group best explains
@@ -523,7 +523,7 @@ an inconsistency to explain away.
 | verdict | count | % of 58 | positionally-enforced junction test |
 |---|---|---|---|
 | whole-element swap (gap > +5%) | 28 | 48% | not applicable -- confirmed by full-length global alignment directly (already position-safe: `NW`/`HW` force the entire reference to align, so no partial/random-region match is possible) |
-| mid-Y' partial junction (-2% to +5%) | 24 | 41% | position-enforced half-split (best-fit single split point, one known donor): 0/24 clean. **Directional tiled-window scan (open donor search, 99%-trigger + >=90% confirmation): 8/24 pass**, against 0/24 false positives on native controls -- a real, but partial and donor-ambiguous, confirmation |
+| mid-Y' partial junction (-2% to +5%) | 24 | 41% | position-enforced half-split (best-fit single split point, one known donor): 0/24 clean. **Directional tiled-window scan (open donor search, 99%-trigger + >=90% confirmation): 10/24 pass**, against 0/24 false positives on native controls -- a real, but partial and donor-ambiguous, confirmation |
 | not supported (gap < -2%) | 6 | 10% | not applicable |
 
 **Only the 28 whole-element swaps are confirmed to a standard that fully rules out the
