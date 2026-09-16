@@ -244,3 +244,63 @@ historical recombination events that became standing variation in the population
 being resampled by every independent sequencing prep, rather than an active homology
 preference operating today. That mechanism does not need to generalise to explain the other
 three recipients, and the homology ranking shows directly that it should not be assumed to.
+
+---
+
+# Correction: the bitscore-margin test above was the wrong metric -- redone properly
+
+A fair objection was raised: in several rows above, `own` has **higher %identity** than
+`donor`, yet the row is still marked recombinant. That looks contradictory if you only look
+at %identity, and the bitscore-margin framing did not make clear why it isn't.
+
+## Why %identity of the best single HSP is the wrong test
+
+High %identity over a **short, partial** alignment is exactly what unrelated-but-related
+sequence produces anyway -- every Y' at this locus shares a divergent internal region (the
+tandem repeat characterised earlier in this investigation), so two genuinely different
+elements can still align at 97-99% identity over the ~3,600-5,000 bp portion outside that
+region. A short high-identity match does not mean "this read is that reference"; it means
+"these two references are related," which is true of every pair examined here regardless of
+recombination.
+
+## The correct test: does ONE unbroken alignment cover (close to) the full reference?
+
+If a read is genuinely a native copy of reference X, the whole read should align to X in a
+**single HSP spanning nearly all of X's length** -- exactly what the control reads show. If a
+read is a recombinant, the true native reference will only ever produce a **partial** best
+HSP (it cannot explain the donor-derived portion), while the true donor will produce a
+**full-length** HSP (it explains the read end to end).
+
+**Control proof (chr16R, 6 correctly-assigned reads):**
+
+| | vs own (chr16R-1, 5,302bp) | vs G2 (donor) |
+|---|---|---|
+| best single HSP | **~5,300bp -- 99.9% of own's length, ONE block** | ~3,590bp -- 68% of donor's length, needs 2-3 HSPs to extend further |
+
+Native reads reach full length against their own reference and stay stuck at ~65-70% against
+the donor, no matter how high that partial identity is (up to 98.9% in the controls).
+
+## Redone with this test: reference-length coverage of the single best HSP
+
+| recipient | own ref length | donor ref (varies by read) | how many reach >=90% coverage against DONOR while own stays <85%? |
+|---|---|---|---|
+| chr13L (own 5,483bp) | | chr2L-1/chr6L-1, 5,975bp | **13 of 15** -- own caps at 70-72% every time; donor reaches 100-101% for the 13 confirmed |
+| chr16R (own 5,302bp) | | chr13L-1/chr14L-3/4/5, ~5,484bp | **7 of 7** -- own caps at 67-68%; donor reaches 95-96% |
+| chr10L (own 6,869bp) | | chr7R-1/chr16L-1/chr4R-7, ~6,654bp | **6 of 6** -- own caps at 73-73%; donor reaches 99-100% |
+| chr2L (own 5,975bp) | | chr8R-1, 5,469bp | **1 of 5 clean** (SRR33298373.284052: own 65% / donor 100%); SRR33298434.94939 leans donor (34% / 67%) but neither reaches 90%, so it is now ambiguous rather than confirmed; the other 3 stay ambiguous as before |
+
+**Corrected total: 27 of 33 reads across the four recipients pass this stricter, better-
+justified test** (13+7+6+1), the same overall count as before but with **chr2L revised down**
+from "2 confirmed" to **1 clearly confirmed**, since SRR33298434.94939 does not reach the
+90% full-length bar on either side even though it favours the donor.
+
+## Why this resolves the original concern
+
+The own-vs-donor contest was never really about which single HSP has the better raw score --
+it is about which reference can explain the **entire** molecule in one piece. A read's own
+reference losing on %identity while "winning" a short fragment is not evidence of anything;
+what matters is that **the own reference never manages to extend past ~65-73% of its own
+length for any of the confirmed recombinants, in every one of the four recipients, while the
+donor consistently reaches 94-101%** -- matching almost exactly what the size difference
+between the native and donor Y' variants predicts. That contrast, not the bitscore number,
+is the actual evidence for recombination.
