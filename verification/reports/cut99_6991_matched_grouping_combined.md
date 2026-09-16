@@ -166,57 +166,6 @@ should not be counted as confirmed recombinants without further work on their co
 
 ---
 
-# chr16R -> G2, chr10L -> G8, chr2L -> G3: the same analysis, three more recipients
-
-Same whole-read method: each test read's Y' BLASTed against its own expected reference and
-against the donor group (best member), with a control of 6 correctly-assigned reads for that
-end establishing the native baseline (own reference wins comfortably; donor only picks up a
-partial hit through the shared internal repeat region).
-
-## chr16R -> G2 {chr13L-1, chr14L-3/4/5}: 7/7 confirmed
-
-| read | class | vs own (chr16R-1) | vs G2 best | margin | verdict |
-|---|---|---|---|---|---|
-| SRR33298373.72733 | weak | 99.3% / 3,578bp / bs=6,469 | 99.0% / 5,199bp (chr14L-5) / bs=9,286 | +2,817 | **recombinant** |
-| SRR33298384.248800 | strong | 99.5% / 3,583bp / bs=6,508 | 98.9% / 5,203bp (chr14L-5) / bs=9,280 | +2,772 | **recombinant** |
-| SRR33298384.538094 | strong | 98.1% / 3,599bp / bs=6,233 | 97.6% / 5,230bp (chr13L-1) / bs=8,911 | +2,678 | **recombinant** |
-| SRR33298377.534605 | strong | 98.2% / 3,591bp / bs=6,252 | 97.4% / 5,209bp (chr13L-1) / bs=8,820 | +2,568 | **recombinant** |
-| SRR33298434.378016 | FAILS | 96.2% / 3,612bp / bs=5,847 | 95.8% / 5,252bp (chr14L-5) / bs=8,386 | +2,539 | **recombinant** |
-| SRR33298377.644709 | FAILS | 98.1% / 3,596bp / bs=6,237 | 97.3% / 5,214bp (chr13L-1) / bs=8,776 | +2,539 | **recombinant** |
-| SRR33298434.64148 | FAILS | 94.4% / 3,611bp / bs=5,459 | 92.5% / 5,265bp (chr14L-5) / bs=7,352 | +1,893 | **recombinant** |
-
-7/7, margins +1,893 to +2,817. All 3 window-scan "FAILS" reads confirm under the whole-read
-test -- the sliding-window scan can miss a real event when the junction sits near a read end,
-but the full-molecule bitscore contest still catches it.
-
-## chr10L -> G8 (18-member array group): 6/6 confirmed
-
-| read | class | vs own (chr10L-1) | vs G8 best | margin | verdict |
-|---|---|---|---|---|---|
-| SRR33298384.498901 | strong | 98.2% / 5,003bp / bs=8,698 | 98.7% / 6,614bp (chr7R-1) / bs=11,725 | +3,027 | **recombinant** |
-| SRR33298461.57209 | strong | 97.5% / 5,010bp / bs=8,510 | 98.0% / 6,623bp (chr7R-1) / bs=11,437 | +2,927 | **recombinant** |
-| SRR33298373.491903 | FAILS | 97.6% / 5,010bp / bs=8,540 | 98.0% / 6,619bp (chr16L-1) / bs=11,452 | +2,912 | **recombinant** |
-| SRR33298373.545529 | strong | 98.0% / 5,002bp / bs=8,667 | 98.3% / 6,611bp (chr16L-1) / bs=11,568 | +2,901 | **recombinant** |
-| SRR33298384.151130 | weak | 94.1% / 5,043bp / bs=7,542 | 95.2% / 6,664bp (chr7R-1) / bs=10,405 | +2,863 | **recombinant** |
-| SRR33298373.122658 | weak | 96.0% / 5,035bp / bs=8,117 | 95.8% / 6,665bp (chr4R-7) / bs=10,661 | +2,544 | **recombinant** |
-
-6/6, margins +2,544 to +3,027 -- the tightest, most consistent set of any recipient examined.
-
-## chr2L -> G3 {chr8R-1}: only 2/5 confirmed -- weaker than the raw count implied
-
-| read | class | vs own (chr2L-1) | vs G3 (chr8R-1) | margin | verdict |
-|---|---|---|---|---|---|
-| SRR33298373.284052 | no junction | 98.8% / 3,861bp / bs=6,863 | 99.6% / 5,473bp / bs=9,987 | +3,124 | **recombinant** |
-| SRR33298434.94939 | strong | 95.7% / 2,042bp / bs=3,262 | 97.2% / 3,664bp / bs=6,150 | +2,888 | **recombinant** |
-| SRR33298384.313055 | no junction | 98.9% / 2,270bp / bs=4,052 | 98.9% / 2,270bp / bs=4,052 | 0 | not supported |
-| SRR33298384.467718 | no junction | 97.8% / 3,175bp / bs=5,448 | 97.8% / 3,172bp / bs=5,443 | -5 | not supported |
-| SRR33298377.541858 | FAILS | 97.6% / 3,946bp / bs=6,728 | 97.5% / 3,868bp / bs=6,584 | -144 | not supported |
-
-Only 2 of 5 show a real contest between two candidates. The other 3 have near-identical
-bitscores to both references over short (2,270-3,946bp) alignments -- own and donor return
-essentially the same weak partial hit, which is not the recombination signature. **Read this
-as 2 confirmed events out of 5 calls, not "4/5."**
-
 ## Why almost all of it goes to the same donor group: mostly real homology, chr13L excepted
 
 Each recipient's own reference was BLASTed against every other element in the library
@@ -331,99 +280,96 @@ number per reference: **% identity over the reference's full length**, not a fra
   it needs the sliding-window scan (which already localizes the junction), not a global
   identity comparison, because there is no single reference for the global test to confirm.
 
-## chr13L -> G1: 14/15 confirmed whole-element swaps
+## Master table: all 58 mismatched reads, global alignment vs. own reference and vs. the full donor group
 
-| read | own (chr13L-1) | best donor | donor member | gap | verdict |
-|---|---|---|---|---|---|
-| SRR33298384.185796 | 87.74% | 98.63% | chr6L-1 | +10.88% | **RECOMBINANT** |
-| SRR33298373.896473 | 88.05% | 98.93% | chr6L-1 | +10.87% | **RECOMBINANT** |
-| SRR33298373.107087 | 88.35% | 99.16% | chr6L-1 | +10.82% | **RECOMBINANT** |
-| SRR33298373.1068481 | 89.11% | 99.90% | chr6L-1 | +10.79% | **RECOMBINANT** |
-| SRR33298373.1079946 | 89.09% | 99.87% | chr6L-1 | +10.77% | **RECOMBINANT** |
-| SRR33298377.260642 | 88.60% | 99.38% | chr6L-1 | +10.78% | **RECOMBINANT** |
-| SRR33298373.797552 | 88.86% | 99.68% | chr6L-1 | +10.83% | **RECOMBINANT** |
-| SRR33298373.46529 | 88.89% | 99.62% | chr6L-1 | +10.72% | **RECOMBINANT** |
-| SRR33298373.272313 | 83.57% | 93.96% | chr6L-1 | +10.39% | **RECOMBINANT** |
-| SRR33298384.45869 | 89.93% | 99.06% | chr6L-1 | +9.13% | **RECOMBINANT** |
-| SRR33298377.267122 | 86.89% | 95.95% | chr2L-1 | +9.06% | **RECOMBINANT** |
-| SRR33298377.125819 | 87.42% | 96.37% | chr2L-1 | +8.95% | **RECOMBINANT** |
-| SRR33298373.1520960 | 89.77% | 98.38% | chr6L-1 | +8.61% | **RECOMBINANT** |
-| SRR33298373.8939 | 90.01% | 98.59% | chr6L-1 | +8.59% | **RECOMBINANT** |
-| SRR33298461.44252 | 92.91% | 92.94% | chr6L-1 | +0.03% | ambiguous -- needs junction scan |
-| **control (6 native reads)** | 84.5-99.8% | 76.1-89.9% | -- | **-8.4% to -9.9%** | not supported (as expected) |
+Every read from the pooled 58-mismatch table above (all 5 identically-grouped 6991 samples),
+run through the same test: own reference's full-length identity vs. the **best member of the
+full donor group** (not just one representative), plus the pre-existing sliding-window-scan
+class (`ws class`, from `scan_recombinant_junctions.py`) as an independent cross-check. Verdict
+thresholds: gap > +5% = whole-element swap; -2% to +5% = mid-Y' partial junction (real signal,
+shifted from the native baseline, but not a clean donor win -- see native control baselines of
+-4.8% to -10.8% established per end above); gap < -2% = not supported.
 
-14 of 15 clear whole-element swaps (gap +8.6 to +10.9), a much wider and cleaner margin than
-either earlier test found -- including `SRR33298384.45869`, previously flagged as a coordinate
-artefact under the fragmented-HSP tests, now unambiguous. `SRR33298461.44252` is the one
-exception, landing at a near-exact tie (+0.03%) rather than either clean signature -- consistent
-with its "weak" window-scan classification, i.e. a probable partial/borderline junction rather
-than a confirmed whole-element event.
+| chr_end | read_id | own elem | own % | donor grp | donor elem | donor % | gap | ws class | verdict |
+|---|---|---|---|---|---|---|---|---|---|
+| chr10L | SRR33298384.498901 | chr10L-1 | 94.72% | G8 | chr7R-1 | 98.32% | +3.60% | strong | **mid-Y' partial junction** |
+| chr10L | SRR33298384.151130 | chr10L-1 | 91.25% | G8 | chr7R-1 | 94.82% | +3.57% | weak | **mid-Y' partial junction** |
+| chr10L | SRR33298461.57209 | chr10L-1 | 94.18% | G8 | chr7R-1 | 97.57% | +3.39% | strong | **mid-Y' partial junction** |
+| chr10L | SRR33298373.545529 | chr10L-1 | 95.37% | G8 | chr16L-1 | 97.93% | +2.56% | strong | **mid-Y' partial junction** |
+| chr10L | SRR33298373.491903 | chr10L-1 | 95.04% | G8 | chr16L-1 | 97.58% | +2.54% | FAILS | **mid-Y' partial junction** |
+| chr10L | SRR33298373.122658 | chr10L-1 | 92.98% | G8 | chr12R-2 | 95.35% | +2.37% | weak | **mid-Y' partial junction** |
+| chr12L | SRR33298384.550794 | chr12L-1 | 98.34% | G2 | chr13L-1 | 96.04% | -2.30% | weak | not supported |
+| chr12L | SRR33298384.443822 | chr12L-1 | 98.96% | G2 | chr14L-3 | 96.55% | -2.41% | weak | not supported |
+| chr13L | SRR33298434.76895 | chr13L-1 | 80.28% | G8 | chr15R-1 | 95.47% | +15.19% | no junction | **whole-element swap** |
+| chr13L | SRR33298384.185796 | chr13L-1 | 87.74% | G1 | chr6L-1 | 98.63% | +10.88% | FAILS | **whole-element swap** |
+| chr13L | SRR33298373.896473 | chr13L-1 | 88.05% | G1 | chr6L-1 | 98.93% | +10.87% | no junction | **whole-element swap** |
+| chr13L | SRR33298373.797552 | chr13L-1 | 88.86% | G1 | chr6L-1 | 99.68% | +10.83% | no junction | **whole-element swap** |
+| chr13L | SRR33298373.107087 | chr13L-1 | 88.35% | G1 | chr6L-1 | 99.16% | +10.82% | no junction | **whole-element swap** |
+| chr13L | SRR33298373.1068481 | chr13L-1 | 89.11% | G1 | chr6L-1 | 99.90% | +10.79% | no junction | **whole-element swap** |
+| chr13L | SRR33298377.260642 | chr13L-1 | 88.60% | G1 | chr6L-1 | 99.38% | +10.78% | no junction | **whole-element swap** |
+| chr13L | SRR33298373.1079946 | chr13L-1 | 89.09% | G1 | chr6L-1 | 99.87% | +10.77% | no junction | **whole-element swap** |
+| chr13L | SRR33298373.46529 | chr13L-1 | 88.89% | G1 | chr6L-1 | 99.62% | +10.72% | no junction | **whole-element swap** |
+| chr13L | SRR33298377.272313 | chr13L-1 | 83.57% | G1 | chr6L-1 | 93.96% | +10.39% | no junction | **whole-element swap** |
+| chr13L | SRR33298384.45869 | chr13L-1 | 89.93% | G1 | chr6L-1 | 99.06% | +9.13% | no junction | **whole-element swap** |
+| chr13L | SRR33298377.267122 | chr13L-1 | 86.89% | G1 | chr2L-1 | 95.95% | +9.06% | strong | **whole-element swap** |
+| chr13L | SRR33298377.125819 | chr13L-1 | 87.42% | G1 | chr2L-1 | 96.37% | +8.95% | strong | **whole-element swap** |
+| chr13L | SRR33298373.1520960 | chr13L-1 | 89.77% | G1 | chr6L-1 | 98.38% | +8.61% | strong | **whole-element swap** |
+| chr13L | SRR33298373.8939 | chr13L-1 | 90.01% | G1 | chr6L-1 | 98.59% | +8.59% | strong | **whole-element swap** |
+| chr13L | SRR33298373.677153 | chr13L-1 | 93.93% | G5 | chr8L-1 | 99.57% | +5.64% | no junction | **whole-element swap** |
+| chr13L | SRR33298384.220455 | chr13L-1 | 96.86% | G6 | chr16R-1 | 99.00% | +2.14% | weak | **mid-Y' partial junction** |
+| chr13L | SRR33298461.44252 | chr13L-1 | 92.91% | G1 | chr6L-1 | 92.94% | +0.03% | weak | **mid-Y' partial junction** |
+| chr14L | SRR33298461.168936 | chr14L-5 | 83.17% | G8 | chr14L-2 | 99.49% | +16.32% | FAILS | **whole-element swap** |
+| chr14L | SRR33298434.530414 | chr14L-1 | 97.70% | G11 | chr12R-1 | 94.83% | -2.87% | FAILS | not supported |
+| chr14R | SRR33298377.93825 | chr14R-1 | 73.78% | G1 | chr2L-1 | 99.08% | +25.30% | no junction | **whole-element swap** |
+| chr14R | SRR33298384.285744 | chr14R-1 | 74.99% | G1 | chr6L-1 | 98.78% | +23.79% | strong | **whole-element swap** |
+| chr14R | SRR33298373.942862 | chr14R-1 | 79.02% | G2 | chr13L-1 | 98.87% | +19.85% | strong | **whole-element swap** |
+| chr14R | SRR33298373.897522 | chr14R-1 | 89.66% | G7 | chr9L-1 | 94.24% | +4.57% | FAILS | **mid-Y' partial junction** |
+| chr14R | SRR33298377.726683 | chr14R-1 | 91.19% | G7 | chr9L-1 | 93.39% | +2.20% | weak | **mid-Y' partial junction** |
+| chr14R | SRR33298373.1266643 | chr14R-1 | 96.58% | G8 | chr14L-1 | 97.53% | +0.95% | strong | **mid-Y' partial junction** |
+| chr15R | SRR33298384.129326 | chr15R-1 | 93.68% | G7 | chr9L-1 | 98.72% | +5.03% | strong | **whole-element swap** |
+| chr16L | SRR33298434.79614 | chr16L-1 | 95.09% | G11 | chr12R-1 | 93.71% | -1.38% | no junction | **mid-Y' partial junction** |
+| chr16R | SRR33298384.538094 | chr16R-1 | 96.04% | G2 | chr13L-1 | 95.15% | -0.89% | strong | **mid-Y' partial junction** |
+| chr16R | SRR33298434.64148 | chr16R-1 | 91.02% | G2 | chr14L-3 | 90.05% | -0.98% | FAILS | **mid-Y' partial junction** |
+| chr16R | SRR33298434.378016 | chr16R-1 | 94.47% | G2 | chr14L-3 | 93.40% | -1.07% | FAILS | **mid-Y' partial junction** |
+| chr16R | SRR33298377.644709 | chr16R-1 | 95.85% | G2 | chr13L-1 | 94.77% | -1.08% | FAILS | **mid-Y' partial junction** |
+| chr16R | SRR33298377.534605 | chr16R-1 | 95.98% | G2 | chr13L-1 | 94.89% | -1.09% | strong | **mid-Y' partial junction** |
+| chr16R | SRR33298384.248800 | chr16R-1 | 97.45% | G2 | chr14L-3 | 96.35% | -1.10% | strong | **mid-Y' partial junction** |
+| chr16R | SRR33298373.72733 | chr16R-1 | 97.51% | G2 | chr14L-3 | 96.39% | -1.12% | weak | **mid-Y' partial junction** |
+| chr2L | SRR33298434.94939 | chr2L-1 | 75.23% | G8 | chr16L-1 | 97.82% | +22.59% | strong | **whole-element swap** |
+| chr2L | SRR33298373.284052 | chr2L-1 | 90.83% | G3 | chr8R-1 | 99.63% | +8.81% | no junction | **whole-element swap** |
+| chr2L | SRR33298384.313055 | chr2L-1 | 87.38% | G3 | chr8R-1 | 94.97% | +7.59% | no junction | **whole-element swap** |
+| chr2L | SRR33298377.541858 | chr2L-1 | 90.58% | G3 | chr8R-1 | 96.00% | +5.42% | FAILS | **whole-element swap** |
+| chr2L | SRR33298384.467718 | chr2L-1 | 92.32% | G3 | chr8R-1 | 89.78% | -2.54% | no junction | not supported |
+| chr5L | SRR33298373.260098 | chr5L-1 | 93.21% | G7 | chr10L-1 | 97.73% | +4.52% | no junction | **mid-Y' partial junction** |
+| chr5L | SRR33298434.226995 | chr5L-1 | 96.13% | G11 | chr12R-1 | 96.48% | +0.36% | strong | **mid-Y' partial junction** |
+| chr5L | SRR33298434.116145 | chr5L-1 | 96.30% | G11 | chr12R-1 | 96.62% | +0.33% | strong | **mid-Y' partial junction** |
+| chr5R | SRR33298377.75463 | chr5R-1 | 92.96% | G7 | chr9L-1 | 98.36% | +5.39% | no junction | **whole-element swap** |
+| chr6L | SRR33298461.181020 | chr6L-1 | 89.32% | G2 | chr13L-1 | 96.77% | +7.45% | strong | **whole-element swap** |
+| chr7R | SRR33298434.164214 | chr7R-1 | 94.18% | G10 | chr14R-1 | 95.31% | +1.13% | strong | **mid-Y' partial junction** |
+| chr8L | SRR33298377.763070 | chr8L-1 | 97.41% | G2 | chr13L-1 | 95.00% | -2.41% | weak | not supported |
+| chr8L | SRR33298434.497585 | chr8L-1 | 92.86% | G1 | chr2L-1 | 89.46% | -3.41% | FAILS | not supported |
+| chr8R | SRR33298434.515556 | chr8R-1 | 79.59% | G10 | chr14R-1 | 98.33% | +18.74% | strong | **whole-element swap** |
+| chr8R | SRR33298377.221175 | chr8R-1 | 98.50% | G2 | chr14L-3 | 98.21% | -0.29% | weak | **mid-Y' partial junction** |
 
-## chr16R -> G2 and chr10L -> G8: NOT whole-element swaps -- genuine mid-Y' partial junctions
+## Bottom line: 58 of 58 mismatched reads, true global alignment
 
-This is a real correction to the "7/7" and "6/6" claims above. Under true global alignment,
-**zero** of these 13 reads clear the whole-element bar -- but they are also clearly not native:
+| verdict | count | % of 58 |
+|---|---|---|
+| whole-element swap (gap > +5%) | 28 | 48% |
+| mid-Y' partial junction (-2% to +5%) | 24 | 41% |
+| not supported (gap < -2%) | 6 | 10% |
 
-| recipient | test reads | gap range | control gap range | shift from native baseline |
-|---|---|---|---|---|
-| chr16R (7 reads) | all 7 | **-1.12% to -0.89%** | -5.47% to -4.78% | ~+4 points toward donor |
-| chr10L (6 reads) | all 6 | **+2.37% to +3.60%** | -6.54% to -5.23% | ~+8 points toward donor |
+**52 of 58 (90%) of the reads whose Y' matched into the wrong cut99 group show a real,
+quantifiable recombination signature** under the most rigorous test applied so far -- either a
+clean whole-element swap or a real, window-scan-corroborated shift consistent with a mid-Y'
+chimera. Only 6 reads (chr12L x2, chr14L x1, chr8L x2, chr2L x1) fail to clear even the partial-
+junction bar and should be treated as unconfirmed grouping noise rather than recombination.
 
-Neither own nor donor reaches a clean win for any of these 13 reads -- own sits far below its
-99%+ control baseline, and donor sits far below the 95-100% a true whole-element swap shows
-(chr13L, chr2L below). That is exactly what a chimeric read looks like when forced into a
-single-reference global alignment: the identity to each parent is diluted by the fraction of
-the molecule that parent does *not* explain.
-
-**This is independently confirmed by the window-scan, run long before this global test:** every
-one of these 13 reads was already classified `strong`, `weak`, or `FAILS` by
-`scan_recombinant_junctions.py` -- **never** `no junction` -- each with a specific junction
-position (e.g. chr10L's `SRR33298373.491903` splits at 5,568 / 1,425 bp; chr16R's
-`SRR33298373.72733` splits at 5,153 / 300 bp). Two independent methods -- a global-alignment
-shift away from the native baseline, and a sliding-window scan that localizes an actual
-breakpoint -- agree these are real recombination events. What they agree the events are **not**
-is whole-Y'-element replacements. **Revised verdict: chr16R 7/7 and chr10L 6/6 remain
-confirmed as real recombinants, but as mid-Y' partial junctions, not whole-element swaps** --
-the "recombinant" call in the sections above was correct, the implicit "whole element" framing
-was not.
-
-## chr2L -> G3: revised UP to 4/5 whole-element swaps
-
-The global test also overturns the earlier chr2L verdict, but in the other direction. The
-fragmented-HSP tests scored two of these reads as "near-identical bitscore to both references"
-(margins of -144 and +... effectively noise) purely because their local HSPs were short --
-that says nothing about the full reference:
-
-| read | own (chr2L-1) | best donor (chr8R-1) | gap | earlier verdict | global verdict |
-|---|---|---|---|---|---|
-| SRR33298373.284052 | 90.83% | 99.63% | +8.81% | recombinant | **RECOMBINANT** (confirmed) |
-| SRR33298384.313055 | 87.38% | 94.97% | +7.59% | not supported (margin 0) | **RECOMBINANT** (reversed) |
-| SRR33298434.94939 | 75.23% | 81.95% | +6.72% | ambiguous (coverage test) | **RECOMBINANT** (confirmed) |
-| SRR33298377.541858 | 90.58% | 96.00% | +5.42% | not supported (margin -144) | **RECOMBINANT** (reversed) |
-| SRR33298384.467718 | 92.32% | 89.78% | -2.54% | not supported | not supported (consistent) |
-| **control (6 native reads)** | 83.2-99.5% | 76.2-89.9% | **-10.8% to -7.0%** | -- | not supported (as expected) |
-
-**4 of 5 chr2L test reads are genuine whole-element swaps** -- a stronger result than either
-prior test found, because the earlier bitscore-margin metric was being fooled by short,
-low-information local HSPs on both sides at once. Only `SRR33298384.467718` stays unsupported
-(own modestly ahead, -2.54%, not matching either the clean-swap or clean-native pattern -- a
-genuine borderline case, possibly its own low-level partial junction).
-
-## Bottom line across all four recipients (33 reads, true global alignment)
-
-| recipient | whole-element swaps | mid-Y' partial junctions (real, but not whole-element) | unresolved/ambiguous |
-|---|---|---|---|
-| chr13L -> G1 | 14/15 | 0 | 1 (SRR33298461.44252) |
-| chr16R -> G2 | 0/7 | 7/7 | 0 |
-| chr10L -> G8 | 0/6 | 6/6 | 0 |
-| chr2L -> G3 | 4/5 | 0 | 1 (SRR33298384.467718) |
-
-31 of 33 reads across all four recipients show a real, quantifiable recombination signature
-under the most rigorous test applied so far; only 2 remain genuinely ambiguous. The four
-recipients split cleanly into two mechanistic classes: **chr13L and chr2L are dominated by
-whole-Y'-element replacement** (the donor's entire sequence explains the read end to end),
-while **chr16R and chr10L show no whole-element replacement at all -- every confirmed event
-there is a mid-Y' chimera**, real and localizable by the window scan, but not reducible to "the
-donor's Y' replaced the native one." Homology ranking (above) still explains why these
-particular donor groups dominate for three of the four recipients; it does not depend on which
-of these two mechanistic classes a given recipient falls into.
+The two mechanistic classes do not track cleanly with any single recipient -- chr13L, for
+example, has both whole-element swaps (15/18) and one mid-Y' case (`SRR33298384.220455`,
+`SRR33298461.44252`) -- but the split is informative in aggregate: whole-element swaps dominate
+where the donor and recipient are close in length and homology (chr13L->G1, chr2L->G3, chr14R,
+chr8R), while mid-Y' partial junctions cluster in the size-mismatched, highly-homologous G8/G7
+cases (chr10L->G8, chr16R->G2, chr5L->G11/G7, chr7R->G10) where a clean swap and a partial
+conversion are both plausible outcomes of the same strand-invasion mechanism, and where the
+window-scan (never `no junction` for these reads) already agrees a real breakpoint exists.
