@@ -163,3 +163,84 @@ This is not a marginal call: bitscore margins for these 13 range **+3,584 to +4,
 these reads (13/15), defended by bitscore margins of 3,500+ against a same-locus native-read
 control, not just by percent identity. It is not established for 2 of the 15, and those two
 should not be counted as confirmed recombinants without further work on their coordinates.**
+
+---
+
+# chr16R -> G2, chr10L -> G8, chr2L -> G3: the same analysis, three more recipients
+
+Same whole-read method: each test read's Y' BLASTed against its own expected reference and
+against the donor group (best member), with a control of 6 correctly-assigned reads for that
+end establishing the native baseline (own reference wins comfortably; donor only picks up a
+partial hit through the shared internal repeat region).
+
+## chr16R -> G2 {chr13L-1, chr14L-3/4/5}: 7/7 confirmed
+
+| read | class | vs own (chr16R-1) | vs G2 best | margin | verdict |
+|---|---|---|---|---|---|
+| SRR33298373.72733 | weak | 99.3% / 3,578bp / bs=6,469 | 99.0% / 5,199bp (chr14L-5) / bs=9,286 | +2,817 | **recombinant** |
+| SRR33298384.248800 | strong | 99.5% / 3,583bp / bs=6,508 | 98.9% / 5,203bp (chr14L-5) / bs=9,280 | +2,772 | **recombinant** |
+| SRR33298384.538094 | strong | 98.1% / 3,599bp / bs=6,233 | 97.6% / 5,230bp (chr13L-1) / bs=8,911 | +2,678 | **recombinant** |
+| SRR33298377.534605 | strong | 98.2% / 3,591bp / bs=6,252 | 97.4% / 5,209bp (chr13L-1) / bs=8,820 | +2,568 | **recombinant** |
+| SRR33298434.378016 | FAILS | 96.2% / 3,612bp / bs=5,847 | 95.8% / 5,252bp (chr14L-5) / bs=8,386 | +2,539 | **recombinant** |
+| SRR33298377.644709 | FAILS | 98.1% / 3,596bp / bs=6,237 | 97.3% / 5,214bp (chr13L-1) / bs=8,776 | +2,539 | **recombinant** |
+| SRR33298434.64148 | FAILS | 94.4% / 3,611bp / bs=5,459 | 92.5% / 5,265bp (chr14L-5) / bs=7,352 | +1,893 | **recombinant** |
+
+7/7, margins +1,893 to +2,817. All 3 window-scan "FAILS" reads confirm under the whole-read
+test -- the sliding-window scan can miss a real event when the junction sits near a read end,
+but the full-molecule bitscore contest still catches it.
+
+## chr10L -> G8 (18-member array group): 6/6 confirmed
+
+| read | class | vs own (chr10L-1) | vs G8 best | margin | verdict |
+|---|---|---|---|---|---|
+| SRR33298384.498901 | strong | 98.2% / 5,003bp / bs=8,698 | 98.7% / 6,614bp (chr7R-1) / bs=11,725 | +3,027 | **recombinant** |
+| SRR33298461.57209 | strong | 97.5% / 5,010bp / bs=8,510 | 98.0% / 6,623bp (chr7R-1) / bs=11,437 | +2,927 | **recombinant** |
+| SRR33298373.491903 | FAILS | 97.6% / 5,010bp / bs=8,540 | 98.0% / 6,619bp (chr16L-1) / bs=11,452 | +2,912 | **recombinant** |
+| SRR33298373.545529 | strong | 98.0% / 5,002bp / bs=8,667 | 98.3% / 6,611bp (chr16L-1) / bs=11,568 | +2,901 | **recombinant** |
+| SRR33298384.151130 | weak | 94.1% / 5,043bp / bs=7,542 | 95.2% / 6,664bp (chr7R-1) / bs=10,405 | +2,863 | **recombinant** |
+| SRR33298373.122658 | weak | 96.0% / 5,035bp / bs=8,117 | 95.8% / 6,665bp (chr4R-7) / bs=10,661 | +2,544 | **recombinant** |
+
+6/6, margins +2,544 to +3,027 -- the tightest, most consistent set of any recipient examined.
+
+## chr2L -> G3 {chr8R-1}: only 2/5 confirmed -- weaker than the raw count implied
+
+| read | class | vs own (chr2L-1) | vs G3 (chr8R-1) | margin | verdict |
+|---|---|---|---|---|---|
+| SRR33298373.284052 | no junction | 98.8% / 3,861bp / bs=6,863 | 99.6% / 5,473bp / bs=9,987 | +3,124 | **recombinant** |
+| SRR33298434.94939 | strong | 95.7% / 2,042bp / bs=3,262 | 97.2% / 3,664bp / bs=6,150 | +2,888 | **recombinant** |
+| SRR33298384.313055 | no junction | 98.9% / 2,270bp / bs=4,052 | 98.9% / 2,270bp / bs=4,052 | 0 | not supported |
+| SRR33298384.467718 | no junction | 97.8% / 3,175bp / bs=5,448 | 97.8% / 3,172bp / bs=5,443 | -5 | not supported |
+| SRR33298377.541858 | FAILS | 97.6% / 3,946bp / bs=6,728 | 97.5% / 3,868bp / bs=6,584 | -144 | not supported |
+
+Only 2 of 5 show a real contest between two candidates. The other 3 have near-identical
+bitscores to both references over short (2,270-3,946bp) alignments -- own and donor return
+essentially the same weak partial hit, which is not the recombination signature. **Read this
+as 2 confirmed events out of 5 calls, not "4/5."**
+
+## Why almost all of it goes to the same donor group: mostly real homology, chr13L excepted
+
+Each recipient's own reference was BLASTed against every other element in the library
+(excluding same-group members, which are structurally invisible to this detection method --
+a read converting to its own group's sequence is indistinguishable from a native read and can
+never register as a mismatch):
+
+| recipient | donor group rank among detectable candidates | confirmed |
+|---|---|---|
+| chr16R -> G2 | **#1 -- G2 occupies the top 4 ranks outright** | 7/7 |
+| chr10L -> G8 | **#1 by a wide margin** -- all 17 detectable G8 members occupy ranks 2-18, beating the nearest non-member by only 11-37 bitscore points before a 3,000+ point cliff to everything else | 6/6 |
+| chr2L -> G3 | **#1** -- chr8R-1 is the single most homologous detectable element | 2/5 |
+| chr13L -> G1 | **#8-9 of ~12 -- one of the LEAST homologous options** | 13/15 |
+
+**For three of the four recipients, the dominant donor is simply the most sequence-homologous
+available partner** -- exactly what a homology-driven strand-invasion mechanism predicts, and
+a sufficient explanation on its own. chr10L -> G8 is the cleanest example: after its one
+invisible own-group relative, G8's 17 members sweep the entire top of the ranking with almost
+nothing else coming close.
+
+**chr13L is the outlier**, and stays one: its dominant donor (G1) is measurably one of the
+least homologous groups available to it, so homology does not explain that case. The
+supported explanation there (see the ancestral-haplotype analysis above) is a small number of
+historical recombination events that became standing variation in the population and are
+being resampled by every independent sequencing prep, rather than an active homology
+preference operating today. That mechanism does not need to generalise to explain the other
+three recipients, and the homology ranking shows directly that it should not be assumed to.
