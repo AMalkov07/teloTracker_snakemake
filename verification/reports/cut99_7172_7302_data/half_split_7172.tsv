@@ -1,0 +1,3 @@
+chr_end	read_id	own_elem	donor_elem	split_bp	first_own	first_donor	second_own	second_donor	first_margin	second_margin	clean_crossover
+chr16R	SRR33298432.177252	chr16R-1	chr14L-3	700	48.57	61.0	89.99	93.6	12.4	3.6	no
+chr16R	SRR33298432.315476	chr16R-1	chr14L-3	600	49.33	47.17	48.73	48.23	-2.2	-0.5	no

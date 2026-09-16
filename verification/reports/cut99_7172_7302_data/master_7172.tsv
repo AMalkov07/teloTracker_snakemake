@@ -1,0 +1,5 @@
+chr_end	read_id	own_elem	own_pct	donor_group	donor_elem	donor_pct	gap	verdict	yp_start	yp_end
+chr16R	SRR33298432.177252	chr16R-1	97.55	G2	chr14L-3	96.68	-0.87	mid-Y' partial junction (unconfirmed breakpoint)	256	5450
+chr16R	SRR33298432.315476	chr16R-1	97.66	G2	chr14L-3	96.10	-1.56	mid-Y' partial junction (unconfirmed breakpoint)	6355	11550
+chr5R	SRR33298432.328531	chr5R-1	80.20	G2	chr13L-1	96.53	+16.33	RECOMBINANT (whole element)	147	5604
+chr6L	SRR33298432.77931	chr6L-1	88.92	G2	chr14L-3	95.79	+6.87	RECOMBINANT (whole element)	18165	23526

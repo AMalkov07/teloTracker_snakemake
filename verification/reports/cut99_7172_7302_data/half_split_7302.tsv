@@ -1,0 +1,6 @@
+chr_end	read_id	own_elem	donor_elem	split_bp	first_own	first_donor	second_own	second_donor	first_margin	second_margin	clean_crossover
+chr10L	SRR33298452.573441	chr10L-1	chr14R-1	6300	48.46	49.56	47.44	47.44	1.1	0.0	no
+chr14R	SRR33298452.217955	chr14R-1	chr14L-1	5500	49.47	48.96	48.55	48.68	-0.5	0.1	no
+chr14R	SRR33298452.246202	chr14R-1	chr14L-1	4500	93.18	92.36	83.08	91.18	-0.8	8.1	no
+chr5R	SRR33298452.485827	chr5R-1	chr10L-1	800	47.75	51.5	49.45	49.48	3.8	0.0	no
+chr5R	SRR33298452.241882	chr5R-1	chr14R-1	6100	48.26	49.15	48.75	48.38	0.9	-0.4	no
