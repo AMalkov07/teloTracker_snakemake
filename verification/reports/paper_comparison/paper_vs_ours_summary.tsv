@@ -1,0 +1,5 @@
+strain	PD	paper_reads	found_in_ours	chr_end_agree	yprime_count_agree	paper_Y	caught	missed	extra_switches	agreement_pct	our_samples
+7172	28	60	59	59	53	9	9	0	15	74.6	7172_day3_with_selection (60)
+7172	33	125	119	119	114	24	22	0	17	85.7	7172_day4_with_selection_repeat (84), 7172_day4_with_selection (41)
+7302	28	103	103	103	102	9	7	2	7	91.3	7302_day3_with_selection (103)
+7302	33	86	83	83	80	7	6	1	11	85.5	7302_day4_with_selection (86)

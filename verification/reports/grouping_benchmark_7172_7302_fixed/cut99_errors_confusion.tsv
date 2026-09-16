@@ -1,0 +1,14 @@
+strain	true_element	matched_element	copies	true_len	matched_len	true_class	matched_class	similarity_pct	verdict
+7302_day0_with_selection	chr6L-1	chr14L-5	4	5975	5485	Short	Short	63.03	same size class
+7172_day0_with_selection	chr16R-1	chr14L-3	2	5302	5485	Short	Short	64.46	same size class
+7302_day0_with_selection	chr14R-1	chr14L-1	2	6530	6654	Long	Long	72.38	same size class
+7172_day0_with_selection	chr5R-1	chr13L-1	1	6693	5483	Long	Short	54.34	CROSS size class
+7172_day0_with_selection	chr6L-1	chr14L-3	1	5975	5485	Short	Short	63.03	same size class
+7302_day0_with_selection	chr10L-1	chr14R-1	1	6869	6530	Long	Long	69.67	same size class
+7302_day0_with_selection	chr2L-1	chr8R-1	1	5975	5469	Short	Short	63.98	same size class
+7302_day0_with_selection	chr5R-1	chr14R-1	1	6693	6530	Long	Long	71.14	same size class
+7302_day0_with_selection	chr5R-1	chr10L-1	1	6693	6869	Long	Long	70.49	same size class
+7302_day0_with_selection	chr6L-1	chr8R-1	1	5975	5469	Short	Short	63.1	same size class
+7302_day0_with_selection	chr6L-1	chr14R-1	1	5975	6530	Short	Long	28.97	CROSS size class
+7302_day0_with_selection	chr6L-1	chr16L-1	1	5975	6654	Short	Long	30.04	CROSS size class
+7302_day0_with_selection	chr8R-1	chr2L-1	1	5469	5975	Short	Short	63.98	same size class
