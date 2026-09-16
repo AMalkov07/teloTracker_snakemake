@@ -438,12 +438,92 @@ not, by themselves, demonstrate a real positionally-consistent crossover. A trus
 requires rebuilding that scanner to also restrict each window to its proportionally
 corresponding reference region -- not yet done.
 
+## Redone again: the directional tiled-window scan (user-specified method)
+
+A different, more specific procedure than either test above: **non-overlapping 300bp windows**,
+starting at the Y' region's anchor-side boundary (no padding this time -- padding beyond
+`yp_start`/`yp_end` was tried first and produced obvious artefacts, see below). Each window is
+compared, at the **same absolute offset**, to the read's own/recipient reference. While windows
+score >=99% identity against own, keep going. The moment **3 consecutive windows** score below
+99%, check whether those same 3 windows all score *higher* against **any single other element
+in the library** (an open search, not just the group the whole-read test already flagged;
+same-cut99-group members excluded since they're indistinguishable from a native match). If one
+donor wins all 3, that is the breakpoint (end of the 3rd window) and that donor is the
+candidate. Then: global-align the read's first part against a same-length slice from the
+**start** of the recipient reference, and the read's second part against a same-length slice
+from the **end** of the donor reference. Pass requires both >=90% identity (numbers reported
+regardless of the threshold).
+
+**A first version of this test padded the scan region by 200bp on each side (matching the other
+tests in this document) and produced obvious garbage** -- breakpoints clustering at ~900bp for
+reads with totally unrelated own references and donors, because the padding pulls in non-Y'
+flanking sequence that fails the 99% bar from window 0 regardless of any real biology. Fixed by
+scanning strictly within `yp_start:yp_end`, no padding.
+
+**Specificity check against 24 native controls (6 each for chr13L, chr16R, chr10L, chr2L,
+correctly-assigned reads, same reads used as controls throughout this document):** 8 of 24
+control reads still trigger a 3-window "breakpoint" against some other element purely from
+ordinary ONT sequencing noise (the 99% per-window bar is strict relative to typical ~92-98%
+raw read identity, so the trigger itself is not very specific) -- but **0 of those 8 pass the
+final both-halves->=90% confirmation**, the lower of the two sides always landing well below
+90% (worst case 46-56%, best case 73-90%). **The final high-identity gate, not the trigger, is
+what actually discriminates signal from noise here.**
+
+**Result on the 24 mid-Y' candidates (6991 only in this table; 7172/7302 below): 8 of 24 pass**
+against a background of 0/24 false positives on controls -- a real signal, clearly above noise:
+
+| read_id | donor found | breakpoint / total len | fraction native | vs recipient | vs donor | pass |
+|---|---|---|---|---|---|---|
+| SRR33298384.498901 | chr12R-2 | 6000/6594 | 91% | 90.0% | 98.5% | **PASS** |
+| SRR33298461.57209 | chr14R-1 | 900/6582 | 14% | 92.2% | 93.8% | **PASS** |
+| SRR33298373.545529 | chr12R-2 | 6000/6582 | 91% | 90.0% | 91.1% | **PASS** |
+| SRR33298373.491903 | chr14R-1 | 900/6593 | 14% | 92.2% | 94.3% | **PASS** |
+| SRR33298373.122658 | chr14R-1 | 900/6627 | 14% | 90.1% | 91.5% | **PASS** |
+| SRR33298377.534605 | chr12L-1 | 2100/5176 | 41% | 98.0% | 97.0% | **PASS** |
+| SRR33298384.248800 | chr12L-1 | 3300/5189 | 64% | 99.8% | 98.6% | **PASS** |
+| SRR33298373.72733 | chr12L-1 | 4200/5183 | 81% | 94.4% | 92.0% | **PASS** |
+| SRR33298384.220455 | chr8R-1 | 2700/5282 | 51% | 47.5% | 47.5% | fail |
+| SRR33298461.44252 | chr14L-1 | 1500/5750 | 26% | 94.9% | 82.9% | fail |
+| SRR33298373.897522 | chr9L-1 | 2400/7081 | 34% | 98.0% | 87.6% | fail |
+| SRR33298377.726683 | chr13L-1 | 900/6589 | 14% | 47.1% | 48.6% | fail |
+| SRR33298373.1266643 | chr13L-1 | 1200/6615 | 18% | 47.6% | 47.6% | fail |
+| SRR33298434.79614 | chr2L-1 | 2400/6381 | 38% | 47.2% | 46.9% | fail |
+| SRR33298384.538094 | chr12L-1 | 4200/5204 | 81% | 93.5% | 89.0% | fail |
+| SRR33298434.64148 | chr12L-1 | 1200/5180 | 23% | 86.5% | 90.6% | fail |
+| SRR33298434.378016 | chr12L-1 | 4200/5198 | 81% | 91.6% | 89.2% | fail |
+| SRR33298377.644709 | chr12L-1 | 4200/5183 | 81% | 93.2% | 88.2% | fail |
+| SRR33298373.260098 | chr2L-1 | 1200/6708 | 18% | 48.1% | 47.9% | fail |
+| SRR33298434.226995 | chr14R-1 | 5700/6307 | 90% | 92.9% | 90.9% | **PASS** |
+| SRR33298434.116145 | chr2L-1 | 1500/6311 | 24% | 46.5% | 47.4% | fail |
+| SRR33298434.164214 | chr14R-1 | 5700/6587 | 87% | 93.0% | 98.1% | **PASS** |
+| SRR33298377.221175 | chr6L-1 | 900/5452 | 17% | 47.3% | 47.5% | fail |
+
+**Two very different shapes among the 8 passes.** Five have a *late* breakpoint (64-91% of the
+read is native, only the telomere-distal tail switches donor) -- a short, localized
+gene-conversion tract, the most biologically clean signature. Three (all chr10L) have an
+*early* breakpoint at exactly 900bp (14% native) -- given the control check shows the 99%
+trigger already fires early on pure sequencing noise in a third of native reads, an early split
+this close to the read start is the less trustworthy category of the two, even though these
+three do clear the 90% confirmation bar; they should be read with more caution than the late
+ones.
+
+**The donor these passes point to almost never matches the donor the whole-read test flagged
+earlier in this document:** only 1 of the 8 (`SRR33298434.164214`, chr7R -> chr14R-1) agrees
+with the earlier whole-Y' BLAST result. The other 7 land on a different element entirely
+(`chr12R-2`, `chr14R-1`, `chr12L-1` recurring) -- because this test asks a narrower, different
+question (which single element best explains *this specific short trailing segment*, searched
+open against the whole library) than the whole-read test does (which single group best explains
+*the entire molecule on average*). Both can be true at once for a real chimeric read: the bulk
+of the molecule pulls the whole-read average toward one group, while a short embedded tract
+points somewhere else entirely. This is a real methodological difference worth flagging, not
+an inconsistency to explain away.
+
 ## Bottom line: 58 of 58 mismatched reads, true global alignment
 
 | verdict | count | % of 58 | positionally-enforced junction test |
 |---|---|---|---|
 | whole-element swap (gap > +5%) | 28 | 48% | not applicable -- confirmed by full-length global alignment directly (already position-safe: `NW`/`HW` force the entire reference to align, so no partial/random-region match is possible) |
-| mid-Y' partial junction (-2% to +5%) | 24 | 41% | **0/24 show a clean, position-enforced two-piece crossover** -- real signal exists (the global-alignment gap itself, and chr16R's partial first-half donor signal), but a discrete breakpoint is not yet demonstrated |
+| mid-Y' partial junction (-2% to +5%) | 24 | 41% | position-enforced half-split (best-fit single split point, one known donor): 0/24 clean. **Directional tiled-window scan (open donor search, 99%-trigger + >=90% confirmation): 8/24 pass**, against 0/24 false positives on native controls -- a real, but partial and donor-ambiguous, confirmation |
 | not supported (gap < -2%) | 6 | 10% | not applicable |
 
 **Only the 28 whole-element swaps are confirmed to a standard that fully rules out the

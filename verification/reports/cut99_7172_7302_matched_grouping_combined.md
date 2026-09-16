@@ -162,6 +162,35 @@ still not a confirmed breakpoint under this test -- same caveat as 6991: this ma
 non-Y' padding sequence pulled into the compared window rather than real internal structure,
 and would need the padding narrowed and the test rerun to resolve.
 
+## Directional tiled-window scan (user-specified method) on the same 7 candidates
+
+A different procedure, described in full and validated against 24 native controls (0 false
+positives) in the 6991 report: non-overlapping 300bp windows from the Y' anchor-side boundary,
+each compared at the same absolute offset to the recipient reference; once 3 consecutive
+windows score below 99% against the recipient, check whether those same 3 windows all score
+higher against some single other library element (open search, same-cut99-group members
+excluded); if so, that is the breakpoint, confirmed by requiring both a same-length recipient
+slice (from the start) and a same-length donor slice (from the end) to reach >=90% global
+identity.
+
+| chr_end | read_id | donor found | breakpoint / total len | fraction native | vs recipient | vs donor | pass |
+|---|---|---|---|---|---|---|---|
+| chr16R | SRR33298432.177252 | chr12L-1 | 4200/5194 | 81% | 94.5% | 98.5% | **PASS** |
+| chr16R | SRR33298432.315476 | chr10L-1 | 2700/5195 | 52% | 47.0% | 47.5% | fail |
+| chr10L | SRR33298452.573441 | chr5R-1 | 900/6505 | 14% | 46.8% | 48.1% | fail |
+| chr14R | SRR33298452.217955 | chr13L-1 | 2400/6616 | 36% | 47.6% | 47.5% | fail |
+| chr14R | SRR33298452.246202 | chr12R-2 | 5400/6623 | 82% | 95.7% | 98.2% | **PASS** |
+| chr5R | SRR33298452.485827 | chr10L-1 | 1200/7075 | 17% | 47.2% | 48.3% | fail |
+| chr5R | SRR33298452.241882 | chr10L-1 | 900/6502 | 14% | 48.4% | 48.0% | fail |
+
+**2 of 7 pass**, both with the late-breakpoint, mostly-native-then-short-tail-switch shape
+(81% and 82% native) that was the more trustworthy of the two categories found in 6991. Neither
+donor matches the group the whole-read test originally flagged for that read (`chr12L-1` vs.
+the earlier `G2`/chr14L-3 for the chr16R read; `chr12R-2` vs. the earlier `G8`/chr14L-1 for the
+chr14R read) -- the same donor-disagreement pattern seen throughout the 6991 results, since
+this test is asking a narrower question (what explains the short trailing segment specifically)
+than the whole-read test (what explains the molecule on average).
+
 ## Cross-strain synthesis
 
 | pattern | 6991 | 7172 | 7302 |
