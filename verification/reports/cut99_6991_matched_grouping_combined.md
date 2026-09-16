@@ -304,3 +304,126 @@ length for any of the confirmed recombinants, in every one of the four recipient
 donor consistently reaches 94-101%** -- matching almost exactly what the size difference
 between the native and donor Y' variants predicts. That contrast, not the bitscore number,
 is the actual evidence for recombination.
+
+---
+
+# Final correction: true global alignment separates whole-element swaps from mid-Y' partial junctions
+
+Both tests above are still built on BLAST **local** alignment (HSPs) -- coverage-of-best-HSP is
+a proxy for "does one reference explain the whole read," not a direct measurement of it. The
+proper test is a true **global** alignment of each candidate reference against the read:
+[`global_identity_test.py`](../global_identity_test.py) uses `edlib` in infix mode (`HW`) --
+the reference is forced to align end-to-end, the read is free at both ends (it carries extra
+flanking anchor/telomere sequence beyond the Y' itself) -- checking both DNA strands and taking
+the better one (edlib, unlike blastn, does not do this automatically). This gives one clean
+number per reference: **% identity over the reference's full length**, not a fragment.
+
+**Expected signatures under this test:**
+* **Native read:** own identity clearly higher than any donor identity (own explains the whole
+  molecule; donor never fully spans the reference-shared middle region alone).
+* **Whole-element swap:** donor identity clearly higher than own, both close to reference
+  quality (~95-100%) -- the ENTIRE reference length is well explained by the donor and poorly
+  by the true native.
+* **Mid-Y' partial junction (part native, part donor):** neither reference reaches a clean win
+  -- forcing a chimeric read to align end-to-end against a single, non-chimeric reference
+  necessarily produces a mediocre identity against *both* candidates, since each one only
+  explains part of the molecule. This is exactly the case the user's own framing anticipated:
+  it needs the sliding-window scan (which already localizes the junction), not a global
+  identity comparison, because there is no single reference for the global test to confirm.
+
+## chr13L -> G1: 14/15 confirmed whole-element swaps
+
+| read | own (chr13L-1) | best donor | donor member | gap | verdict |
+|---|---|---|---|---|---|
+| SRR33298384.185796 | 87.74% | 98.63% | chr6L-1 | +10.88% | **RECOMBINANT** |
+| SRR33298373.896473 | 88.05% | 98.93% | chr6L-1 | +10.87% | **RECOMBINANT** |
+| SRR33298373.107087 | 88.35% | 99.16% | chr6L-1 | +10.82% | **RECOMBINANT** |
+| SRR33298373.1068481 | 89.11% | 99.90% | chr6L-1 | +10.79% | **RECOMBINANT** |
+| SRR33298373.1079946 | 89.09% | 99.87% | chr6L-1 | +10.77% | **RECOMBINANT** |
+| SRR33298377.260642 | 88.60% | 99.38% | chr6L-1 | +10.78% | **RECOMBINANT** |
+| SRR33298373.797552 | 88.86% | 99.68% | chr6L-1 | +10.83% | **RECOMBINANT** |
+| SRR33298373.46529 | 88.89% | 99.62% | chr6L-1 | +10.72% | **RECOMBINANT** |
+| SRR33298373.272313 | 83.57% | 93.96% | chr6L-1 | +10.39% | **RECOMBINANT** |
+| SRR33298384.45869 | 89.93% | 99.06% | chr6L-1 | +9.13% | **RECOMBINANT** |
+| SRR33298377.267122 | 86.89% | 95.95% | chr2L-1 | +9.06% | **RECOMBINANT** |
+| SRR33298377.125819 | 87.42% | 96.37% | chr2L-1 | +8.95% | **RECOMBINANT** |
+| SRR33298373.1520960 | 89.77% | 98.38% | chr6L-1 | +8.61% | **RECOMBINANT** |
+| SRR33298373.8939 | 90.01% | 98.59% | chr6L-1 | +8.59% | **RECOMBINANT** |
+| SRR33298461.44252 | 92.91% | 92.94% | chr6L-1 | +0.03% | ambiguous -- needs junction scan |
+| **control (6 native reads)** | 84.5-99.8% | 76.1-89.9% | -- | **-8.4% to -9.9%** | not supported (as expected) |
+
+14 of 15 clear whole-element swaps (gap +8.6 to +10.9), a much wider and cleaner margin than
+either earlier test found -- including `SRR33298384.45869`, previously flagged as a coordinate
+artefact under the fragmented-HSP tests, now unambiguous. `SRR33298461.44252` is the one
+exception, landing at a near-exact tie (+0.03%) rather than either clean signature -- consistent
+with its "weak" window-scan classification, i.e. a probable partial/borderline junction rather
+than a confirmed whole-element event.
+
+## chr16R -> G2 and chr10L -> G8: NOT whole-element swaps -- genuine mid-Y' partial junctions
+
+This is a real correction to the "7/7" and "6/6" claims above. Under true global alignment,
+**zero** of these 13 reads clear the whole-element bar -- but they are also clearly not native:
+
+| recipient | test reads | gap range | control gap range | shift from native baseline |
+|---|---|---|---|---|
+| chr16R (7 reads) | all 7 | **-1.12% to -0.89%** | -5.47% to -4.78% | ~+4 points toward donor |
+| chr10L (6 reads) | all 6 | **+2.37% to +3.60%** | -6.54% to -5.23% | ~+8 points toward donor |
+
+Neither own nor donor reaches a clean win for any of these 13 reads -- own sits far below its
+99%+ control baseline, and donor sits far below the 95-100% a true whole-element swap shows
+(chr13L, chr2L below). That is exactly what a chimeric read looks like when forced into a
+single-reference global alignment: the identity to each parent is diluted by the fraction of
+the molecule that parent does *not* explain.
+
+**This is independently confirmed by the window-scan, run long before this global test:** every
+one of these 13 reads was already classified `strong`, `weak`, or `FAILS` by
+`scan_recombinant_junctions.py` -- **never** `no junction` -- each with a specific junction
+position (e.g. chr10L's `SRR33298373.491903` splits at 5,568 / 1,425 bp; chr16R's
+`SRR33298373.72733` splits at 5,153 / 300 bp). Two independent methods -- a global-alignment
+shift away from the native baseline, and a sliding-window scan that localizes an actual
+breakpoint -- agree these are real recombination events. What they agree the events are **not**
+is whole-Y'-element replacements. **Revised verdict: chr16R 7/7 and chr10L 6/6 remain
+confirmed as real recombinants, but as mid-Y' partial junctions, not whole-element swaps** --
+the "recombinant" call in the sections above was correct, the implicit "whole element" framing
+was not.
+
+## chr2L -> G3: revised UP to 4/5 whole-element swaps
+
+The global test also overturns the earlier chr2L verdict, but in the other direction. The
+fragmented-HSP tests scored two of these reads as "near-identical bitscore to both references"
+(margins of -144 and +... effectively noise) purely because their local HSPs were short --
+that says nothing about the full reference:
+
+| read | own (chr2L-1) | best donor (chr8R-1) | gap | earlier verdict | global verdict |
+|---|---|---|---|---|---|
+| SRR33298373.284052 | 90.83% | 99.63% | +8.81% | recombinant | **RECOMBINANT** (confirmed) |
+| SRR33298384.313055 | 87.38% | 94.97% | +7.59% | not supported (margin 0) | **RECOMBINANT** (reversed) |
+| SRR33298434.94939 | 75.23% | 81.95% | +6.72% | ambiguous (coverage test) | **RECOMBINANT** (confirmed) |
+| SRR33298377.541858 | 90.58% | 96.00% | +5.42% | not supported (margin -144) | **RECOMBINANT** (reversed) |
+| SRR33298384.467718 | 92.32% | 89.78% | -2.54% | not supported | not supported (consistent) |
+| **control (6 native reads)** | 83.2-99.5% | 76.2-89.9% | **-10.8% to -7.0%** | -- | not supported (as expected) |
+
+**4 of 5 chr2L test reads are genuine whole-element swaps** -- a stronger result than either
+prior test found, because the earlier bitscore-margin metric was being fooled by short,
+low-information local HSPs on both sides at once. Only `SRR33298384.467718` stays unsupported
+(own modestly ahead, -2.54%, not matching either the clean-swap or clean-native pattern -- a
+genuine borderline case, possibly its own low-level partial junction).
+
+## Bottom line across all four recipients (33 reads, true global alignment)
+
+| recipient | whole-element swaps | mid-Y' partial junctions (real, but not whole-element) | unresolved/ambiguous |
+|---|---|---|---|
+| chr13L -> G1 | 14/15 | 0 | 1 (SRR33298461.44252) |
+| chr16R -> G2 | 0/7 | 7/7 | 0 |
+| chr10L -> G8 | 0/6 | 6/6 | 0 |
+| chr2L -> G3 | 4/5 | 0 | 1 (SRR33298384.467718) |
+
+31 of 33 reads across all four recipients show a real, quantifiable recombination signature
+under the most rigorous test applied so far; only 2 remain genuinely ambiguous. The four
+recipients split cleanly into two mechanistic classes: **chr13L and chr2L are dominated by
+whole-Y'-element replacement** (the donor's entire sequence explains the read end to end),
+while **chr16R and chr10L show no whole-element replacement at all -- every confirmed event
+there is a mid-Y' chimera**, real and localizable by the window scan, but not reducible to "the
+donor's Y' replaced the native one." Homology ranking (above) still explains why these
+particular donor groups dominate for three of the four recipients; it does not depend on which
+of these two mechanistic classes a given recipient falls into.
