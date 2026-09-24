@@ -57,3 +57,9 @@ yprime_identity_threshold: 97.0
 timepoint_samples:
   - "dorado_7302_day3_PromethION_no_tag_yes_rejection"
   - "dorado_7302_day6_PromethION_no_tag_yes_rejection"
+
+# Write a self-contained HTML summary (<sample>_report.html) into each sample's
+# _pipeline/ directory at the end of the recombination step. It is also written when a
+# run fails part-way, and audits its own inputs so an incomplete run is obvious.
+# Set to false to skip.
+make_report: true

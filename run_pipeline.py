@@ -396,6 +396,33 @@ def step_label_regions(cfg: dict, dry_run: bool = False):
     run_script(patched, "label_regions.sh", dry_run=dry_run)
 
 
+
+def write_sample_report(sample: str, cfg: dict):
+    """Render the HTML summary for one sample.
+
+    Deliberately best-effort and never fatal: it runs after a failed snakemake too, because a
+    partial report showing which stages produced output is more useful than none. The report
+    itself audits its inputs and marks anything missing, so an incomplete run cannot be
+    mistaken for a complete one.
+    """
+    if not cfg.get("make_report", True):
+        return
+    script = os.path.join(PIPELINE_DIR, "_pipeline", "scripts", "make_sample_report.py")
+    pipeline_dir = os.path.join("results", sample, "_pipeline")
+    if not os.path.isfile(script):
+        print(f"  NOTE: {script} not found; skipping HTML report")
+        return
+    if not os.path.isdir(os.path.join(PIPELINE_DIR, pipeline_dir)):
+        print(f"  NOTE: no {pipeline_dir}; skipping HTML report")
+        return
+    cmd = [sys.executable, script, "--pipeline-dir", pipeline_dir, "--base-name", sample]
+    try:
+        subprocess.run(cmd, check=True, cwd=PIPELINE_DIR)
+    except Exception as exc:                                        # noqa: BLE001
+        # must never turn a good run into a failed one, nor mask a real error
+        print(f"  WARNING: HTML report generation failed for {sample}: {exc}")
+
+
 def step_recombination(cfg: dict, dry_run: bool = False):
     print("\n" + "=" * 70)
     print("STEP 3: Recombination Analysis  (snakemake recombination_summary + single-sample plots + events + track plots)")
@@ -449,7 +476,11 @@ def step_recombination(cfg: dict, dry_run: bool = False):
             subprocess.run(cmd, check=True, cwd=PIPELINE_DIR)
         except subprocess.CalledProcessError as e:
             print(f"\nERROR: snakemake recombination_summary/through_y_prime_analysis failed for {sample} (exit code {e.returncode})")
+            # still write the report: it shows which stages did produce output, which is
+            # exactly what you want when diagnosing the failure
+            write_sample_report(sample, cfg)
             sys.exit(e.returncode)
+        write_sample_report(sample, cfg)
 
 
 # ------------------------------------------------------------------------------
@@ -486,6 +517,11 @@ dorado_model: "dna_r10.4.1_e8.2_400bps_sup@v5.2.0"
 # -- Optional / Defaults -------------------------------------------------------
 
 threads: 56
+
+# Write a self-contained HTML summary (<sample>_report.html) into each sample's
+# _pipeline/ directory at the end of the recombination step. Also written when a run
+# fails part-way; it audits its own inputs so an incomplete run is obvious. false to skip.
+make_report: true
 anchor_set: "telomerase_shutoff_anchors"
 
 # BLAST parameter -- minimum raw gapped alignment score
