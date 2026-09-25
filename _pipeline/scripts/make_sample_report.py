@@ -605,11 +605,13 @@ def render_sample(data):
                 f'<td data-v="{r["mean_confidence"] or 0}">{fmt(r["mean_confidence"], 3)}</td>'
                 f'<td>{html.escape(r["source"] or "")}</td></tr>')
         out.append('</tbody></table></div>')
-        out.append('<p class="note"><b>On <code>conf</code>:</b> confidence scores how confidently the '
-                   '<i>donor end</i> was identified, not whether recombination occurred. Long tandem arrays of a '
-                   'common Y&prime; ID leave many compatible donors, so confidence falls as copy number rises. '
-                   'It is also sensitive to the Y&prime; library used &mdash; do not compare it across runs '
-                   'built with different libraries.</p>')
+        out.append('<p class="note"><b>On <code>conf</code>:</b> the per-end mean averages every read. '
+                   'Non-recombinant reads contribute a fixed 0.95, so the mean mostly tracks the recombination '
+                   'rate: an end with few recombinants sits near 0.95 whatever the evidence. For recombinant '
+                   'reads the score reflects how confidently the <i>donor end</i> was identified, not whether '
+                   'recombination occurred &mdash; long tandem arrays of a common Y&prime; ID leave many '
+                   'compatible donors, so it falls as copy number rises. Read it alongside the recombination '
+                   'rate, not as an independent quality measure.</p>')
     if skipped:
         out.append('<h3>Skipped ends</h3><table><thead><tr><th>end</th><th>reason</th></tr></thead><tbody>')
         for r in skipped:
