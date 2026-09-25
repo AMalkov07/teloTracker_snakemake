@@ -102,6 +102,123 @@ TELO_CONFIRMED_MIN_REPEAT = 30      # same "qualifying" definition as read_summa
 
 
 # ---------------------------------------------------------------------------
+# Confidence, v3: two separate questions, two scores
+# ---------------------------------------------------------------------------
+# overall_confidence answered two different questions with one number and was dominated by
+# hardcoded values: every non-recombinant read got 0.95, and 59 % of recombinant reads sat on
+# a 0.30 / 0.33 floor (verification/reports/confidence_audit). It is kept, deprecated, and
+# replaced by:
+#
+#   recombination_confidence  is this read's CALL right -- did its subtelomere really change
+#                             (or, for an unchanged read, is it really unchanged)?
+#   donor_confidence          is the NAMED DONOR right? Recombinant reads only; 0 when the
+#                             donor is 'ambiguous'.
+#
+# Each score is built only from evidence recorded on the read, and each read carries the
+# components in confidence_basis so a value can always be explained.
+
+# Strength of one kind of evidence that the read CHANGED, in [0, 1]. Combined across kinds
+# as a noisy-OR (1 - prod(1 - s)), so independent evidence accumulates.
+CHANGE_EVIDENCE = {
+    'y_gain_per_copy': 0.5,      # each extra Y' copy halves the chance the gain is spurious
+    'y_unconfirmed_end': 0.8,    # multiplier when the read does not reach the telomere
+    'y_id_change': 0.5,          # an ID mismatch can be two near-identical Y' IDs confused
+    'y_id_change_mixed': 0.7,    # multiplier when the array after the change is not uniform
+    'y_loss_confirmed': 0.8,     # fewer copies, and the read demonstrably reaches the telomere
+    'y_loss_unconfirmed': 0.4,   # fewer copies, but the read may simply end early
+}
+# Confidence that an UNCHANGED read is really unchanged.
+NO_CHANGE_CONFIRMED = 0.95       # read reaches the telomere: nothing downstream is unseen
+NO_CHANGE_UNCONFIRMED = 0.7      # read stops early: a change beyond its end cannot be ruled out
+
+# Strength of evidence FOR a particular donor end, per axis, in [0, 1].
+DONOR_EVIDENCE = {
+    'x_element_scale': 0.6,      # X-element clusters are only ~76-88 % distinct between ends
+}
+DONOR_DISSENT_PENALTY = 0.5      # x (1 - 0.5 * strongest evidence for a DIFFERENT end)
+
+
+def _noisy_or(strengths):
+    p = 1.0
+    for s in strengths:
+        p *= 1.0 - max(0.0, min(1.0, float(s)))
+    return 1.0 - p
+
+
+def spacer_switch_strength(spacer_conf):
+    """spacer_confidence is 0.9 * min(1, identity gap / 10); undo the fixed 0.9 factor so the
+    strength is the gap itself, on [0, 1]."""
+    return max(0.0, min(1.0, float(spacer_conf or 0) / DISTINCTIVENESS['spacer']))
+
+
+def y_change_strength(status, n_gained, downstream_consistent, telo_confirmed):
+    """Evidence that the Y' array really differs from the day-0 end, from what kind of
+    difference it is. telo_confirmed is True / False, or None when unknown."""
+    unconfirmed = telo_confirmed is False
+    if status == "Y' Gain":
+        s = 1.0 - CHANGE_EVIDENCE['y_gain_per_copy'] ** max(1, int(n_gained or 1))
+        return s * (CHANGE_EVIDENCE['y_unconfirmed_end'] if unconfirmed else 1.0)
+    if status in ("1st Y' Change", "Y' Recombination"):
+        s = CHANGE_EVIDENCE['y_id_change']
+        if not downstream_consistent:
+            s *= CHANGE_EVIDENCE['y_id_change_mixed']
+        return s * (CHANGE_EVIDENCE['y_unconfirmed_end'] if unconfirmed else 1.0)
+    if status == "Y' Loss":
+        return CHANGE_EVIDENCE['y_loss_unconfirmed' if unconfirmed else 'y_loss_confirmed']
+    return 0.0
+
+
+def recombination_confidence(recombinant, spacer_switch, spacer_conf, x_switch, x_conf,
+                             y_status, n_gained, downstream_consistent, telo_confirmed):
+    """Confidence in the read's call. Returns (score, basis string)."""
+    if not recombinant:
+        if telo_confirmed is False:
+            return NO_CHANGE_UNCONFIRMED, 'no_change;end_unconfirmed'
+        return NO_CHANGE_CONFIRMED, 'no_change;end_confirmed' if telo_confirmed else 'no_change'
+    parts, strengths = [], []
+    if spacer_switch:
+        s = spacer_switch_strength(spacer_conf); strengths.append(s); parts.append(f'spacer={s:.2f}')
+    if x_switch:
+        s = max(0.0, min(1.0, float(x_conf or 0))); strengths.append(s); parts.append(f'x={s:.2f}')
+    ys = y_change_strength(y_status, n_gained, downstream_consistent, telo_confirmed)
+    if ys:
+        strengths.append(ys); parts.append(f'yprime={ys:.2f}')
+    return round(_noisy_or(strengths), 4), ';'.join(parts)
+
+
+def donor_confidence(best_source, pool, axis_evidence):
+    """Confidence that best_source is the right donor.
+
+    pool           {end: vote weight} the source was chosen from
+    axis_evidence  [(axis, end, strength)] -- every axis that pointed at SOME end, with the
+                   strength of that evidence; axes for best_source support it, axes for any
+                   other end dissent.
+    Returns (score, basis string)."""
+    if not best_source or best_source == 'ambiguous':
+        return 0.0, 'no_donor'
+    support = [s for a, e, s in axis_evidence if _same_end(e, best_source)]
+    dissent = [s for a, e, s in axis_evidence if not _same_end(e, best_source)]
+    strength = _noisy_or(support)
+    ranked = sorted(pool.values(), reverse=True) if pool else []
+    if len(ranked) >= 2 and ranked[0] > 0:
+        margin = (ranked[0] - ranked[1]) / ranked[0]
+    else:
+        margin = 1.0
+    score = strength * (0.5 + 0.5 * margin)
+    if dissent:
+        score *= 1.0 - DONOR_DISSENT_PENALTY * max(dissent)
+    basis = (f'support={strength:.2f};margin={margin:.2f}'
+             + (f';dissent={max(dissent):.2f}' if dissent else ''))
+    return round(score, 4), basis
+
+
+def _no_change_confidence(telo_confirmed):
+    rc, basis = recombination_confidence(False, False, 0, False, 0, 'No Change', 0, True, telo_confirmed)
+    return {'recombination_confidence': rc, 'donor_confidence': '',
+            'confidence_basis': f'call[{basis}] donor[n/a]'}
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -1404,11 +1521,13 @@ def reconcile_features_v2(spacer_result, x_element_result, y_prime_result, supp_
     # the (ID, ITS) path can single out the donor or show it is the end itself.
     path_donor = str(y_prime_result.get('y_prime_path_primary_donor', '') or '')
     path_len = int(y_prime_result.get('y_prime_path_primary_len', 0) or 0)
+    y_from_path = False
     if not y_fp and not y_self and path_len >= 2:
         if path_donor == 'self':
             y_self = True
         elif path_donor and '|' not in path_donor:
             y_fp, y_fp_len, y_specificity = path_donor, path_len, 1.0
+            y_from_path = True
     best_rank = min((MATCH_KIND_RANK[k] for k in y_matches.values()), default=None)
     y_best = sorted(ce for ce, k in y_matches.items() if best_rank is not None and MATCH_KIND_RANK[k] == best_rank)
     y_specificity = float(y_prime_result.get('y_prime_fingerprint_specificity', 0) or 0)
@@ -1423,6 +1542,8 @@ def reconcile_features_v2(spacer_result, x_element_result, y_prime_result, supp_
     x_has_recomb = x_recomb in ('switch_detected', 'full_switch')
     y_has_recomb = y_status not in ('No Change', '', 'no_data')
     is_loss = (y_status == "Y' Loss")
+    telo_confirmed = None if telo_info is None else bool(telo_info.get('confirmed', False))
+    y_downstream = str(y_prime_result.get('y_prime_downstream_consistent', True)) != 'False'
 
     base_out = {'source_votes': '', 'source_tie': False, 'source_resolution': '', 'recombination_mechanism': '',
                 'y_prime_donor': ''}
@@ -1431,7 +1552,8 @@ def reconcile_features_v2(spacer_result, x_element_result, y_prime_result, supp_
         return {**base_out,
                 'recombination_source': '', 'recombination_detected': False, 'overall_confidence': 0.95,
                 'cross_feature_consistent': True, 'cross_feature_detail': 'all_features_match_reference',
-                'is_complex_event': False, 'confidence_factors': 'no_recombination'}
+                'is_complex_event': False, 'confidence_factors': 'no_recombination',
+                **_no_change_confidence(telo_confirmed)}
 
     # ---- votes -------------------------------------------------------------
     # A spacer / x-element switch votes with its full weight only when its own
@@ -1503,7 +1625,8 @@ def reconcile_features_v2(spacer_result, x_element_result, y_prime_result, supp_
         return {**base_out,
                 'recombination_source': '', 'recombination_detected': False, 'overall_confidence': 0.90,
                 'cross_feature_consistent': True, 'cross_feature_detail': 'feature_signals_match_self',
-                'is_complex_event': False, 'confidence_factors': 'self_source_only'}
+                'is_complex_event': False, 'confidence_factors': 'self_source_only',
+                **_no_change_confidence(telo_confirmed)}
 
     # ---- best source + tie-break -------------------------------------------
     best_source, tie = 'ambiguous', False
@@ -1591,6 +1714,42 @@ def reconcile_features_v2(spacer_result, x_element_result, y_prime_result, supp_
     else:
         mechanism = ''
 
+    # ---- confidence v3: two scores, see recombination_confidence / donor_confidence ------
+    rc, rc_basis = recombination_confidence(
+        True, spacer_has_recomb, sp_conf, x_has_recomb, x_conf,
+        y_status, len(y_gained), y_downstream, telo_confirmed)
+    # every axis that pointed at SOME end, with the strength of that evidence. Unlike the
+    # vote above, the Y' fingerprint is counted even when a spacer / x-element switch fired.
+    axis_evidence = []
+    if 'spacer' in axis_source:
+        axis_evidence.append(('spacer', axis_source['spacer'], spacer_switch_strength(sp_conf)))
+    if 'x_element' in axis_source:
+        axis_evidence.append(('x_element', axis_source['x_element'],
+                              max(0.0, min(1.0, x_conf)) * DONOR_EVIDENCE['x_element_scale']))
+    # Supplementary alignments still vote (above) but are not donor EVIDENCE here: subtelomeric
+    # sequence is shared across ends, so a split alignment to another chromosome is not
+    # specific, and a hit to the read's own chromosome is ignored by design -- counting them
+    # would systematically favour between-chromosome donors over same-chromosome ones
+    # (7172 chr11L -> chr11R could never earn supplementary support).
+    if y_has_recomb and not is_loss:
+        if y_self:
+            n_self = max(y_fp_len, len(y_gained), 1)
+            axis_evidence.append(('y_prime', chr_end, min(1.0, n_self / 3.0)))
+        elif y_fp:
+            spec = 1.0 if y_from_path else y_specificity
+            its_chk = int(y_prime_result.get('y_prime_path_its_checked', 0) or 0)
+            its_ok = int(y_prime_result.get('y_prime_path_its_verified', 0) or 0)
+            its_factor = 1.0 if its_chk == 0 else 0.75 + 0.25 * its_ok / its_chk
+            # how much of the gained array the named donor explains: a donor piece of 4 copies
+            # in a 5-copy gain leaves one copy from somewhere else
+            coverage = min(1.0, y_fp_len / max(1, len(y_gained)))
+            axis_evidence.append(('y_prime', y_fp, spec * min(1.0, y_fp_len / 3.0) * its_factor
+                                  * (0.5 + 0.5 * coverage)))
+        elif 2 <= len(y_non_self) <= 3:
+            for ce in y_non_self:
+                axis_evidence.append(('y_prime', ce, 1.0 / len(y_non_self)))
+    dc, dc_basis = donor_confidence(best_source, pool, axis_evidence)
+
     detail_parts = [f'{axis}={src}' for axis, src in axis_source.items()]
     if y_compatible:
         detail_parts.append(f'y_prime_compatible={",".join(y_compatible[:5])}')
@@ -1614,6 +1773,9 @@ def reconcile_features_v2(spacer_result, x_element_result, y_prime_result, supp_
         'source_resolution': source_resolution,
         'recombination_mechanism': mechanism,
         'y_prime_donor': y_fp if (y_has_recomb and not is_loss and not y_self) else '',
+        'recombination_confidence': rc,
+        'donor_confidence': dc,
+        'confidence_basis': f'call[{rc_basis}] donor[{dc_basis}]',
         'qc_flags_extra': ';'.join(qc),
     }
 

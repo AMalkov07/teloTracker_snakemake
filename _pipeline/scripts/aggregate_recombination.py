@@ -25,6 +25,9 @@ import pandas as pd
 
 from recombination_utils import write_results_tsv
 
+# donor_confidence at or above this counts as a confidently named donor (n_confident_donor)
+CONFIDENT_DONOR = 0.5
+
 
 def parse_args():
     p = argparse.ArgumentParser(description='Summarize recombination results')
@@ -105,7 +108,24 @@ def summarize(recombination_dir, base_name, output_summary):
 
         # Confidence stats
         conf_col = 'overall_confidence'
-        mean_conf = df[conf_col].mean() if conf_col in df.columns else 0.0
+        mean_conf = df[conf_col].mean() if conf_col in df.columns else 0.0   # deprecated, see below
+
+        # Confidence v3. Averaged over RECOMBINANT reads only: mean_confidence above averages
+        # every read and gives each unchanged read a constant 0.95, so it mostly restated
+        # pct_recombination (R^2 = 0.82, verification/reports/confidence_audit).
+        rec_mask = (df['recombination_detected'].astype(str).str.lower() == 'true'
+                    if 'recombination_detected' in df.columns else pd.Series(False, index=df.index))
+
+        def _mean_over_recombinant(col):
+            if col not in df.columns or not rec_mask.any():
+                return ''
+            v = pd.to_numeric(df.loc[rec_mask, col], errors='coerce')
+            return round(float(v.mean()), 4) if v.notna().any() else ''
+        mean_recomb_conf = _mean_over_recombinant('recombination_confidence')
+        mean_donor_conf = _mean_over_recombinant('donor_confidence')
+        n_confident_donor = (int((pd.to_numeric(df.loc[rec_mask, 'donor_confidence'], errors='coerce')
+                                  >= CONFIDENT_DONOR).sum())
+                             if 'donor_confidence' in df.columns else '')
 
         # Cross-feature consistency
         cf_col = 'cross_feature_consistent'
@@ -165,6 +185,9 @@ def summarize(recombination_dir, base_name, output_summary):
             'n_y_prime_recombination': _n("Y' Recombination"),
             'n_ambiguous': n_ambiguous,
             'mean_confidence': round(mean_conf, 4),
+            'mean_recombination_confidence': mean_recomb_conf,
+            'mean_donor_confidence': mean_donor_conf,
+            'n_confident_donor': n_confident_donor,
             'n_cross_feature_consistent': int(n_consistent),
             'n_complex_events': int(n_complex),
             'most_common_source': most_common_source,

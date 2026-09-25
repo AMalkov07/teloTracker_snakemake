@@ -315,8 +315,10 @@ def collect(pipeline_dir, base_name):
     data['recomb_reads'] = 0
     data['recomb_events'] = 0
     data['conf_weighted'] = None
+    data['has_v3'], data['rc_weighted'], data['dc_weighted'] = False, None, None
     if rec is not None:
-        conf_acc = 0.0
+        conf_acc = rc_acc = dc_acc = 0.0
+        v3_n = 0
         for _, r in rec.iterrows():
             status = r.get('status', '')
             total = to_int(r.get('total_reads')) or 0
@@ -332,6 +334,9 @@ def collect(pipeline_dir, base_name):
                 'n_x_element_switch': to_num(r.get('n_x_element_switch')),
                 'n_y_prime_change': to_num(r.get('n_y_prime_change')),
                 'mean_confidence': to_num(r.get('mean_confidence')),
+                'mean_rc': to_num(r.get('mean_recombination_confidence')),
+                'mean_dc': to_num(r.get('mean_donor_confidence')),
+                'n_confident_donor': to_num(r.get('n_confident_donor')),
                 'n_complex_events': to_num(r.get('n_complex_events')),
                 'source': r.get('most_common_source', ''),
             }
@@ -340,8 +345,17 @@ def collect(pipeline_dir, base_name):
                 data['recomb_reads'] += total
                 data['recomb_events'] += int(nrec or 0)
                 conf_acc += (row['mean_confidence'] or 0.0) * total
+                if row['mean_dc'] is not None and nrec:
+                    rc_acc += (row['mean_rc'] or 0.0) * nrec
+                    dc_acc += row['mean_dc'] * nrec
+                    v3_n += nrec
         if data['recomb_reads']:
             data['conf_weighted'] = conf_acc / data['recomb_reads']
+        # v3 scores are averaged over RECOMBINANT reads, so weight by n_recombination
+        if v3_n:
+            data['has_v3'] = True
+            data['rc_weighted'] = rc_acc / v3_n
+            data['dc_weighted'] = dc_acc / v3_n
     else:
         data['warnings'].append('missing recombination_summary.tsv (recombination panel will be empty)')
 
@@ -386,6 +400,8 @@ def collect(pipeline_dir, base_name):
                 'recomb': r.get('recombination_detected', ''),
                 'source': r.get('recombination_source', ''),
                 'conf': to_num(r.get('overall_confidence')),
+                'rc': to_num(r.get('recombination_confidence')),
+                'dc': to_num(r.get('donor_confidence')),
                 'complex': r.get('is_complex_event', ''),
                 'compatible': r.get('y_prime_compatible_ends', ''),
             })
@@ -551,8 +567,13 @@ def render_sample(data):
                     f'{data["recomb_reads"]:,}' if have.get('recomb') else '&mdash;',
                     (f'{data["recomb_events"]:,} events' if have.get('recomb')
                      else 'recombination summary missing')))
-    out.append(tile('Recombination', f'{overall:.1f}%' if overall is not None else '&mdash;',
-                    f'weighted conf {data["conf_weighted"]:.3f}' if data['conf_weighted'] is not None else ''))
+    if data['has_v3']:
+        conf_sub = f'donor conf {data["dc_weighted"]:.2f} &middot; call conf {data["rc_weighted"]:.2f}'
+    elif data['conf_weighted'] is not None:
+        conf_sub = f'conf {data["conf_weighted"]:.3f} (old score)'
+    else:
+        conf_sub = ''
+    out.append(tile('Recombination', f'{overall:.1f}%' if overall is not None else '&mdash;', conf_sub))
     out.append(tile('Telomere median', f'{telo_stats["median"]:,.0f} bp' if telo_stats else '&mdash;',
                     f'p90 {telo_stats["p90"]:,.0f}' if telo_stats else ''))
     out.append('</div>')
@@ -593,10 +614,12 @@ def render_sample(data):
         out.append(svg_barh([(r['chr_end'], r['pct'], f"{r['pct']:.1f}%  (n={r['total_reads']:,})")
                              for r in analyzed], value_max=100))
         out.append('<h3>Per-end detail</h3>')
+        v3 = data['has_v3']
         out.append('<div class="scroll"><table class="sortable"><thead><tr>'
                    '<th>end</th><th>reads</th><th>recomb</th><th>%</th><th>spacer sw</th>'
-                   '<th>X sw</th><th>Y&prime; chg</th><th>complex</th><th>conf</th><th>top source</th>'
-                   '</tr></thead><tbody>')
+                   '<th>X sw</th><th>Y&prime; chg</th><th>complex</th>'
+                   + ('<th>call conf</th><th>donor conf</th><th>confident donors</th>' if v3 else '<th>conf</th>')
+                   + '<th>top source</th></tr></thead><tbody>')
         for r in analyzed:
             out.append(
                 f'<tr><td>{html.escape(r["chr_end"])}</td>'
@@ -607,10 +630,23 @@ def render_sample(data):
                 f'<td data-v="{r["n_x_element_switch"] or 0}">{fmt(r["n_x_element_switch"])}</td>'
                 f'<td data-v="{r["n_y_prime_change"] or 0}">{fmt(r["n_y_prime_change"])}</td>'
                 f'<td data-v="{r["n_complex_events"] or 0}">{fmt(r["n_complex_events"])}</td>'
-                f'<td data-v="{r["mean_confidence"] or 0}">{fmt(r["mean_confidence"], 3)}</td>'
-                f'<td>{html.escape(r["source"] or "")}</td></tr>')
+                + (f'<td data-v="{r["mean_rc"] or 0}">{fmt(r["mean_rc"], 2)}</td>'
+                   f'<td data-v="{r["mean_dc"] or 0}">{fmt(r["mean_dc"], 2)}</td>'
+                   f'<td data-v="{r["n_confident_donor"] or 0}">{fmt(r["n_confident_donor"])}</td>' if v3 else
+                   f'<td data-v="{r["mean_confidence"] or 0}">{fmt(r["mean_confidence"], 3)}</td>')
+                + f'<td>{html.escape(r["source"] or "")}</td></tr>')
         out.append('</tbody></table></div>')
-        out.append('<p class="note"><b>On <code>conf</code>:</b> the per-end mean averages every read. '
+        if v3:
+            out.append('<p class="note"><b>Two confidence scores</b>, both averaged over the recombinant '
+                       'reads only. <b>call conf</b> (<code>recombination_confidence</code>): is the read '
+                       'really changed? It rises with independent evidence (more gained Y&prime; copies, a '
+                       'strong spacer or X-element switch) and drops for a Loss on a read that never reaches '
+                       'the telomere. <b>donor conf</b> (<code>donor_confidence</code>): is the named donor '
+                       'right? It rises with a long, unique Y&prime; fingerprint, agreeing evidence and a clear '
+                       'vote margin, and is 0 when the donor is ambiguous. <b>confident donors</b>: reads with '
+                       'donor conf &ge; 0.5. Every read lists its components in <code>confidence_basis</code>.</p>')
+        else:
+            out.append('<p class="note"><b>On <code>conf</code>:</b> the per-end mean averages every read. '
                    'Non-recombinant reads contribute a fixed 0.95, so the mean mostly tracks the recombination '
                    'rate: an end with few recombinants sits near 0.95 whatever the evidence. For recombinant '
                    'reads the score reflects how confidently the <i>donor end</i> was identified, not whether '
@@ -744,11 +780,13 @@ def render_sample(data):
     out.append('<h2>Per-read detail</h2>')
     if data['reads']:
         rows = sorted(data['reads'], key=lambda r: (-(r['yp_n'] or 0), r['chr_end']))
+        v3r = any(r.get('rc') is not None for r in rows)
         out.append(f'<p class="note">{len(rows):,} reads, sorted by Y&prime; copy number. Click any header to '
                    're-sort. <code>compatible ends</code> shows the donor ambiguity behind a low confidence.</p>')
         out.append('<div class="scroll"><table class="sortable"><thead><tr>'
                    '<th>read</th><th>end</th><th>len</th><th>telo</th><th>Y&prime;</th><th>&Delta;Y&prime;</th>'
-                   '<th>conf</th><th>status</th><th>source</th><th>array</th><th>compatible ends</th>'
+                   + ('<th>call</th><th>donor</th>' if v3r else '<th>conf</th>')
+                   + '<th>status</th><th>source</th><th>array</th><th>compatible ends</th>'
                    '</tr></thead><tbody>')
         for r in rows:
             out.append(
@@ -759,8 +797,10 @@ def render_sample(data):
                 f'<td data-v="{r["yp_n"]}">{r["yp_n"]}</td>'
                 f'<td data-v="{r["yp_delta"] if r["yp_delta"] is not None else 0}">'
                 f'{("+" if (r["yp_delta"] or 0) > 0 else "") + fmt(r["yp_delta"])}</td>'
-                f'<td data-v="{r["conf"] or 0}">{fmt(r["conf"], 3)}</td>'
-                f'<td style="text-align:left">{html.escape(r["status"] or "")}</td>'
+                + (f'<td data-v="{r["rc"] or 0}">{fmt(r["rc"], 2)}</td>'
+                   f'<td data-v="{r["dc"] if r["dc"] is not None else -1}">{fmt(r["dc"], 2)}</td>' if v3r else
+                   f'<td data-v="{r["conf"] or 0}">{fmt(r["conf"], 3)}</td>')
+                + f'<td style="text-align:left">{html.escape(r["status"] or "")}</td>'
                 f'<td>{html.escape(r["source"] or "")}</td>'
                 f'<td class="mono" style="text-align:left">{html.escape((r["yp_array"] or "")[:60])}</td>'
                 f'<td class="mono" style="text-align:left">{html.escape((r["compatible"] or "")[:50])}</td></tr>')
@@ -800,7 +840,7 @@ def render_comparison(all_data):
     """Compact side-by-side panel across samples."""
     out = ['<h2>Panel overview</h2>']
     out.append('<div class="scroll"><table class="sortable"><thead><tr>'
-               '<th>sample</th><th>anchored</th><th>analyzed</th><th>recomb %</th><th>conf</th>'
+               '<th>sample</th><th>anchored</th><th>analyzed</th><th>recomb %</th><th>donor conf</th>'
                '<th>Y&prime;+ %</th><th>mean gain</th><th>max gain</th><th>telo median</th>'
                '<th>telo p90</th><th>signature</th></tr></thead><tbody>')
     for d in all_data:
@@ -812,12 +852,14 @@ def render_comparison(all_data):
         gain = describe(pos)
         telo = describe(d['telo_lengths'])
         sig = classify_survivor(d)
+        conf_cell = (f'<td data-v="{d["dc_weighted"] or 0}">{fmt(d["dc_weighted"], 2)}</td>' if d.get('has_v3') else
+                     f'<td data-v="{d["conf_weighted"] or 0}">{fmt(d["conf_weighted"], 3)} (old)</td>')
         out.append(
             f'<tr><td>{html.escape(d["base_name"])}</td>'
             f'<td data-v="{anchored}">{anchored:,}</td>'
             f'<td data-v="{d["recomb_reads"]}">{d["recomb_reads"]:,}</td>'
             f'<td data-v="{overall or 0}">{fmt(overall, 1)}%</td>'
-            f'<td data-v="{d["conf_weighted"] or 0}">{fmt(d["conf_weighted"], 3)}</td>'
+            + conf_cell +
             f'<td data-v="{pct_pos or 0}">{fmt(pct_pos, 1)}%</td>'
             f'<td data-v="{gain.get("mean") or 0}">{"+" + fmt(gain.get("mean"), 2) if gain else "&mdash;"}</td>'
             f'<td data-v="{gain.get("max") or 0}">{"+" + fmt(gain.get("max")) if gain else "&mdash;"}</td>'
