@@ -47,9 +47,15 @@ THREADS=56
 #     single   = merge if any cross-cluster pair is >= threshold (most permissive)
 #   YPRIME_STOP_MODE: 'silhouette' | 'threshold'
 #     silhouette = data-driven, picks the k with the highest silhouette score (default)
-#     threshold  = fixed 97% identity cutoff
+#     threshold  = fixed identity cutoff, YPRIME_IDENTITY_THRESHOLD
+#   YPRIME_IDENTITY_THRESHOLD: percent identity for threshold mode (97 and 99 are the
+#     benchmarked cuts). In silhouette mode it only decides the 2-variant case, where
+#     silhouette cannot score any cluster count.
+#   YPRIME_DEDUP_THRESHOLD: variants at least this identical are merged before clustering
 YPRIME_LINKAGE="average"
 YPRIME_STOP_MODE="silhouette"
+YPRIME_IDENTITY_THRESHOLD="97.0"
+YPRIME_DEDUP_THRESHOLD="99.9"
 
 # BLAST parameters
 MIN_PIDENT=75.0        # Minimum percent identity (lowered for cross-strain comparison)
@@ -204,6 +210,8 @@ if [ -f "${LABELED_TSV}" ]; then
         --output-dir   "${CLUSTER_OUTPUT_DIR}" \
         --linkage      "${YPRIME_LINKAGE}" \
         --stop-mode    "${YPRIME_STOP_MODE}" \
+        --identity-threshold "${YPRIME_IDENTITY_THRESHOLD}" \
+        --dedup-threshold    "${YPRIME_DEDUP_THRESHOLD}" \
         --threads      "${THREADS}"
 
     # Replace extracted FASTA with clustered version

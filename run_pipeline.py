@@ -403,6 +403,10 @@ def step_label_regions(cfg: dict, dry_run: bool = False):
         "THREADS":          str(threads),
         "YPRIME_LINKAGE":   cfg.get("yprime_linkage", "average"),
         "YPRIME_STOP_MODE": cfg.get("yprime_stop_mode", "silhouette"),
+        # Previously written only into the Snakemake config and never passed to the
+        # clustering script, so threshold mode always cut at 97 whatever was set.
+        "YPRIME_IDENTITY_THRESHOLD": cfg.get("yprime_identity_threshold", 97.0),
+        "YPRIME_DEDUP_THRESHOLD":    cfg.get("yprime_dedup_threshold", 99.9),
     }
     # label_regions.sh hardcodes ANCHORS_FASTA=test_anchors.fasta, which is byte-identical
     # in content to telomerase_shutoff_anchors.fasta -- which is why nobody noticed it was
@@ -558,11 +562,14 @@ anchor_set: "telomerase_shutoff_anchors"
 # BLAST parameter -- minimum raw gapped alignment score
 min_raw_gapped_score: 5000
 
-# Y prime clustering: percent identity threshold for grouping
-# Higher = more groups (finer resolution, risk of misassignment with ONT error)
-# Lower  = fewer groups (coarser, more reliable)
-# Only consulted when yprime_stop_mode is "threshold".
+# Y prime clustering: percent identity threshold for grouping (threshold mode).
+# 97 and 99 are the benchmarked cuts: on day-0 references they give ~10 and ~12 groups at
+# the same false-mismatch rate. Higher = more groups (finer resolution).
+# In silhouette mode this only decides the 2-variant case, which silhouette cannot score.
 yprime_identity_threshold: 97.0
+
+# Y prime clustering: variants at least this identical are merged before clustering
+yprime_dedup_threshold: 99.9
 
 # Y prime clustering: hierarchical linkage method
 #   complete = merge clusters only when EVERY cross-cluster pair is above threshold (strict)

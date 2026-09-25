@@ -41,6 +41,9 @@ min_raw_gapped_score: 5000
 # Lower  = fewer groups (coarser, more reliable)
 yprime_identity_threshold: 97.0
 
+# Y' variants at least this identical are merged before clustering
+yprime_dedup_threshold: 99.9
+
 # Override the automatically-extracted Y prime library with a curated one.
 # Uncomment and set if you want to use a specific FASTA.
 # y_prime_lib_override: "_pipeline/references/7302_features/repeatmasker_7302_all_y_primes.fasta"
