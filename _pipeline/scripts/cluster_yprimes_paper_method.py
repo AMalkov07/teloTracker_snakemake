@@ -423,9 +423,26 @@ def deduplicate_yprimes(entries, sim_matrix, seq_names, threshold=99.9):
 # Clustering
 # =============================================================================
 
-def find_clusters_silhouette(distance_matrix, linkage_method='average', max_clusters=None):
+def find_clusters_silhouette(distance_matrix, linkage_method='average', max_clusters=None,
+                             fallback_threshold=97.0):
     """Find optimal cluster count using silhouette score."""
     n = distance_matrix.shape[0]
+
+    # Fewer than 2 elements has no dendrogram: squareform() yields an empty condensed
+    # matrix and linkage() raises "number of observations cannot be determined on an
+    # empty distance matrix". A strain whose reference carries 0 or 1 Y' element is a
+    # real case (6212 has exactly 1), and it should degrade to a single group rather
+    # than abort the whole labelling run.
+    if n < 2:
+        return 1, None, {}, np.ones(n, dtype=int)
+
+    # Silhouette is only defined for 2 <= k <= n-1, so with 2 variants no k can be scored
+    # and the old fallback split them unconditionally -- two near-identical variants
+    # became two groups. Decide by identity instead, which is what the threshold mode does.
+    if n < 3:
+        return find_clusters_threshold(distance_matrix, linkage_method=linkage_method,
+                                       threshold=fallback_threshold)
+
     if max_clusters is None:
         max_clusters = min(n - 1, 20)
 
@@ -450,6 +467,11 @@ def find_clusters_silhouette(distance_matrix, linkage_method='average', max_clus
 
 def find_clusters_threshold(distance_matrix, linkage_method='complete', threshold=97.0):
     """Find clusters using a fixed identity threshold."""
+    # See find_clusters_silhouette: <2 elements has no dendrogram to cut.
+    n = distance_matrix.shape[0]
+    if n < 2:
+        return 1, None, {}, np.ones(n, dtype=int)
+
     condensed = squareform(distance_matrix)
     Z = linkage(condensed, method=linkage_method)
     labels = fcluster(Z, t=(100.0 - threshold), criterion='distance')
@@ -569,6 +591,23 @@ def main():
     entries = load_fasta(args.input_fasta)
     print(f"\nLoaded {len(entries)} Y prime sequences")
 
+    # 0 or 1 Y' elements: nothing to compare. makeblastdb rejects an empty FASTA and a
+    # single sequence has no tree, so skip straight to the outputs: one group (or none).
+    # A real case -- strain 6212's reference carries exactly one Y'.
+    if len(entries) < 2:
+        print(f"  Fewer than 2 Y' sequences: clustering skipped, "
+              f"{'1 group' if entries else 'no groups'}.")
+        names = [h for h, _ in entries]
+        with open(os.path.join(args.output_dir, f'{label}_cluster_assignments.tsv'), 'w') as f:
+            f.write('sequence_name\tcluster\toriginal_length\n')
+            for h, s in entries:
+                f.write(f'{h}\t1\t{len(s)}\n')
+        if args.output_fasta:
+            write_clustered_fasta(entries, names, [1] * len(names),
+                                  {h: h for h in names}, args.output_fasta)
+        print("\nDone.")
+        return
+
     # Step 1: Homopolymer condensation
     if args.condense:
         print("\n--- Step 1: Condense homopolymers >4bp ---")
@@ -641,7 +680,8 @@ def main():
     if args.stop_mode == 'silhouette':
         print(f"\n--- Step 4: Hierarchical clustering ({args.linkage}-linkage + silhouette score) ---")
         best_k, Z, scores, labels = find_clusters_silhouette(
-            distance_matrix, linkage_method=args.linkage)
+            distance_matrix, linkage_method=args.linkage,
+            fallback_threshold=args.identity_threshold)
         print(f"\n  Silhouette scores by cluster count:")
         for k in sorted(scores.keys()):
             marker = " <-- best" if k == best_k else ""
@@ -729,9 +769,13 @@ def main():
                 orig_lengths.append(len(s))
                 break
 
-    fig3a_path = os.path.join(args.output_dir, f'{label}_clustermap.png')
-    create_figure_3a(sim_matrix, deduped_names, labels, orig_lengths,
-                     args.linkage, fig3a_path)
+    # clustermap builds its own dendrogram, which needs >= 2 sequences
+    if len(deduped_names) >= 2:
+        fig3a_path = os.path.join(args.output_dir, f'{label}_clustermap.png')
+        create_figure_3a(sim_matrix, deduped_names, labels, orig_lengths,
+                         args.linkage, fig3a_path)
+    else:
+        print("  Clustermap skipped: fewer than 2 unique Y' variants")
 
     # Silhouette score plot
     if scores:
