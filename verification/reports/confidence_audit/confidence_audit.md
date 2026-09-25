@@ -43,10 +43,10 @@ AUC = probability a correctly attributed read scores higher than a wrongly attri
 | truth set | correct donor | wrong donor | mean conf (correct) | mean conf (wrong) | AUC |
 |---|---|---|---|---|---|
 | positive control (7172 chr11L -> chr11R) | 516 | 23 | 0.922 | 0.773 | 0.829 |
-| chr13L truth set (7302) | 58 | 10 | 0.605 | 0.619 | 0.448 |
-| both pooled | 574 | 33 | 0.890 | 0.726 | 0.808 |
+| chr13L truth set, strict (7302) | 36 | 3 | 0.642 | 0.559 | 0.630 |
+| both pooled | 552 | 26 | 0.904 | 0.748 | 0.804 |
 
-Wrong calls went to: `chr14L` 8, `chr10L` 6, `chr14R` 5, `chr4L` 3, `chr1L` 2, `chr4R` 2
+Wrong calls went to: `chr10L` 6, `chr14R` 5, `chr4L` 3, `chr14L` 3, `chr4R` 2, `chr1R` 2
 
 ## 4. Does confidence separate day-0 calls from real events?
 

@@ -13,7 +13,8 @@ them. Four questions, each answered from data that already carries ground truth:
   3. Does confidence separate CORRECT from WRONG donor calls? Two truth sets:
        - positive control: 7172 chr11L reads, true donor chr11R (verified by direct BLAST)
        - chr13L truth set: reads at other ends that gained chr13L's unique alternating
-         array (B5 table from Part B verification), true donor chr13L
+         array (B5 table from Part B verification), true donor chr13L. Strict set only
+         (window >= one full period), as in Part B -- shorter windows are ambiguous.
      Reported as AUC (0.5 = no separation, 1.0 = perfect).
   4. Does confidence separate DAY-0 calls (at best standing variation) from calls in later
      timepoints? If it measured "did recombination happen", day-0 calls should score lower.
@@ -34,6 +35,7 @@ import pandas as pd
 
 NO_CHANGE = {'no_change', '', 'nan', 'none', 'None'}
 YP_NO_CHANGE = {'No Change', '', 'nan'}
+STRICT_WINDOW = 4      # chr13L truth set: full-period windows only (Part B strict set)
 
 
 def load(snapshot):
@@ -153,6 +155,10 @@ def main():
     pc_ok = pc[pc['recombination_source'] == 'chr11R']['conf']
     pc_bad = pc[pc['recombination_source'] != 'chr11R']['conf']
     ts = pd.read_csv(truth_tsv, sep='\t', dtype=str, keep_default_na=False)
+    # Part B's primary (strict) criterion: an alternating window of at least one full chr13L
+    # period (4 copies). Shorter windows (ID2,ID1,ID2) are also explained by chr14L's array,
+    # so for those reads the "true" donor is itself uncertain and they are not ground truth.
+    ts = ts[pd.to_numeric(ts['window_len'], errors='coerce') >= STRICT_WINDOW].copy()
     ts['conf'] = pd.to_numeric(ts['overall_confidence'], errors='coerce')
     ts_ok = ts[ts['hit'].str.lower() == 'true']['conf']
     ts_bad = ts[ts['hit'].str.lower() != 'true']['conf']
@@ -160,7 +166,7 @@ def main():
     t3 = pd.DataFrame([
         ['positive control (7172 chr11L -> chr11R)', len(pc_ok), len(pc_bad),
          pc_ok.mean(), pc_bad.mean(), auc(pc_ok, pc_bad)],
-        ['chr13L truth set (7302)', len(ts_ok), len(ts_bad), ts_ok.mean(), ts_bad.mean(), auc(ts_ok, ts_bad)],
+        ['chr13L truth set, strict (7302)', len(ts_ok), len(ts_bad), ts_ok.mean(), ts_bad.mean(), auc(ts_ok, ts_bad)],
         ['both pooled', len(ok), len(bad), ok.mean(), bad.mean(), auc(ok, bad)],
     ], columns=['truth set', 'correct donor', 'wrong donor', 'mean conf (correct)',
                 'mean conf (wrong)', 'AUC'])
