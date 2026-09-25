@@ -407,6 +407,7 @@ def step_label_regions(cfg: dict, dry_run: bool = False):
         # clustering script, so threshold mode always cut at 97 whatever was set.
         "YPRIME_IDENTITY_THRESHOLD": cfg.get("yprime_identity_threshold", 97.0),
         "YPRIME_DEDUP_THRESHOLD":    cfg.get("yprime_dedup_threshold", 99.9),
+        "YPRIME_BOUNDARY_TRIM":      "true" if cfg.get("yprime_boundary_trim", True) else "false",
     }
     # label_regions.sh hardcodes ANCHORS_FASTA=test_anchors.fasta, which is byte-identical
     # in content to telomerase_shutoff_anchors.fasta -- which is why nobody noticed it was
@@ -570,6 +571,11 @@ yprime_identity_threshold: 97.0
 
 # Y prime clustering: variants at least this identical are merged before clustering
 yprime_dedup_threshold: 99.9
+
+# Correct Y' elements whose anchor-proximal end overhangs near-identical partner elements
+# (chr16L_Y_Prime_1 is 77 bp too long in every 6991/7172/7302 reference, which splits it into
+# its own group at a 99 % cut), and flag copies much shorter than their partners.
+yprime_boundary_trim: true
 
 # Y prime clustering: hierarchical linkage method
 #   complete = merge clusters only when EVERY cross-cluster pair is above threshold (strict)

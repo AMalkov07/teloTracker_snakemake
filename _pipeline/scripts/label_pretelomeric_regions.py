@@ -1778,6 +1778,14 @@ def main():
         action='store_true',
         help='Enable detailed debugging output for boundary adjustment. Shows base-by-base decisions for expand/trim operations.'
     )
+    parser.add_argument(
+        '--yprime-boundary-trim',
+        action='store_true',
+        help="Trim Y' elements whose anchor-proximal end overhangs >= 2 near-identical partner "
+             "elements that agree on the overhang (e.g. chr16L_Y_Prime_1, 77 bp too long), and "
+             "flag elements much shorter than their partners. Applied before any file is "
+             "written; writes <prefix>_yprime_boundary_provenance.tsv. See yprime_boundaries.py."
+    )
 
     args = parser.parse_args()
 
@@ -2070,6 +2078,28 @@ def main():
 
         print("         - Trimmed telomeric bases from X prime and Y prime boundaries")
         print()
+
+    # Step 6c: Correct over-extended Y' boundaries against near-identical partners. Runs
+    # before Step 7 so the BED, simplified BED (ITS rows derive from the gaps), GFF3 and TSV
+    # are all written from the same corrected coordinates.
+    if args.yprime_boundary_trim:
+        from yprime_boundaries import correct_yprime_boundaries
+        print("\nStep 6c: Checking Y' boundaries against near-identical partner elements...")
+        prov_file = os.path.join(args.output_dir, f"{args.prefix}_yprime_boundary_provenance.tsv")
+        chr_end_regions, yb_results = correct_yprime_boundaries(
+            chr_end_regions, load_reference_sequences(args.reference),
+            provenance_path=prov_file, threads=args.threads)
+        trimmed = [r for r in yb_results if r['trim']]
+        flagged = [r for r in yb_results if r['flag'].startswith('shorter')]
+        print(f"         - {len(yb_results)} Y' elements checked, {len(trimmed)} trimmed, "
+              f"{len(flagged)} flagged as shorter than their partners")
+        for r in trimmed:
+            print(f"         - TRIMMED {r['name']}: {r['length']} -> {r['new_length']} bp "
+                  f"({r['trim']} bp, {r['n_agreeing']}/{r['n_partners']} partners agree)")
+        for r in flagged:
+            print(f"         - WARNING {r['name']} ({r['length']} bp): {r['flag']} -- possible "
+                  f"mis-assembly or truncation; left unchanged")
+        print(f"         - Provenance: {prov_file}")
 
     # Step 7: Write output files
     print("\nStep 7: Writing output files...")

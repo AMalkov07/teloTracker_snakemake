@@ -69,6 +69,12 @@ EVALUE=1e-5           # E-value threshold (relaxed for cross-strain)
 ADJUST_BOUNDARIES=true  # Set to true to trim telomeric bases from feature boundaries
 BOUNDARY_WINDOW=50      # Minimum feature size to maintain after trimming (bp)
 
+# Y' boundary check (yprime_boundaries.py): trims a Y' whose anchor-proximal end overhangs
+# >= 2 near-identical partner elements that agree on the overhang (chr16L_Y_Prime_1 comes out
+# 77 bp too long in every 6991/7172/7302 reference), and flags copies much shorter than their
+# partners (possible mis-assembly). Writes <prefix>_yprime_boundary_provenance.tsv.
+YPRIME_BOUNDARY_TRIM=true
+
 # Debugging options
 DEBUG_BOUNDARIES=false  # Set to true to enable detailed boundary adjustment debugging
 
@@ -163,6 +169,11 @@ if [ "${DEBUG_BOUNDARIES}" = "true" ]; then
     DEBUG_ARG="--debug-boundaries"
 fi
 
+YPRIME_TRIM_ARG=""
+if [ "${YPRIME_BOUNDARY_TRIM}" = "true" ]; then
+    YPRIME_TRIM_ARG="--yprime-boundary-trim"
+fi
+
 python "${SCRIPTS_DIR}/label_pretelomeric_regions.py" \
     --reference "${REFERENCE_FASTA}" \
     --anchors "${ANCHORS_FASTA}" \
@@ -176,7 +187,8 @@ python "${SCRIPTS_DIR}/label_pretelomeric_regions.py" \
     ${XPRIME_ARG} \
     ${PROBE_ARG} \
     ${BOUNDARY_ARG} \
-    ${DEBUG_ARG}
+    ${DEBUG_ARG} \
+    ${YPRIME_TRIM_ARG}
 
 # ============================================================================
 # Extract Y Prime Sequences to FASTA
