@@ -1753,7 +1753,7 @@ def main():
     parser.add_argument(
         '--probe',
         default=None,
-        help='Y prime probe FASTA file for verification (e.g., references/probe.fasta). '
+        help='Y prime probe FASTA file for verification (e.g., _pipeline/references/y_prime_probe.fasta). '
              'If provided, verifies detected Y prime counts match probe-based expected counts.'
     )
     parser.add_argument(
@@ -2037,7 +2037,7 @@ def main():
         print()
     else:
         print("Step 6: Y prime probe verification SKIPPED (no probe file provided)")
-        print("         To enable verification, use --probe references/probe.fasta")
+        print("         To enable verification, use --probe _pipeline/references/y_prime_probe.fasta")
         print()
 
     ## COMMENTED OUT FOR TESTING - X PRIME INFERENCE

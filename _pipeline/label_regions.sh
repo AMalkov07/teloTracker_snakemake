@@ -28,7 +28,7 @@ REFERENCES_DIR="_pipeline/references"
 ANCHORS_FASTA="${REFERENCES_DIR}/test_anchors.fasta"
 YPRIMES_FASTA="${REFERENCES_DIR}/repeatmasker_6991_all_y_primes.fasta"
 XPRIMES_FASTA="${REFERENCES_DIR}/6991_xprimes.fasta"  # X prime sequences for detection
-PROBE_FASTA="${REFERENCES_DIR}/probe.fasta"  # Y prime probe for verification
+PROBE_FASTA="${REFERENCES_DIR}/y_prime_probe.fasta"  # Y prime probe for verification (report-only)
 
 # Scripts directory
 SCRIPTS_DIR="_pipeline/scripts"
