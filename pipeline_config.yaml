@@ -27,7 +27,11 @@ dorado_model: "dna_r10.4.1_e8.2_400bps_sup@v5.2.0"
 # -- Optional / Defaults -------------------------------------------------------
 
 threads: 56
+# Anchor set: names _pipeline/references/<anchor_set>.fasta, the 32 anchors reads are
+# BLASTed against. The default is cut from the 6991 genome; a different strain background
+# needs its own set, and a matching truncated base reference for create_ref (below).
 anchor_set: "telomerase_shutoff_anchors"
+# base_reference: "_pipeline/references/6991_only_to_anchors.fasta"   # create_ref's base; default shown
 
 # BLAST parameter -- minimum raw gapped alignment score
 min_raw_gapped_score: 5000

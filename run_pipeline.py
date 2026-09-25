@@ -115,6 +115,18 @@ def validate_cfg(cfg: dict, steps: list):
             errors.append("At least one sample is required for the recombination step. "
                           "Use --samples or set timepoint_samples in the config file.")
 
+    # anchor_set now selects the anchor FASTA itself (not just output filenames), so a
+    # missing file must fail here with a clear message rather than deep inside BLAST.
+    anchor_set = cfg.get("anchor_set", "telomerase_shutoff_anchors")
+    anchors_fa = PIPELINE_DIR / "_pipeline" / "references" / f"{anchor_set}.fasta"
+    if not anchors_fa.is_file():
+        errors.append(f"anchor_set '{anchor_set}' has no anchor file at {anchors_fa} "
+                      f"(expected _pipeline/references/<anchor_set>.fasta)")
+    if "create_ref" in steps and cfg.get("base_reference"):
+        base_ref = PIPELINE_DIR / cfg["base_reference"]
+        if not base_ref.is_file():
+            errors.append(f"base_reference not found: {base_ref}")
+
     if errors:
         for e in errors:
             print(f"ERROR: {e}")
@@ -195,7 +207,9 @@ def write_snakemake_config(cfg: dict, dest: Path = None):
         "",
         "# Paths to references",
         "references:",
-        '  anchors: "_pipeline/references/telomerase_shutoff_anchors.fasta"',
+        # Derived from anchor_set so a strain-specific set is actually used, not just
+        # baked into output filenames. With the default this line is unchanged.
+        f'  anchors: "_pipeline/references/{anchor_set}.fasta"',
         '  adapters: "_pipeline/references/nanopore_sqk-slk114_adapter_sequence_truncated.txt"',
         '  probe: "_pipeline/references/y_prime_probe.fasta"',
         "",
@@ -337,6 +351,11 @@ def step_create_ref(cfg: dict, dry_run: bool = False):
         "DORADO_MODE":  dorado_mode,
         "DORADO_MODEL": dorado_model,
         "ANCHOR_SET":   cfg.get("anchor_set", "telomerase_shutoff_anchors"),
+        # The base reference must be truncated at the same anchors being used. Defaults
+        # to the literal 6991 path so existing configs reproduce exactly; a new strain
+        # sets base_reference to its own <strain>_only_to_anchors.fasta.
+        "REFERENCE":    cfg.get("base_reference",
+                                "_pipeline/references/6991_only_to_anchors.fasta"),
     }
     if dorado_image:
         subs["DORADO_IMAGE"] = dorado_image
@@ -385,6 +404,14 @@ def step_label_regions(cfg: dict, dry_run: bool = False):
         "YPRIME_LINKAGE":   cfg.get("yprime_linkage", "average"),
         "YPRIME_STOP_MODE": cfg.get("yprime_stop_mode", "silhouette"),
     }
+    # label_regions.sh hardcodes ANCHORS_FASTA=test_anchors.fasta, which is byte-identical
+    # in content to telomerase_shutoff_anchors.fasta -- which is why nobody noticed it was
+    # never patched. Only override for a non-default set, so existing runs reproduce the
+    # patched script exactly.
+    anchor_set = cfg.get("anchor_set", "telomerase_shutoff_anchors")
+    if anchor_set != "telomerase_shutoff_anchors":
+        subs["ANCHORS_FASTA"] = f"_pipeline/references/{anchor_set}.fasta"
+
     patched = patch_script(PIPELINE_DIR / "_pipeline" / "label_regions.sh", subs)
 
     # Also fix REFERENCE_DIR and REFERENCE_FASTA (script has hardcoded test values)
@@ -522,7 +549,11 @@ threads: 56
 # _pipeline/ directory at the end of the recombination step. Also written when a run
 # fails part-way; it audits its own inputs so an incomplete run is obvious. false to skip.
 make_report: true
+# Anchor set: names _pipeline/references/<anchor_set>.fasta, the 32 anchors reads are
+# BLASTed against. The default is cut from the 6991 genome; a different strain background
+# needs its own set, and a matching truncated base reference for create_ref (below).
 anchor_set: "telomerase_shutoff_anchors"
+# base_reference: "_pipeline/references/6991_only_to_anchors.fasta"   # create_ref's base; default shown
 
 # BLAST parameter -- minimum raw gapped alignment score
 min_raw_gapped_score: 5000
