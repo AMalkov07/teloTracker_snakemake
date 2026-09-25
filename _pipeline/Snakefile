@@ -88,6 +88,7 @@ rule all:
         f"{RECOMB_DIR}/{BASE}_recombination_summary.tsv",
         f"{RESULTS}/recombination_events/.events_extracted",
         f"{GRAPH_DIR}/recombination_tracks/.plots_done",
+        f"{GRAPH_DIR}/onion_skin/.plots_done",
         # Pull in the same outputs as `through_y_prime_analysis` so a single
         # `snakemake all` invocation also produces the single-sample plots
         # without the wrapper having to name multiple targets.
@@ -454,6 +455,32 @@ rule extract_recombination_events:
 # ---------------------------------------------------------------------------
 # Step 13b: Per-chr_end track plots (only chr_ends with at least one event)
 # ---------------------------------------------------------------------------
+
+# "Onion skin": how each gained Y' array was assembled from donor pieces -- circles (a donor
+# piece copied in tandem) and the same donor contributing several pieces. Aggregates the
+# y_prime_path / y_prime_path_circles columns analyze_features.py already writes, per end,
+# and draws a not-to-scale schematic of every gain-like read, one PNG per end.
+rule onion_skin:
+    input: expand(f"{RECOMB_DIR}/{BASE}_{{ce}}_features.tsv", ce=CHROM_ENDS)
+    output:
+        summary = f"{RESULTS}/recombination_events/{BASE}_onion_skin_summary.tsv",
+        marker  = f"{GRAPH_DIR}/onion_skin/.plots_done",
+    params:
+        recomb_dir = RECOMB_DIR,
+        base_name  = BASE,
+        plots_dir  = f"{GRAPH_DIR}/onion_skin",
+        read_ids   = f"{GRAPH_DIR}/onion_skin/{BASE}_gain_like_read_ids.txt",
+    threads: 1
+    shell:
+        """
+        mkdir -p {params.plots_dir}
+        python _pipeline/scripts/onion_skin_summary.py \
+            {params.base_name} {params.recomb_dir} {output.summary} {params.read_ids}
+        python _pipeline/scripts/plot_yprime_copies.py \
+            {params.recomb_dir} {params.base_name} {params.plots_dir} \
+            --schematic --reads {params.read_ids}
+        touch {output.marker}
+        """
 
 rule recombination_track_plots:
     input: expand(f"{RECOMB_DIR}/{BASE}_{{ce}}_features.tsv", ce=CHROM_ENDS)

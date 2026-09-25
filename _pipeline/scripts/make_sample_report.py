@@ -213,6 +213,7 @@ INPUT_SPEC = [
     ('events',       "Recombination events",  'recombination_events/{base}_all_events_summary.tsv', 'extract_recombination_events'),
     ('ypstats',      "Y' statistics",         'graphs/stats_for_y_primes/*_stats_y_prime.txt',      'single_sample_plots'),
     ('tracks',       "Track plots",           'graphs/recombination_tracks/*_tracks.png',           'recombination_track_plots'),
+    ('onion',        "Onion-skin summary",    'recombination_events/{base}_onion_skin_summary.tsv', 'onion_skin'),
 ]
 
 
@@ -390,6 +391,10 @@ def collect(pipeline_dir, base_name):
             })
     if not data['reads']:
         data['warnings'].append('no *_features.tsv found (per-read table will be empty)')
+
+    # -- onion skin: per-end summary of how gained Y' arrays were built -------------------
+    onion = read_tsv(os.path.join(d, 'recombination_events', f'{base_name}_onion_skin_summary.tsv'))
+    data['onion'] = [] if onion is None else onion.to_dict('records')
     return data
 
 
@@ -688,6 +693,36 @@ def render_sample(data):
         for k, v in data['status_counts'].most_common():
             out.append(f'<tr><td>{html.escape(k)}</td><td>{v:,}</td><td>{pct(v, tot):.1f}%</td></tr>')
         out.append('</tbody></table>')
+
+    # ---- onion skin -------------------------------------------------------------------
+    onion = [r for r in data.get('onion', []) if r.get('chr_end') == 'ALL' or (to_int(r.get('n_gain_like')) or 0) > 0]
+    if onion:
+        out.append('<h3>Onion skin: how gained Y&prime; arrays were built</h3>')
+        out.append('<p class="note">Each gained array is split into donor pieces by the path parser. A '
+                   '<b>same-donor repeat</b> is a circle (a donor piece copied in tandem) or one donor '
+                   'giving two or more pieces. <b>Circles</b> are graded strong / moderate / weak by '
+                   'support; <b>unassigned</b> circles are tandem copies whose donor cannot be named '
+                   '(a Y&prime; ID found at several ends). Click an end for its per-read schematic.</p>')
+        out.append('<div class="scroll"><table class="sortable"><thead><tr><th>end</th><th>gain-like</th>'
+                   '<th>&ge;2 Y&prime;</th><th>1 donor</th><th>multi-donor</th><th>same-donor</th>'
+                   '<th>circles</th><th>S/M/W</th><th>unassigned</th><th>top donors</th></tr></thead><tbody>')
+        for r in onion:
+            end = str(r.get('chr_end', ''))
+            png = f'graphs/onion_skin/{data["base_name"]}_{end}_ycopies_schematic.png'
+            cell = (html.escape(end) if end == 'ALL' else
+                    f'<a href="{html.escape(png)}">{html.escape(end)}</a>')
+            n = lambda k: to_int(r.get(k)) or 0
+            out.append(
+                f'<tr><td>{cell}</td><td data-v="{n("n_gain_like")}">{n("n_gain_like"):,}</td>'
+                f'<td data-v="{n("n_gain_2plus")}">{n("n_gain_2plus"):,}</td>'
+                f'<td data-v="{n("n_single_donor")}">{n("n_single_donor"):,}</td>'
+                f'<td data-v="{n("n_multi_donor")}">{n("n_multi_donor"):,}</td>'
+                f'<td data-v="{n("n_same_donor_repeat")}">{n("n_same_donor_repeat"):,}</td>'
+                f'<td data-v="{n("n_circle")}">{n("n_circle"):,}</td>'
+                f'<td>{n("n_circle_strong")}/{n("n_circle_moderate")}/{n("n_circle_weak")}</td>'
+                f'<td data-v="{n("n_circle_unassigned")}">{n("n_circle_unassigned"):,}</td>'
+                f'<td style="text-align:left">{html.escape(str(r.get("top_donors") or ""))}</td></tr>')
+        out.append('</tbody></table></div>')
 
     # ---- telomere ---------------------------------------------------------------------
     out.append('<h2>Telomere repeat length</h2>')
