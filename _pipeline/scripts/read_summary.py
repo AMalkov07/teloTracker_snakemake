@@ -29,6 +29,7 @@ Writes:
     <output_dir>/<base_name>_read_summary.tsv
 """
 
+import glob
 import os
 import sys
 
@@ -60,6 +61,24 @@ if os.path.exists(fai):
     with open(fai) as f:
         total_reads = sum(1 for _ in f)
 
+# Reads removed before anchoring, so the anchored counts below can be read in context.
+# Both removals happen upstream and were previously silent.
+#   fold-back : one molecule read twice in inverted orientation (detect_foldback_reads.py)
+#   multi-end : a > half-anchor hit to two DIFFERENT ends' anchors -- a ligation chimera.
+#               filter_for_reads_with_anchors.py drops these via drop_duplicates(keep=False).
+blast_dir = os.path.join(output_dir, 'blast')
+n_foldback = None
+fb_file = os.path.join(blast_dir, f'{base_name}_foldback_read_ids.txt')
+if os.path.exists(fb_file):
+    with open(fb_file) as f:
+        n_foldback = sum(1 for ln in f if ln.strip())
+n_multi_end = None
+# glob, since this script is not told the anchor set; only trust a single match
+all_matches = glob.glob(os.path.join(blast_dir, f'all_matches_{base_name}_blasted_*.tsv'))
+if len(all_matches) == 1:
+    am = pd.read_csv(all_matches[0], sep='\t', usecols=['read_id', 'anchor_name'])
+    n_multi_end = int((am.groupby('read_id')['anchor_name'].nunique() > 1).sum())
+
 rows = []
 for chr_end in present:
     sub = df[df['chr_end'] == chr_end]
@@ -88,6 +107,10 @@ with open(output_tsv, 'w') as f:
     f.write(f'# sample: {base_name}\n')
     if total_reads is not None:
         f.write(f'# reads after filter_reads.py: {total_reads}\n')
+    if n_foldback is not None:
+        f.write(f'# removed as fold-back (hairpin) reads: {n_foldback}\n')
+    if n_multi_end is not None:
+        f.write(f'# removed as multi-end chimeras (anchors of two different ends): {n_multi_end}\n')
     f.write(f'# anchored: read carries that end\'s anchor\n')
     f.write(f'# qualifying: Adapter_After_Telomere == True AND repeat_length >= 30\n')
     f.write(f'#   (identical to the read set graphed in {base_name}_500bp.png)\n')
