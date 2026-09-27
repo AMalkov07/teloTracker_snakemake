@@ -213,7 +213,9 @@ def write_snakemake_config(cfg: dict, dest: Path = None):
         '  adapters: "_pipeline/references/nanopore_sqk-slk114_adapter_sequence_truncated.txt"',
         '  probe: "_pipeline/references/y_prime_probe.fasta"',
         "",
-        f'  day0_ref: "results/{day0_base}/_pipeline/assembly_{strain}/assembly_{strain}_dorado_reference.fasta"',
+        # A supplied reference (reference_fasta, e.g. a curated strain genome labelled with
+        # label_regions) is the one recombination must align to; otherwise create_ref's output.
+        f'  day0_ref: "{cfg.get("reference_fasta") or f"results/{day0_base}/_pipeline/assembly_{strain}/assembly_{strain}_dorado_reference.fasta"}"',
         f'  day0_bed: "results/{day0_base}/_pipeline/pretelomeric_labels/pretelomeric_regions_{strain}_simp.bed"',
         f'  y_prime_lib: "results/{day0_base}/_pipeline/pretelomeric_labels/extracted_yprimes_{{strain}}.fasta"',
     ]
@@ -622,8 +624,9 @@ yprime_stop_mode: "silhouette"
 # Uncomment and set if you want to use a specific FASTA.
 # y_prime_lib_override: "_pipeline/references/7302_features/repeatmasker_7302_all_y_primes.fasta"
 
-# Uncomment to supply a custom reference FASTA for the label_regions step
-# (defaults to the output of create_ref.sh)
+# Uncomment to supply your own reference FASTA (e.g. a curated strain genome) instead of
+# building one with create_ref.sh: label_regions labels it, and the recombination step then
+# aligns reads to it. Run --steps label_regions recombination (skip create_ref).
 # reference_fasta: "path/to/custom_reference.fasta"
 
 # -- Recombination Analysis -- Step 3 ------------------------------------------

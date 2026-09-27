@@ -53,8 +53,9 @@ yprime_boundary_trim: true
 # Uncomment and set if you want to use a specific FASTA.
 # y_prime_lib_override: "_pipeline/references/7302_features/repeatmasker_7302_all_y_primes.fasta"
 
-# Uncomment to supply a custom reference FASTA for the label_regions step
-# (defaults to the output of create_ref.sh)
+# Uncomment to supply your own reference FASTA (e.g. a curated strain genome) instead of
+# building one with create_ref.sh: label_regions labels it, and the recombination step then
+# aligns reads to it. Run --steps label_regions recombination (skip create_ref).
 # reference_fasta: "path/to/custom_reference.fasta"
 
 # -- Recombination Analysis -- Step 3 ------------------------------------------
