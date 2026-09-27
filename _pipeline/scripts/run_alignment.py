@@ -83,6 +83,28 @@ def run_minimap2(reads_fasta, day0_ref, output_bam, threads):
 # Read FASTA headers (for telo_side)
 # ---------------------------------------------------------------------------
 
+def reference_sequence_lengths(ref_fasta):
+    """[{'SN': name, 'LN': length}] for a BAM header. Uses the .fai index when there is one
+    (create_ref always writes it); a supplied reference such as a curated genome may have
+    none, so fall back to reading the FASTA. Never writes next to the reference: several
+    samples can read the same file at once."""
+    if os.path.exists(ref_fasta + '.fai'):
+        with open(ref_fasta + '.fai') as fai:
+            return [{'SN': c[0], 'LN': int(c[1])} for c in (l.split('\t') for l in fai) if len(c) > 1]
+    sq, name, n = [], None, 0
+    with open(ref_fasta) as fh:
+        for line in fh:
+            if line.startswith('>'):
+                if name is not None:
+                    sq.append({'SN': name, 'LN': n})
+                name, n = line[1:].split()[0], 0
+            else:
+                n += len(line.strip())
+    if name is not None:
+        sq.append({'SN': name, 'LN': n})
+    return sq
+
+
 def read_fasta_headers(fasta_path):
     """Return dict {read_id: full_header} from a FASTA file."""
     headers = {}
@@ -178,11 +200,7 @@ def main():
         print('  No reads -- writing empty output')
         write_results_tsv([], args.output_tsv)
         os.makedirs(os.path.dirname(args.output_bam) or '.', exist_ok=True)
-        _sq = []
-        with open(args.day0_ref + '.fai') as _fai:
-            for _line in _fai:
-                _c = _line.split('\t')
-                _sq.append({'SN': _c[0], 'LN': int(_c[1])})
+        _sq = reference_sequence_lengths(args.day0_ref)
         _hdr = {'HD': {'VN': '1.6', 'SO': 'coordinate'}, 'SQ': _sq}
         with pysam.AlignmentFile(args.output_bam, 'wb', header=_hdr):
             pass
