@@ -455,6 +455,34 @@ def write_sample_report(sample: str, cfg: dict):
         print(f"  WARNING: HTML report generation failed for {sample}: {exc}")
 
 
+def onion_skin_timecourse(cfg: dict, samples: list, day0_base: str, dry_run: bool = False):
+    """Follow Y' onion-skin layers across the time points (onion_skin_timecourse.py).
+
+    Runs once, after every sample's recombination step, because it compares samples with each
+    other. timepoint_samples must be listed in time order. Best-effort like the HTML report:
+    it reads finished outputs and never turns a good run into a failed one."""
+    if not cfg.get("onion_skin_timecourse", True) or len(samples) < 2:
+        return
+    strain = cfg["strain"]
+    labels = f"results/{day0_base}/_pipeline/pretelomeric_labels"
+    lib = cfg.get("y_prime_lib_override") or f"{labels}/extracted_yprimes_{strain}.fasta"
+    out_dir = f"results/{day0_base}/_pipeline/onion_skin_timecourse"
+    cmd = [sys.executable, os.path.join("_pipeline", "scripts", "onion_skin_timecourse.py"),
+           "--results", "results", "--samples", *samples,
+           "--day0-bed", f"{labels}/pretelomeric_regions_{strain}_simp.bed",
+           "--y-prime-lib", lib,
+           "--y-prime-id-level", cfg.get("y_prime_id_level", "family"),
+           "--out-dir", out_dir, "--prefix", day0_base]
+    print(f"\n  --- Onion skin across time points ({len(samples)} samples, in the order listed) ---")
+    if dry_run:
+        print(f"  [DRY RUN] Would run: {' '.join(cmd)}")
+        return
+    try:
+        subprocess.run(cmd, check=True, cwd=PIPELINE_DIR)
+    except Exception as exc:                                        # noqa: BLE001
+        print(f"  WARNING: onion-skin timecourse failed: {exc}")
+
+
 def step_recombination(cfg: dict, dry_run: bool = False):
     print("\n" + "=" * 70)
     print("STEP 3: Recombination Analysis  (snakemake recombination_summary + single-sample plots + events + track plots)")
@@ -513,6 +541,8 @@ def step_recombination(cfg: dict, dry_run: bool = False):
             write_sample_report(sample, cfg)
             sys.exit(e.returncode)
         write_sample_report(sample, cfg)
+
+    onion_skin_timecourse(cfg, samples, day0_base, dry_run=dry_run)
 
 
 # ------------------------------------------------------------------------------
@@ -602,12 +632,17 @@ yprime_stop_mode: "silhouette"
 # the step reads results/<base_name>/_pipeline/{assembly_<strain>,pretelomeric_labels}
 # and analyzes each entry of timepoint_samples against it.
 
-# Time-point samples to analyze against the day-0 reference.
+# Time-point samples to analyze against the day-0 reference, IN TIME ORDER.
 # Each is run as: snakemake recombination_summary -c THREADS with the
 # appropriate base_name set in config.yaml.
 timepoint_samples:
   - "dorado_7302_day3_PromethION_no_tag_yes_rejection"
   - "dorado_7302_day6_PromethION_no_tag_yes_rejection"
+
+# With two or more time points, compare them after the last one: arrays that gain further
+# copies of the same Y' over time ("onion skin" layers). Reads timepoint_samples in the order
+# listed. Output: results/<base_name>/_pipeline/onion_skin_timecourse/. false to skip.
+onion_skin_timecourse: true
 """
 
 

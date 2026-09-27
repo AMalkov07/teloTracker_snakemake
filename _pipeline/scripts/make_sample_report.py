@@ -735,12 +735,16 @@ def render_sample(data):
     if onion:
         out.append('<h3>Onion skin: how gained Y&prime; arrays were built</h3>')
         out.append('<p class="note">Each gained array is split into donor pieces by the path parser. A '
-                   '<b>same-donor repeat</b> is a circle (a donor piece copied in tandem) or one donor '
-                   'giving two or more pieces. <b>Circles</b> are graded strong / moderate / weak by '
-                   'support; <b>unassigned</b> circles are tandem copies whose donor cannot be named '
-                   '(a Y&prime; ID found at several ends). Click an end for its per-read schematic.</p>')
+                   '<b>named repeat</b> is one named donor end (the read\'s own end counts, as self) giving a '
+                   'strong or moderate circle, or two or more pieces. <b>Unconfirmed</b> reads hold a run of '
+                   'one Y&prime; ID whose donor cannot be named (several ends explain it) or whose circle '
+                   'reading is weak; they are kept out of the repeat count. <b>Arrays</b> count distinct '
+                   'gained arrays: reads with the same Y&prime; IDs and every ITS within 8 bp are one array, '
+                   'so a clone is counted once. Circles are graded strong / moderate / weak; '
+                   '<b>unassigned</b> circles have no named donor. Click an end for its per-read schematic.</p>')
         out.append('<div class="scroll"><table class="sortable"><thead><tr><th>end</th><th>gain-like</th>'
-                   '<th>&ge;2 Y&prime;</th><th>1 donor</th><th>multi-donor</th><th>same-donor</th>'
+                   '<th>arrays</th><th>&ge;2 Y&prime;</th><th>1 donor</th><th>multi-donor</th>'
+                   '<th>named repeats</th><th>(arrays)</th><th>unconfirmed</th>'
                    '<th>circles</th><th>S/M/W</th><th>unassigned</th><th>top donors</th></tr></thead><tbody>')
         for r in onion:
             end = str(r.get('chr_end', ''))
@@ -748,12 +752,17 @@ def render_sample(data):
             cell = (html.escape(end) if end == 'ALL' else
                     f'<a href="{html.escape(png)}">{html.escape(end)}</a>')
             n = lambda k: to_int(r.get(k)) or 0
+            # summaries written before the named/unconfirmed split carry n_same_donor_repeat
+            named = n('n_named_repeat') if 'n_named_repeat' in r else n('n_same_donor_repeat')
+            opt = lambda k: f'<td data-v="{n(k)}">{n(k):,}</td>' if k in r else '<td>&ndash;</td>'
             out.append(
                 f'<tr><td>{cell}</td><td data-v="{n("n_gain_like")}">{n("n_gain_like"):,}</td>'
+                + opt('n_gain_events') +
                 f'<td data-v="{n("n_gain_2plus")}">{n("n_gain_2plus"):,}</td>'
                 f'<td data-v="{n("n_single_donor")}">{n("n_single_donor"):,}</td>'
                 f'<td data-v="{n("n_multi_donor")}">{n("n_multi_donor"):,}</td>'
-                f'<td data-v="{n("n_same_donor_repeat")}">{n("n_same_donor_repeat"):,}</td>'
+                f'<td data-v="{named}">{named:,}</td>'
+                + opt('n_named_repeat_events') + opt('n_unconfirmed_repeat') +
                 f'<td data-v="{n("n_circle")}">{n("n_circle"):,}</td>'
                 f'<td>{n("n_circle_strong")}/{n("n_circle_moderate")}/{n("n_circle_weak")}</td>'
                 f'<td data-v="{n("n_circle_unassigned")}">{n("n_circle_unassigned"):,}</td>'
