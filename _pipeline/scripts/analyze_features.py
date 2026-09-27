@@ -99,6 +99,12 @@ AXIS_PRIORITY = ['spacer', 'y_prime', 'x_element', 'supplementary']   # tie-brea
 STRUCTURAL_MIN_CONF = 0.2       # a spacer/x switch below this cannot name the proximal donor on its own
 LOSS_UNCONFIRMED_FACTOR = 0.5
 TELO_CONFIRMED_MIN_REPEAT = 30      # same "qualifying" definition as read_summary.tsv
+# A read's end is also confirmed when enough reads agree on it (see concordant_end_confirmation).
+# Measured on 7372 (days 0 and 3): reads with the same array at the same end start their
+# telomere within 8 bp of the group median (median), 40 bp at the 90th percentile.
+CONCORDANT_WINDOW = 50              # bp between telomere starts
+CONCORDANT_MIN_READS = 3            # the read itself plus two others
+CONCORDANT_DOMINANT_RATIO = 10      # see concordant_end_confirmation: the spacer-break guard
 
 
 # ---------------------------------------------------------------------------
@@ -1897,7 +1903,9 @@ def reconcile_features_legacy(spacer_result, x_element_result, y_prime_result, s
 
 def load_telo_probe(telo_tsv, probe_tsv):
     """Per-read telomere-end confirmation + Y' probe count (C8).
-    Returns {read_id: {'confirmed': bool, 'repeat_length': float, 'probe_count': float}} or None."""
+    Returns {read_id: {'confirmed': bool, 'evidence': str, 'repeat_length': float,
+    'probe_count': float}} or None. Here 'confirmed' is the adapter test alone (evidence
+    'adapter'); apply_end_confirmation later adds reads confirmed by concordant read ends."""
     if not telo_tsv or not os.path.exists(telo_tsv):
         return None
     info = {}
@@ -1907,13 +1915,88 @@ def load_telo_probe(telo_tsv, probe_tsv):
     rl = pd.to_numeric(t['repeat_length'], errors='coerce')
     conf = (t['Adapter_After_Telomere'].astype(str) == 'True') & (rl >= TELO_CONFIRMED_MIN_REPEAT)
     for rid, c, r in zip(t['read_id'], conf, rl):
-        info[rid] = {'confirmed': bool(c), 'repeat_length': (float(r) if pd.notna(r) else -1), 'probe_count': -1}
+        info[rid] = {'confirmed': bool(c), 'evidence': 'adapter' if c else '',
+                     'repeat_length': (float(r) if pd.notna(r) else -1), 'probe_count': -1}
     if probe_tsv and os.path.exists(probe_tsv):
         p = pd.read_csv(probe_tsv, sep='\t')
         for rid, pc in zip(p['read_id'], pd.to_numeric(p['y_prime_probe_count'], errors='coerce')):
-            info.setdefault(rid, {'confirmed': False, 'repeat_length': -1, 'probe_count': -1})
+            info.setdefault(rid, {'confirmed': False, 'evidence': '', 'repeat_length': -1, 'probe_count': -1})
             info[rid]['probe_count'] = float(pc) if pd.notna(pc) else -1
     return info
+
+
+def telomere_start_offset(telo_side, read_len, anchor_start, anchor_end, repeat_length):
+    """bp from the anchor's telomere-side edge to where the read's telomere repeat starts,
+    or None when the anchor position is unknown. Reads that end at the same chromosome end
+    give the same value to within a few tens of bp, whatever their telomere length."""
+    try:
+        anchor_start, anchor_end, read_len = int(anchor_start), int(anchor_end), int(read_len)
+    except (TypeError, ValueError):
+        return None
+    if anchor_start < 0 or anchor_end < 0:
+        return None
+    offset = anchor_start if telo_side == 'beginning' else read_len - anchor_end
+    return offset - max(float(repeat_length), 0.0)
+
+
+def concordant_end_confirmation(reads, window=CONCORDANT_WINDOW, min_reads=CONCORDANT_MIN_READS,
+                                dominant_ratio=CONCORDANT_DOMINANT_RATIO):
+    """Which reads of ONE chromosome end demonstrably reach the telomere.
+
+    reads: [{'read_id', 'array' (tuple of Y' IDs), 'telomere_start' (telomere_start_offset or
+    None), 'repeat_length', 'adapter' (bool: adapter found after the telomere)}].
+    Returns {read_id: 'adapter' | 'concordant_ends' | ''}.
+
+    The adapter test is strong but insensitive: the adapter is often not called, and on 7372
+    only about 30 % of reads carry it. Reads that end in telomere repeat also confirm each
+    other: at least `min_reads` reads with the same Y' array whose telomere starts within
+    `window` bp are complete copies of one chromosome end. Random breakage does not stop
+    several reads at the same base.
+
+    The one way that can be fooled: the ITS between tandem Y' copies is TG repeat too, so reads
+    broken inside the same ITS end in "telomere" at the same place. Such reads would carry a
+    prefix of an array that most reads continue past. So where reads that continue past this
+    point outnumber the cluster `dominant_ratio` to one, the cluster also needs one
+    adapter-confirmed member."""
+    evidence = {r['read_id']: ('adapter' if r['adapter'] else '') for r in reads}
+    groups = {}
+    for r in reads:
+        if r['telomere_start'] is not None and r['repeat_length'] >= TELO_CONFIRMED_MIN_REPEAT:
+            groups.setdefault(tuple(r['array']), []).append(r)
+    for arr, group in groups.items():
+        continuing = sum(1 for r in reads if len(r['array']) > len(arr) and tuple(r['array'][:len(arr)]) == arr)
+        for r in group:
+            if evidence[r['read_id']]:
+                continue
+            cluster = [q for q in group if abs(q['telomere_start'] - r['telomere_start']) <= window]
+            if len(cluster) < min_reads:
+                continue
+            if continuing >= dominant_ratio * len(cluster) and not any(q['adapter'] for q in cluster):
+                continue
+            evidence[r['read_id']] = 'concordant_ends'
+    return evidence
+
+
+def apply_end_confirmation(telo_info, reads):
+    """Update telo_info in place with concordant_end_confirmation over `reads` (one end).
+    reads: [(read_id, telo_side, read_len, anchor_start, anchor_end, y_prime_array_string)]."""
+    if telo_info is None:
+        return 0
+    rows = []
+    for rid, telo_side, read_len, a0, a1, arr in reads:
+        ti = telo_info.get(rid)
+        if ti is None:
+            continue
+        rows.append({'read_id': rid, 'adapter': ti['evidence'] == 'adapter',
+                     'repeat_length': ti['repeat_length'],
+                     'array': tuple(x for x in str(arr or '').split(',') if x),
+                     'telomere_start': telomere_start_offset(telo_side, read_len, a0, a1, ti['repeat_length'])})
+    n = 0
+    for rid, ev in concordant_end_confirmation(rows).items():
+        telo_info[rid]['evidence'] = ev
+        telo_info[rid]['confirmed'] = bool(ev)
+        n += ev == 'concordant_ends'
+    return n
 
 
 def y_prime_tail_bp(telo_side, read_len, yp_start, yp_end):
@@ -1927,6 +2010,7 @@ def c8_columns(read_id, telo_info, telo_side, read_len, y_result):
     ti = (telo_info or {}).get(read_id) if telo_info is not None else None
     return {
         'telomere_end_confirmed': (ti['confirmed'] if ti else ''),
+        'telomere_end_evidence': (ti.get('evidence', '') if ti else ''),
         'telomere_repeat_length': (ti['repeat_length'] if ti else -1),
         'y_prime_probe_count': (ti['probe_count'] if ti else -1),
         'y_prime_tail_bp': y_prime_tail_bp(telo_side, read_len, y_result.get('y_prime_start', -1), y_result.get('y_prime_end', -1)),
@@ -1966,6 +2050,13 @@ def reprocess_tsv(args):
     if df.empty:
         write_results_tsv([], args.output_tsv)
         return
+
+    n_conc = apply_end_confirmation(telo_info, [
+        (r['read_id'], r.get('telo_side', 'end'), r.get('read_length', 0), r.get('anchor_start', -1),
+         r.get('anchor_end', -1), '' if pd.isna(r.get('y_prime_observed_array')) else r.get('y_prime_observed_array'))
+        for _, r in df.iterrows()])
+    if telo_info is not None:
+        print(f'  Telomere end confirmed by concordant read ends: {n_conc} more reads')
 
     rows = []
     for _, r in df.iterrows():
@@ -2133,12 +2224,25 @@ def main():
     else:
         print('  No anchor TSV provided -- anchor positions unavailable')
 
+    # === Y' arrays first: telomere-end confirmation compares reads with each other ===
+    telo_sides, y_results = {}, {}
+    for read_id in read_seqs:
+        telo_sides[read_id] = telo_side_from_header(read_headers.get(read_id, ''), args.chr_end)
+        y_results[read_id] = analyze_y_primes(read_id, y_prime_hits.get(read_id, []), telo_sides[read_id],
+                                              ref_y_primes, name_to_info, ref_arrays, args.chr_end, ref_tokens)
+    n_conc = apply_end_confirmation(telo_info, [
+        (rid, telo_sides[rid], len(read_seqs[rid]), anchor_info.get(rid, {}).get('anchor_start', -1),
+         anchor_info.get(rid, {}).get('anchor_end', -1), y_results[rid].get('y_prime_observed_array', ''))
+        for rid in read_seqs])
+    if telo_info is not None:
+        print(f'  Telomere end confirmed by concordant read ends: {n_conc} more reads')
+
     # === Per-read analysis ===
     print('  Analyzing features per read...')
     rows = []
     n_quick_check_passed = 0
     for read_id in read_seqs:
-        telo_side = telo_side_from_header(read_headers.get(read_id, ''), args.chr_end)
+        telo_side = telo_sides[read_id]
 
         # Spacer quick check: exact substring match
         quick_check_skipped = False
@@ -2161,8 +2265,7 @@ def main():
         else:
             spacer_result = None   # filled below once the spacer interval is known
         x_result = x_results_by_read.get(read_id) or _empty_x_result(args.chr_end)
-        y_result = analyze_y_primes(read_id, y_prime_hits.get(read_id, []), telo_side, ref_y_primes, name_to_info,
-                                    ref_arrays, args.chr_end, ref_tokens)
+        y_result = y_results[read_id]
 
         # Spacer chunk walk. The "spacer" library is made of 50 kb subtelomere
         # sections that also contain Y' sequence, and the read was chunked end

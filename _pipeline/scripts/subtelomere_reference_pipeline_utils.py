@@ -192,6 +192,41 @@ def _largest_agreeing_group(ids, agreement, min_identity, min_coverage):
     return [ids[0]] if ids else []
 
 
+def scaffold_candidate_pool(df, chr_end, min_agree=3, min_repeat=30):
+    """Candidate scaffold reads for one chr_end, sorted for the percentile pick.
+
+    Returns (pool DataFrame, rule). A candidate ends in telomere repeat and carries the
+    end's most common Y' probe count. First choice ('adapter'): reads with an adapter called
+    after the telomere, proof the molecule ends there. The adapter is often not called
+    (about 30 % of reads on 7372), so at an end where fewer than `min_agree` such reads
+    remain, the pool widens to every read ending in telomere repeat ('telomere_repeat').
+    The consensus vote that follows aligns the candidates' extensions against each other,
+    so a read that stops early cannot win on its own.
+
+    Measured on 7372 day 0, chr14L: the adapter pool held 2 reads, a 5-copy and a 6-copy Y'
+    array (the probe missed one copy in the second), too few to vote, and the percentile pick
+    scaffolded the end on the 6-copy minority allele. The widened pool holds ~20 reads, most
+    of them 5-copy."""
+    rule = 'adapter'
+    rep = df[(df['chr_end'] == chr_end) & (df['repeat_length'] >= min_repeat)]
+    sub = rep[rep['Adapter_After_Telomere'] == True]           # noqa: E712 (pandas mask)
+    for attempt in ('adapter', 'telomere_repeat'):
+        if attempt == 'telomere_repeat':
+            sub, rule = rep, 'telomere_repeat'
+        if sub.empty:
+            continue
+        mode_y = sub['y_prime_probe_count'].mode()
+        if len(mode_y) == 0:
+            continue
+        pool = sub[sub['y_prime_probe_count'] == mode_y[0]]
+        # read_id tiebreak + stable sort: see get_75th_percentile_reads.
+        # Without it the candidate window itself shifts between runs.
+        pool = pool.sort_values(by=['repeat_length', 'read_id'], kind='mergesort')
+        if len(pool) >= min_agree or attempt == 'telomere_repeat':
+            return pool, rule
+    return rep.iloc[0:0], rule
+
+
 def select_consensus_scaffold_reads(input_tsv, all_matches_tsv, reads_fasta,
                                     output_dir, output_file,
                                     n_candidates=5, min_agree=3,
@@ -243,8 +278,11 @@ def select_consensus_scaffold_reads(input_tsv, all_matches_tsv, reads_fasta,
     Two distinct failure modes, deliberately handled differently:
       * Too few reads to vote (pool < min_agree). Measured on day-0: 7858 12R
         has 1 read, 7871 12R has 2, 7858 14L has 4. This is coverage starvation,
-        not disagreement -- retrying a different window cannot help. Falls back
-        to the plain percentile pick with a loud warning.
+        not disagreement -- retrying a different window cannot help. The pool is
+        first widened from adapter-confirmed reads to every read ending in telomere
+        repeat (scaffold_candidate_pool; 7372 14L went from 2 reads to ~20). Only if
+        that is still too few does it fall back to the plain percentile pick, with a
+        loud warning.
       * Reads disagree (no mutually-agreeing group of min_agree). Widen the
         window and retry up to `max_widenings` times; raise if still unresolved,
         since silently scaffolding off a read no peer corroborates is exactly
@@ -268,7 +306,6 @@ def select_consensus_scaffold_reads(input_tsv, all_matches_tsv, reads_fasta,
         ['match_start_on_read', 'match_end_on_read', 'wanted_section_of_read', 'pident']
     ].to_dict('index')
 
-    df_telomere_reads = df[(df['repeat_length'] >= 30) & (df['Adapter_After_Telomere'] == True)]
     chr_ends = [f'{n}{s}' for n in range(1, 17) for s in ['L', 'R']]
 
     chr_end_to_read = {}
@@ -277,22 +314,13 @@ def select_consensus_scaffold_reads(input_tsv, all_matches_tsv, reads_fasta,
 
     with open(reads_fasta, 'rb') as fh:
         for chr_end in chr_ends:
-            sub = df_telomere_reads[df_telomere_reads['chr_end'] == chr_end]
+            sub, pool_rule = scaffold_candidate_pool(df, chr_end, min_agree)
             if sub.empty:
                 print(f'Warning: no telomere reads found for {chr_end}.')
                 continue
-            mode_y = sub['y_prime_probe_count'].mode()
-            if len(mode_y) == 0:
-                print(f'Warning: no mode y_prime_probe_count for {chr_end}.')
-                continue
-            sub = sub[sub['y_prime_probe_count'] == mode_y[0]]
-            if sub.empty:
-                print(f'Warning: no reads with mode y_prime_probe_count for {chr_end}.')
-                continue
-
-            # read_id tiebreak + stable sort: see get_75th_percentile_reads.
-            # Without it the candidate window itself shifts between runs.
-            sub = sub.sort_values(by=['repeat_length', 'read_id'], kind='mergesort')
+            if pool_rule != 'adapter':
+                print(f'{chr_end}: fewer than {min_agree} adapter-confirmed reads; candidate pool '
+                      f'widened to {len(sub)} reads ending in telomere repeat')
             pool = len(sub)
             q_idx = min(int(pool * 0.75), pool - 1)
             percentile_pick = sub.iloc[q_idx]['read_id']
@@ -305,7 +333,7 @@ def select_consensus_scaffold_reads(input_tsv, all_matches_tsv, reads_fasta,
                       f'off an UNCORROBORATED read.')
                 chr_end_to_read[chr_end] = percentile_pick
                 all_selected_read_ids.append(percentile_pick)
-                report.append({'chr_end': chr_end, 'pool': pool, 'method': 'fallback_low_coverage',
+                report.append({'chr_end': chr_end, 'pool': pool, 'pool_rule': pool_rule, 'method': 'fallback_low_coverage',
                                'n_candidates': pool, 'group_size': 1,
                                'selected_read': percentile_pick,
                                'percentile_pick': percentile_pick, 'changed': False})
@@ -377,7 +405,7 @@ def select_consensus_scaffold_reads(input_tsv, all_matches_tsv, reads_fasta,
                       f'{percentile_pick}. This end is scaffolded off an UNCORROBORATED read.')
                 chr_end_to_read[chr_end] = percentile_pick
                 all_selected_read_ids.append(percentile_pick)
-                report.append({'chr_end': chr_end, 'pool': pool, 'method': 'fallback_window_unfilled',
+                report.append({'chr_end': chr_end, 'pool': pool, 'pool_rule': pool_rule, 'method': 'fallback_window_unfilled',
                                'n_candidates': max_records_seen, 'group_size': 1,
                                'selected_read': percentile_pick,
                                'percentile_pick': percentile_pick, 'changed': False})
@@ -402,7 +430,7 @@ def select_consensus_scaffold_reads(input_tsv, all_matches_tsv, reads_fasta,
             flag = '  <== differs from percentile pick' if changed else ''
             print(f'{chr_end}: {chosen} (agreeing group {len(group)}/{len(cands)}, '
                   f'anchor {anchor[chosen]["pident"]:.2f}%){flag}{note}')
-            report.append({'chr_end': chr_end, 'pool': pool, 'method': 'consensus',
+            report.append({'chr_end': chr_end, 'pool': pool, 'pool_rule': pool_rule, 'method': 'consensus',
                            'n_candidates': len(cands), 'group_size': len(group),
                            'window_n': window_n, 'widened': window_n != n_candidates,
                            'selected_read': chosen, 'percentile_pick': percentile_pick,
