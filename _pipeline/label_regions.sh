@@ -379,13 +379,20 @@ if [ -f "${SIMPLIFIED_BED}" ]; then
         "${REF_MAP_DIR}/${BASE_NAME}_reference_map_zoom.png" --yprime-zoom \
         && echo "Reference map (Y'-zoom):  ${REF_MAP_DIR}/${BASE_NAME}_reference_map_zoom.png" \
         || echo "WARNING: reference map (zoom) failed"
-    # Y'-element cluster map (lab figure style; Y' clusters from extracted_yprimes)
+    # Y'-element group map in the published figure style (blank boxes coloured by Y' group,
+    # dashed ITS / telomeres), plus the same map with group numbers in the boxes for matching
+    # against the recombination outputs. Groups come from extracted_yprimes. PNG + SVG + PDF.
     if [ -f "${EXTRACTED_YPRIMES}" ]; then
         python "${SCRIPTS_DIR}/draw_yprime_map.py" \
             "${SIMPLIFIED_BED}" "${EXTRACTED_YPRIMES}" "${BASE_NAME}" \
             "${REF_MAP_DIR}/${BASE_NAME}_yprime_map.png" \
-            && echo "Y' cluster map:           ${REF_MAP_DIR}/${BASE_NAME}_yprime_map.png" \
-            || echo "WARNING: Y' cluster map failed"
+            && echo "Y' group map:             ${REF_MAP_DIR}/${BASE_NAME}_yprime_map.png" \
+            || echo "WARNING: Y' group map failed"
+        python "${SCRIPTS_DIR}/draw_yprime_map.py" \
+            "${SIMPLIFIED_BED}" "${EXTRACTED_YPRIMES}" "${BASE_NAME}" \
+            "${REF_MAP_DIR}/${BASE_NAME}_yprime_map_ids.png" --style classic \
+            && echo "Y' group map (with IDs):  ${REF_MAP_DIR}/${BASE_NAME}_yprime_map_ids.png" \
+            || echo "WARNING: Y' group map (with IDs) failed"
     else
         echo "WARNING: extracted Y' fasta not found; skipping Y' cluster map"
     fi
