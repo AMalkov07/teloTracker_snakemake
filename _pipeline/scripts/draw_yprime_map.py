@@ -9,17 +9,18 @@ headers (e.g. Y_Prime_chr12R2,3,4;chr4R1,2#Long/Tandem/ID1_Gray), so the IDs and
 match the recombination outputs and are consistent across strains.
 
 Styles:
-  paper   (default) the published reference figure: blank boxes, dashed telomeres, an end
-          without Y' drawn as a solid line then a dashed telomere, a "Without Y' / With Y'"
-          key, and a colour key naming each group (ID, size class, number of copies).
-  classic the earlier look: ID numbers in the boxes, a heavy telomere bar.
+  paper   (default) the published reference figure: boxes labelled with their group ID
+          (--no-labels for the published blank boxes), dashed telomeres, an end without Y'
+          drawn as a solid line then a dashed telomere, a "Without Y' / With Y'" key, and a
+          colour key naming each group (ID, size class, number of copies).
+  classic the earlier look: a heavy telomere bar.
 
 Usage:
   draw_yprime_map.py <simp.bed> <extracted_yprimes.fasta> <strain_label> <out_png>
                      [--style paper|classic] [--labels] [--no-labels] [--variant] [--no-title]
 
-  --labels / --no-labels  print the group number in each box (default: off for paper,
-                          on for classic)
+  --labels / --no-labels  print the group ID in each box (default: on; --no-labels gives the
+                          blank boxes of the published figure)
   --variant  keep the colour shade of curated libraries (ID2_Red-Light vs ID2_Red-Dark)
              as a separate group: label "2L"/"2D"/"2N", lighter/darker fill
   --no-title leave the title off (for figure panels)
@@ -61,19 +62,23 @@ def parse_args():
     ap.add_argument("strain_label")
     ap.add_argument("out_png")
     ap.add_argument("--style", choices=["paper", "classic"], default="paper")
-    ap.add_argument("--labels", dest="labels", action="store_true", default=None)
+    ap.add_argument("--labels", dest="labels", action="store_true", default=True)
     ap.add_argument("--no-labels", dest="labels", action="store_false")
     ap.add_argument("--variant", action="store_true")
     ap.add_argument("--no-title", action="store_true")
     a = ap.parse_args()
-    if a.labels is None:
-        a.labels = a.style == "classic"
     return a
 
 
 # ---------------------------------------------------------------------------
 # inputs
 # ---------------------------------------------------------------------------
+
+def label_ink(hex_color):
+    """Black or white text, whichever reads better on this fill."""
+    r, g, b = (int(hex_color[i:i + 2], 16) for i in (1, 3, 5))
+    return INK if 0.299 * r + 0.587 * g + 0.114 * b > 150 else "white"
+
 
 def _shade(hex_color, shade):
     r, g, b = (int(hex_color[i:i + 2], 16) for i in (1, 3, 5))
@@ -225,8 +230,9 @@ def draw_paper(arms, elem, colors, sizes, label, out_png, labels, title):
                                             boxstyle="round,pad=0,rounding_size=0.06",
                                             facecolor=colors.get(gid, "#cccccc"), edgecolor="none", zorder=2))
                 if labels:
-                    ax.text(x0 + BOX_W / 2, y, gid, ha="center", va="center", fontsize=7,
-                            color="white", fontweight="bold", zorder=3)
+                    fill = colors.get(gid, "#cccccc")
+                    ax.text(x0 + BOX_W / 2, y, f"ID{gid}", ha="center", va="center", fontsize=7.5,
+                            color=label_ink(fill), fontweight="bold", zorder=3)
                 x += sign * BOX_W
             dashed(x, x + sign * TEL_W, y)
 
