@@ -482,7 +482,7 @@ rule onion_skin:
             --events-out {output.events}
         python _pipeline/scripts/plot_yprime_copies.py \
             {params.recomb_dir} {params.base_name} {params.plots_dir} \
-            --schematic --reads {params.read_ids}
+            --schematic --reads {params.read_ids} --tiers {output.events}
         touch {output.marker}
         """
 

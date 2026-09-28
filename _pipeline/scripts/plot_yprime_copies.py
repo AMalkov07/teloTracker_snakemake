@@ -8,6 +8,11 @@ features TSV carries v2 path columns, the inferred origin path
 
 Usage: plot_yprime_copies.py <features_dir> <base_name> <output_dir> [--only-gain] [--schematic]
                              [--reads <file with read_ids>] [--id-map <sample>_read_id_map.tsv]
+                             [--tiers <sample>_onion_skin_events.tsv]
+--tiers: the onion-skin events table (onion_skin_summary.py --events-out). With it, the
+schematic groups reads by onion-skin tier -- named repeats (the onion-skin calls) on top,
+then unconfirmed repeats, then every other gain-like read -- each group under its own
+header and divider, and the read's tier in its row label.
 Row labels carry the chr_end when the TSV has a chr_end column (so a combined file of reads
 from several ends stays readable).
 """
@@ -32,6 +37,19 @@ if "--id-map" in sys.argv[4:]:
             a, b = line.rstrip("\n").split("\t")[:2]; id_map[a] = b
 def show_id(rid):
     return id_map.get(rid, rid)
+TIERS = [("named_repeat", "ONION SKIN: named repeat", "#B3261E"),
+         ("unconfirmed_repeat", "Possible onion skin: unconfirmed repeat (ambiguous donor or weak circle)", "#9A5B00"),
+         ("none", "Other gain-like reads (not onion skin)", "#444444")]
+TIER_RANK = {t: i for i, (t, _, _) in enumerate(TIERS)}
+TIER_TAG = {"named_repeat": "onion", "unconfirmed_repeat": "unconf", "none": "other"}
+read_tier = None
+if "--tiers" in sys.argv[4:]:
+    import csv
+    read_tier = {}
+    with open(sys.argv[sys.argv.index("--tiers") + 1]) as fh:
+        for ev in csv.DictReader((l for l in fh if not l.startswith("#")), delimiter="\t"):
+            for rid in filter(None, (ev.get("read_ids") or "").split(",")):
+                read_tier[rid] = ev.get("tier") or "none"
 keep_ids = None
 if "--reads" in sys.argv[4:]:
     keep_ids = {l.strip() for l in open(sys.argv[sys.argv.index("--reads") + 1]) if l.strip()}
@@ -76,18 +94,37 @@ for f in sorted(glob.glob(f"{feat_dir}/{base}_chr*_features.tsv")):
         copies=sorted([(idn,)+tf(a,b) for idn,a,b in copies], key=lambda x:x[1])
         reads.append(dict(rid=p[idx["read_id"]], rlen=rlen, astart=astart, aend=aend,
                           status=status, copies=copies, ce=p[idx["chr_end"]] if "chr_end" in idx else end,
-                          path=p[idx["y_prime_path"]] if "y_prime_path" in idx else ""))
+                          path=p[idx["y_prime_path"]] if "y_prime_path" in idx else "",
+                          tier=(read_tier or {}).get(p[idx["read_id"]], "none")))
     if not reads: continue
-    reads.sort(key=lambda r:(r["ce"], r["status"], -len(r["copies"])))
+    if read_tier is not None:
+        reads.sort(key=lambda r:(TIER_RANK.get(r["tier"], 2), r["ce"], -len(r["copies"]), r["status"]))
+    else:
+        reads.sort(key=lambda r:(r["ce"], r["status"], -len(r["copies"])))
     n=len(reads); maxlen=max(r["rlen"] for r in reads)
     if schematic:
         BW, GAP, AW, TW, PRE = 1.0, 0.55, 0.9, 0.7, 0.8      # box, gap, anchor, telomere, anchor->first-copy widths
         maxcop=max(len(r["copies"]) for r in reads)
         maxx=AW+PRE+maxcop*(BW+GAP)+TW
-        fig,ax=plt.subplots(figsize=(max(9, 0.9*maxx+7), max(2.5, min(26, 0.55*n+1.5))))
-        yt=[]; ytl=[]
+        # row positions, top to bottom; with --tiers each tier group opens with a header row
+        HEAD=1.5
+        ys=[]; heads=[]; cur=0.0; prev=None
+        for r in reads:
+            if read_tier is not None and r["tier"]!=prev:
+                heads.append((cur, r["tier"])); cur+=HEAD; prev=r["tier"]
+            ys.append(cur); cur+=1.0
+        span=cur
+        fig,ax=plt.subplots(figsize=(max(9, 0.9*maxx+7), max(2.5, min(30, 0.55*span+1.5))))
+        tier_n={t: sum(1 for r in reads if r["tier"]==t) for t,_,_ in TIERS}
+        for k,(hc,t) in enumerate(heads):
+            yh=span-1-hc-0.25
+            _, htext, hcol = next(x for x in TIERS if x[0]==t)
+            if k: ax.plot([-0.2, maxx+11], [yh+0.55, yh+0.55], color=hcol, lw=1.4, clip_on=False)
+            ax.text(-0.1, yh, f"{htext}  ({tier_n[t]} read{'s' if tier_n[t]!=1 else ''})",
+                    va="center", ha="left", fontsize=9, fontweight="bold", color=hcol)
+        yt=[]; ytl=[]; ytc=[]
         for i,r in enumerate(reads):
-            y=n-1-i; x=0.0
+            y=span-1-ys[i]; x=0.0
             ax.barh(y, AW, left=x, height=0.62, color=ANCHOR_COLOR, edgecolor="none"); x+=AW
             first=r["copies"][0]; pre_bp=first[1]-r["aend"] if r["aend"]>0 else first[1]
             ax.plot([x, x+PRE], [y, y], color="#777777", lw=1.0, ls=(0,(2,2)))
@@ -108,13 +145,21 @@ for f in sorted(glob.glob(f"{feat_dir}/{base}_chr*_features.tsv")):
             if r["path"]:
                 path=r["path"] if len(r["path"])<=150 else r["path"][:147]+"..."
                 ax.text(x+0.15, y-0.2, f"gained from: {path}", va="center", fontsize=6.5, fontweight="bold", color="#222222")
-            yt.append(y); ytl.append(f'{r["ce"]} {show_id(r["rid"]) if id_map else r["rid"][-8:]} [{r["status"][:8]}]')
+            tag = f'{TIER_TAG.get(r["tier"], "other")} | ' if read_tier is not None else ""
+            yt.append(y); ytl.append(f'{tag}{r["ce"]} {show_id(r["rid"]) if id_map else r["rid"][-8:]} [{r["status"][:8]}]')
+            ytc.append(next((c for t,_,c in TIERS if t==r["tier"]), "#444444") if read_tier is not None else "#000000")
         ax.set_yticks(yt); ax.set_yticklabels(ytl, fontsize=6)
-        ax.set_ylim(-0.7, n-0.3); ax.set_xlim(-0.2, maxx+12); ax.set_xticks([])
+        for lab,c in zip(ax.get_yticklabels(), ytc):
+            lab.set_color(c)
+            if c=="#B3261E": lab.set_fontweight("bold")
+        ax.set_ylim(-0.7, span-0.3); ax.set_xlim(-0.2, maxx+12); ax.set_xticks([])
         for sp in ("top","right","bottom"): ax.spines[sp].set_visible(False)
         ax.set_xlabel("schematic (not to scale): anchor → Y' copies (numbers above gaps = ITS length in bp; first number = bp from anchor to first copy; last = bp to read end) → telomere side")
-        ax.set_title(f"{base}: {end} — {n} read(s); each Y' copy = one box (by identity); yellow gap = ITS with its measured length\n"
-                     f"right label: copy count (composition) and the inferred origin path: donor[copies]:ids(circ x repeats support) > next donor")
+        split = (f"{tier_n['named_repeat']} onion skin (named repeat), {tier_n['unconfirmed_repeat']} unconfirmed, "
+                 f"{tier_n['none']} other\n") if read_tier is not None else ""
+        ax.set_title(f"{base}: {end} — {n} gain-like read(s)" + (": " + split if split else "\n") +
+                     f"each Y' copy = one box (by identity); yellow gap = ITS with its measured length; "
+                     f"right label: copy count (composition) and the inferred origin path")
         handles=[mpatches.Patch(color=ANCHOR_COLOR,label="anchor"), mpatches.Patch(color=ITS_COLOR,label="ITS (inter-Y' spacer)"),
                  mpatches.Patch(color=TELO_COLOR,label="telomere side")]
         handles+=[mpatches.Patch(color=id_color(i),label=i) for i in sorted(_idc)]
