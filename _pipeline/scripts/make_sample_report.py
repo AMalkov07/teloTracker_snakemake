@@ -200,6 +200,7 @@ def svg_stacked(segments, width=680, height=26):
 # --------------------------------------------------------------------------------------
 
 YP_RE = re.compile(r'(ID\d+):(\d+)-(\d+)')
+MAX_READ_ROWS = 2000   # per-read table: recombinant reads only, at most this many (~0.7 MB)
 
 
 # Every input the report draws on, with the pipeline stage that produces it. The report is
@@ -788,10 +789,18 @@ def render_sample(data):
     # ---- per-read table ---------------------------------------------------------------
     out.append('<h2>Per-read detail</h2>')
     if data['reads']:
-        rows = sorted(data['reads'], key=lambda r: (-(r['yp_n'] or 0), r['chr_end']))
-        v3r = any(r.get('rc') is not None for r in rows)
-        out.append(f'<p class="note">{len(rows):,} reads, sorted by Y&prime; copy number. Click any header to '
-                   're-sort. <code>compatible ends</code> shows the donor ambiguity behind a low confidence.</p>')
+        # Recombinant reads only, capped: one row per analysed read made a day-0 report ~19 MB
+        # (53k rows), too big for a browser tab. Every other section above uses all reads.
+        called = [r for r in data['reads'] if str(r['recomb']) == 'True']
+        rows = sorted(called, key=lambda r: (-(r['yp_n'] or 0), r['chr_end']))[:MAX_READ_ROWS]
+        v3r = any(r.get('rc') is not None for r in data['reads'])
+        shown = (f'all {len(called):,}' if len(rows) == len(called)
+                 else f'the {len(rows):,} with the most Y&prime; copies, of {len(called):,}')
+        out.append(f'<p class="note">Recombinant reads only: {shown} recombinant reads '
+                   f'({len(data["reads"]):,} reads analysed), sorted by Y&prime; copy number. Every read is in '
+                   f'<code>recombination/{html.escape(data["base_name"])}_&lt;end&gt;_features.tsv</code>; '
+                   'recombinant ones also in <code>recombination_events/</code>. Click any header to re-sort. '
+                   '<code>compatible ends</code> shows the donor ambiguity behind a low confidence.</p>')
         out.append('<div class="scroll"><table class="sortable"><thead><tr>'
                    '<th>read</th><th>end</th><th>len</th><th>telo</th><th>Y&prime;</th><th>&Delta;Y&prime;</th>'
                    + ('<th>call</th><th>donor</th>' if v3r else '<th>conf</th>')
