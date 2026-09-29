@@ -72,6 +72,17 @@ PARTIAL_AGREEMENT_FACTOR = 0.7 # when features partially agree
 # breakpoint (typically 5-10%+).
 MIN_SWITCH_GAP_PCT = 3.0
 
+# X-element switch rules (whole-region BLAST, one best hit per read).
+# A switch needs the best hit to cover at least X_MIN_SWITCH_COVERAGE of the
+# library X it matched: reads that keep only 50-100 bp of X before the telomere
+# otherwise match some other end at 80-92 % and are called a full switch
+# (~a third of 6991 TeloTag's day-0 "recombinants"). Too short -> no_data.
+# It must also beat the read's hit to its own end's X by X_MIN_SWITCH_GAP_PCT
+# identity points; a near-tie is no_change. Smaller than the spacer gap because
+# X is one alignment of ~700 bp, not a run of chunks.
+X_MIN_SWITCH_COVERAGE = 0.5
+X_MIN_SWITCH_GAP_PCT = 1.0
+
 # ---------------------------------------------------------------------------
 # Attribution mode (see docs/attribution_v2.md)
 #   legacy : the pre-2026-09 behaviour -- source voted by spacer / x-element /
@@ -1051,8 +1062,9 @@ def analyze_x_element_whole_region(read_seqs, x_element_lib, expected_chr_end,
                    check=True, capture_output=True)
     blast_out = os.path.join(tmp_dir, 'x_hits.tsv')
     subprocess.run(['blastn', '-query', reads_fa, '-db', db,
-                    '-outfmt', '6 qseqid sseqid pident length qstart qend bitscore',
-                    '-evalue', '1e-10', '-max_target_seqs', '5',
+                    '-outfmt', '6 qseqid sseqid pident length qstart qend bitscore slen',
+                    # every cluster (a few dozen), so the read's hit to its own X is reported
+                    '-evalue', '1e-10', '-max_target_seqs', '100',
                     '-num_threads', str(threads), '-out', blast_out],
                    check=True, capture_output=True)
 
@@ -1066,9 +1078,9 @@ def analyze_x_element_whole_region(read_seqs, x_element_lib, expected_chr_end,
     with open(blast_out) as fh:
         for line in fh:
             parts = line.rstrip('\n').split('\t')
-            if len(parts) < 7:
+            if len(parts) < 8:
                 continue
-            q, s, pid, alen, qs, qe, bs = parts
+            q, s, pid, alen, qs, qe, bs, slen = parts
             rid = short_to_id.get(q)
             if rid is None:
                 continue
@@ -1081,55 +1093,73 @@ def analyze_x_element_whole_region(read_seqs, x_element_lib, expected_chr_end,
                 'qstart': int(qs),
                 'qend': int(qe),
                 'bitscore': float(bs),
+                'subject_len': int(slen),
                 'cluster_id': info['cluster_id'],
                 'members': info['members'],
                 'rep_chr_end': info['rep_chr_end'],
             })
 
-    results = {}
-    for rid in read_seqs:
-        hits = sorted(per_read_hits.get(rid, []), key=lambda h: -h['bitscore'])
-        if not hits:
-            results[rid] = _empty_x_result(expected_chr_end)
-            continue
+    return {rid: call_x_element(per_read_hits.get(rid, []), expected_chr_end, expected_cluster_id)
+            for rid in read_seqs}
 
-        best = hits[0]
-        second_pid = 0.0
-        for h in hits[1:]:
-            if h['cluster_id'] != best['cluster_id']:
-                second_pid = h['pident']
-                break
 
-        observed_cluster = best['cluster_id']
-        same_cluster = (observed_cluster == expected_cluster_id) if expected_cluster_id else False
+def call_x_element(hits, expected_chr_end, expected_cluster_id):
+    """One read's X-element call from its BLAST hits against the clustered library.
+    hits: [{'pident', 'length', 'qstart', 'qend', 'bitscore', 'cluster_id', 'members',
+    'rep_chr_end', 'subject_len'}]. The best hit by bitscore names the X; a hit to another
+    cluster is a switch only if it covers X_MIN_SWITCH_COVERAGE of that library X
+    (else no_data) and beats the read's best hit to its own cluster by
+    X_MIN_SWITCH_GAP_PCT identity points (else no_change)."""
+    hits = sorted(hits, key=lambda h: -h['bitscore'])
+    if not hits:
+        return _empty_x_result(expected_chr_end)
 
-        if same_cluster:
+    best = hits[0]
+    second_pid = 0.0
+    for h in hits[1:]:
+        if h['cluster_id'] != best['cluster_id']:
+            second_pid = h['pident']
+            break
+
+    observed_cluster = best['cluster_id']
+    same_cluster = (observed_cluster == expected_cluster_id) if expected_cluster_id else False
+
+    if same_cluster:
+        recomb = 'no_change'
+        source = expected_chr_end
+    else:
+        recomb = 'full_switch'
+        source = best['members'][0] if best['members'] else best['rep_chr_end']
+        own = [h for h in hits if expected_cluster_id and h['cluster_id'] == expected_cluster_id]
+        subject_len = best.get('subject_len') or 0
+        if subject_len and best['length'] < X_MIN_SWITCH_COVERAGE * subject_len:
+            empty = _empty_x_result(expected_chr_end)
+            empty['x_element_best_identity'] = round(best['pident'], 2)
+            empty['x_element_cluster_id'] = observed_cluster
+            return empty
+        if own and best['pident'] - own[0]['pident'] < X_MIN_SWITCH_GAP_PCT:
             recomb = 'no_change'
             source = expected_chr_end
-        else:
-            recomb = 'full_switch'
-            source = best['members'][0] if best['members'] else best['rep_chr_end']
 
-        gap = max(best['pident'] - second_pid, 0.0)
-        # Scale to [0,1]: stronger ID + bigger gap between clusters -> higher confidence.
-        confidence = min(1.0, (best['pident'] / 100.0) * (0.5 + gap / 20.0))
+    gap = max(best['pident'] - second_pid, 0.0)
+    # Scale to [0,1]: stronger ID + bigger gap between clusters -> higher confidence.
+    confidence = min(1.0, (best['pident'] / 100.0) * (0.5 + gap / 20.0))
 
-        qs_v, qe_v = best['qstart'], best['qend']
-        x_start, x_end = min(qs_v, qe_v), max(qs_v, qe_v)
+    qs_v, qe_v = best['qstart'], best['qend']
+    x_start, x_end = min(qs_v, qe_v), max(qs_v, qe_v)
 
-        results[rid] = {
-            'x_element_start': x_start,
-            'x_element_end': x_end,
-            'x_element_size': x_end - x_start,
-            'x_element_source': source,
-            'x_element_switch_pos': -1,
-            'x_element_best_identity': round(best['pident'], 2),
-            'x_element_second_best_identity': round(second_pid, 2),
-            'x_element_confidence': round(confidence, 4),
-            'x_element_recombination': recomb,
-            'x_element_cluster_id': observed_cluster,
-        }
-    return results
+    return {
+        'x_element_start': x_start,
+        'x_element_end': x_end,
+        'x_element_size': x_end - x_start,
+        'x_element_source': source,
+        'x_element_switch_pos': -1,
+        'x_element_best_identity': round(best['pident'], 2),
+        'x_element_second_best_identity': round(second_pid, 2),
+        'x_element_confidence': round(confidence, 4),
+        'x_element_recombination': recomb,
+        'x_element_cluster_id': observed_cluster,
+    }
 
 
 def repeatmasker_y_primes(read_seqs, y_prime_lib, tmp_dir, threads=4):
