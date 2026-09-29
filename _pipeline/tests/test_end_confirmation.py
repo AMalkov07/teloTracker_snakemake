@@ -99,6 +99,52 @@ def test_scaffold_pool_widens_when_adapter_reads_cannot_vote():
     assert len(pool) == 0
 
 
+def span_df(classes, other_lengths):
+    """classes: [(probes, n_reads, length_past_anchor, adapter)] telomere reads at 4R, plus
+    non-telomere anchored reads of the given lengths (the library's length distribution)."""
+    rows, k = [], 0
+    for probes, n, L, adapter in classes:
+        for _ in range(n):
+            rows.append({'read_id': f'r{k}', 'chr_end': '4R', 'repeat_length': 150, 'Adapter_After_Telomere': adapter,
+                         'y_prime_probe_count': probes, 'trimmed_read_length_past_anchor': L}); k += 1
+    for L in other_lengths:
+        rows.append({'read_id': f'r{k}', 'chr_end': '1L', 'repeat_length': 0, 'Adapter_After_Telomere': False,
+                     'y_prime_probe_count': 0, 'trimmed_read_length_past_anchor': L}); k += 1
+    return pd.DataFrame(rows)
+
+
+def test_length_correction_recovers_long_array_from_short_variant():
+    # 6991 TeloTag chr4R: 11 short Y'-less adapter reads outvote 8 full-length 7-copy ones
+    lib = [2000] * 400 + [20000] * 100 + [52000] * 20
+    df = span_df([(0, 11, 2900, True), (7, 8, 50200, True), (7, 5, 50200, False)], lib)
+    su = __import__('subtelomere_reference_pipeline_utils')
+    st = su.end_structure(df, df[(df['chr_end'] == '4R') & (df['repeat_length'] >= 30)], 3)
+    assert st['plain_mode'] == 0 and st['probes'] == 7 and st['overruled']
+    pool, rule = su.scaffold_candidate_pool(df, '4R', min_agree=3)
+    assert rule == 'adapter' and set(pool['y_prime_probe_count']) == {7} and len(pool) == 8
+
+
+def test_length_correction_keeps_a_clear_majority():
+    # 6991 reference chr12R: 28 reads at 6 copies, a few longer reads at 10 -- keep 6
+    lib = [2000] * 400 + [40000] * 80 + [72000] * 5
+    df = span_df([(6, 28, 46600, True), (10, 3, 72400, True), (7, 6, 53500, True)], lib)
+    su = __import__('subtelomere_reference_pipeline_utils')
+    st = su.end_structure(df, df[(df['chr_end'] == '4R') & (df['repeat_length'] >= 30)], 3)
+    assert st['probes'] == 6 and not st['overruled']
+
+
+def test_trim_extension_to_telomere():
+    su = __import__('subtelomere_reference_pipeline_utils')
+    telo_r = 'TGGGTGTGGTGTGTGGGTGTGGTGTGGGTG'
+    tail = 'A' * 29 + 'CAGAGAATATGTGTAGAC'          # TeloTag poly-A + tag
+    ext, cut, found = su.trim_extension_to_telomere('ACGT' * 50 + telo_r + tail, 'suffix')
+    assert found and cut == len(tail) and ext.endswith(telo_r)
+    telo_l = 'CACCCACACCACACACCCACACCACACCCA'
+    ext, cut, found = su.trim_extension_to_telomere('GTCTACACATATTCTCTG' + 'T' * 29 + telo_l + 'ACGT' * 50, 'prefix')
+    assert found and ext.startswith(telo_l)
+    assert su.trim_extension_to_telomere('ACGT' * 100, 'suffix') == ('ACGT' * 100, 0, False)
+
+
 if __name__ == '__main__':
     failed = 0
     for name, fn in sorted(globals().items()):

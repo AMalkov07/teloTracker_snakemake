@@ -10,6 +10,8 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 import itertools
 import subprocess
+import bisect
+import re
 import os
 import tempfile
 import pandas as pd
@@ -192,11 +194,79 @@ def _largest_agreeing_group(ids, agreement, min_identity, min_coverage):
     return [ids[0]] if ids else []
 
 
+LENGTH_COL = 'trimmed_read_length_past_anchor'
+MAX_SPAN_WEIGHT = 50        # a read is never counted as more than 50 reads (S(L) floored at 2 %)
+
+
+def end_structure(all_df, telo_df, min_agree=3, min_share=0.10):
+    """The end's Y' structure (probe count) by length-corrected support, or None.
+
+    A read shows the whole end only if it runs from the anchor to the telomere, and the
+    longer the end the fewer reads do: a short Y'-less variant is sequenced end to end far
+    more often than a 50 kb Y' array. Counting telomere-reaching reads therefore favours
+    short structures, and counting only adapter-ended reads favours them more, since short
+    molecules are the ones read through to the adapter. Measured on 6991 day-0 TeloTag,
+    chr4R: 19 telomere reads carry no Y' and stop <5 kb past the anchor, 13 carry the full
+    7-copy array (~50 kb); the adapter-read mode was 0 Y' and the reference lost the array.
+
+    Each telomere-reaching read is weighted by 1/S(L), S(L) = the fraction of the sample's
+    anchored reads (all ends pooled: read length is a property of the library, and one end's
+    few dozen reads give a noisy tail) at least as long past the anchor as this one, floored
+    so no read counts for more than MAX_SPAN_WEIGHT. Only structures carried by >= min_agree
+    reads and >= min_share of the end's telomere-reaching reads are eligible, so a handful of
+    very long reads cannot outvote a clear majority (6991 day-0 reference, chr12R: 28 reads
+    carry 6 copies, 3 reads 10). The eligible structure with the highest weighted support
+    wins. Returns a dict with the chosen probe count and its raw and corrected shares, or
+    None when the length column is absent (then the caller keeps the plain mode)."""
+    if LENGTH_COL not in all_df.columns or telo_df.empty:
+        return None
+    lengths = pd.to_numeric(all_df[LENGTH_COL], errors='coerce').dropna().sort_values().to_numpy()
+    if len(lengths) == 0:
+        return None
+    n = len(lengths)
+    floor = 1.0 / MAX_SPAN_WEIGHT
+
+    def weight(L):
+        # fraction of anchored reads with length >= L
+        s = (n - bisect.bisect_left(lengths, L)) / n
+        return 1.0 / max(s, floor)
+
+    raw, corr = {}, {}
+    for probes, L in zip(telo_df['y_prime_probe_count'],
+                         pd.to_numeric(telo_df[LENGTH_COL], errors='coerce').fillna(0)):
+        raw[probes] = raw.get(probes, 0) + 1
+        corr[probes] = corr.get(probes, 0.0) + weight(L)
+    tot_raw = sum(raw.values())
+    eligible = ([p for p in raw if raw[p] >= min_agree and raw[p] >= min_share * tot_raw]
+                or [p for p in raw if raw[p] >= min_agree] or list(raw))
+    best = max(eligible, key=lambda p: (corr[p], raw[p]))
+    # The plain vote: the most common count among adapter-ended reads (among all telomere
+    # reads if fewer than min_agree adapter reads share one). The length correction only
+    # overrules it when decisive -- twice the plain choice's corrected support -- because
+    # probe counts on long arrays are noisy (the probe misses copies), and at such ends
+    # several neighbouring counts split the reads; the correction must not trade one noisy
+    # count for another (6991 day-0 TeloTag, chr12R: 6 reads at 7 copies, 7 at 5).
+    ad = telo_df[telo_df['Adapter_After_Telomere'] == True] if 'Adapter_After_Telomere' in telo_df else telo_df.iloc[0:0]  # noqa: E712
+    counts = ad['y_prime_probe_count'].value_counts()
+    if len(counts) and counts.iloc[0] >= min_agree:
+        plain = counts.index[0]
+    else:
+        plain = telo_df['y_prime_probe_count'].value_counts().index[0]
+    overruled = best != plain and corr[best] >= 2 * corr.get(plain, 0.0)
+    chosen = best if overruled else plain
+    tot_corr = sum(corr.values())
+    return {'probes': chosen, 'reads': raw[chosen], 'telomere_reads': tot_raw,
+            'share_raw': raw[chosen] / tot_raw, 'share_corrected': corr[chosen] / tot_corr,
+            'plain_mode': plain, 'overruled': overruled}
+
+
 def scaffold_candidate_pool(df, chr_end, min_agree=3, min_repeat=30):
     """Candidate scaffold reads for one chr_end, sorted for the percentile pick.
 
     Returns (pool DataFrame, rule). A candidate ends in telomere repeat and carries the
-    end's most common Y' probe count. First choice ('adapter'): reads with an adapter called
+    end's Y' probe count as chosen by end_structure() -- the structure with the most
+    length-corrected support among all telomere-reaching reads (the plain mode of the pool
+    when read lengths are not available). First choice ('adapter'): reads with an adapter called
     after the telomere, proof the molecule ends there. The adapter is often not called
     (about 30 % of reads on 7372), so at an end where fewer than `min_agree` such reads
     remain, the pool widens to every read ending in telomere repeat ('telomere_repeat').
@@ -208,17 +278,23 @@ def scaffold_candidate_pool(df, chr_end, min_agree=3, min_repeat=30):
     scaffolded the end on the 6-copy minority allele. The widened pool holds ~20 reads, most
     of them 5-copy."""
     rule = 'adapter'
-    rep = df[(df['chr_end'] == chr_end) & (df['repeat_length'] >= min_repeat)]
+    end_df = df[df['chr_end'] == chr_end]
+    rep = end_df[end_df['repeat_length'] >= min_repeat]
+    structure = end_structure(df, rep, min_agree)
     sub = rep[rep['Adapter_After_Telomere'] == True]           # noqa: E712 (pandas mask)
     for attempt in ('adapter', 'telomere_repeat'):
         if attempt == 'telomere_repeat':
             sub, rule = rep, 'telomere_repeat'
         if sub.empty:
             continue
-        mode_y = sub['y_prime_probe_count'].mode()
-        if len(mode_y) == 0:
-            continue
-        pool = sub[sub['y_prime_probe_count'] == mode_y[0]]
+        if structure is None:
+            mode_y = sub['y_prime_probe_count'].mode()
+            if len(mode_y) == 0:
+                continue
+            want = mode_y[0]
+        else:
+            want = structure['probes']
+        pool = sub[sub['y_prime_probe_count'] == want]
         # read_id tiebreak + stable sort: see get_75th_percentile_reads.
         # Without it the candidate window itself shifts between runs.
         pool = pool.sort_values(by=['repeat_length', 'read_id'], kind='mergesort')
@@ -315,6 +391,23 @@ def select_consensus_scaffold_reads(input_tsv, all_matches_tsv, reads_fasta,
     with open(reads_fasta, 'rb') as fh:
         for chr_end in chr_ends:
             sub, pool_rule = scaffold_candidate_pool(df, chr_end, min_agree)
+            end_df = df[df['chr_end'] == chr_end]
+            st = end_structure(df, end_df[end_df['repeat_length'] >= 30], min_agree)
+            st_cols = {} if st is None else {
+                'structure_probes': st['probes'], 'structure_reads': st['reads'],
+                'telomere_reads': st['telomere_reads'], 'structure_share': round(st['share_raw'], 3),
+                'structure_share_corrected': round(st['share_corrected'], 3), 'plain_mode_probes': st['plain_mode'],
+                'length_corrected_override': st['overruled']}
+            if st is not None and st['overruled']:
+                print(f"{chr_end}: the plain vote picks {st['plain_mode']} Y' probe hit(s), but the "
+                      f"length-corrected support is decisively higher for {st['probes']} ({st['reads']} of "
+                      f"{st['telomere_reads']} telomere reads): the shorter structure is over-sampled "
+                      f"because short molecules are read end to end more often -- scaffolding on "
+                      f"{st['probes']}")
+            if st is not None and st['share_raw'] < 0.5:
+                print(f"{chr_end}: NOTE the scaffold structure ({st['probes']} Y' probe hit(s)) is carried by "
+                      f"only {st['reads']} of {st['telomere_reads']} telomere-reaching reads -- this end "
+                      f"is heterogeneous in the sample; inspect it")
             if sub.empty:
                 print(f'Warning: no telomere reads found for {chr_end}.')
                 continue
@@ -333,7 +426,7 @@ def select_consensus_scaffold_reads(input_tsv, all_matches_tsv, reads_fasta,
                       f'off an UNCORROBORATED read.')
                 chr_end_to_read[chr_end] = percentile_pick
                 all_selected_read_ids.append(percentile_pick)
-                report.append({'chr_end': chr_end, 'pool': pool, 'pool_rule': pool_rule, 'method': 'fallback_low_coverage',
+                report.append({**st_cols, 'chr_end': chr_end, 'pool': pool, 'pool_rule': pool_rule, 'method': 'fallback_low_coverage',
                                'n_candidates': pool, 'group_size': 1,
                                'selected_read': percentile_pick,
                                'percentile_pick': percentile_pick, 'changed': False})
@@ -405,7 +498,7 @@ def select_consensus_scaffold_reads(input_tsv, all_matches_tsv, reads_fasta,
                       f'{percentile_pick}. This end is scaffolded off an UNCORROBORATED read.')
                 chr_end_to_read[chr_end] = percentile_pick
                 all_selected_read_ids.append(percentile_pick)
-                report.append({'chr_end': chr_end, 'pool': pool, 'pool_rule': pool_rule, 'method': 'fallback_window_unfilled',
+                report.append({**st_cols, 'chr_end': chr_end, 'pool': pool, 'pool_rule': pool_rule, 'method': 'fallback_window_unfilled',
                                'n_candidates': max_records_seen, 'group_size': 1,
                                'selected_read': percentile_pick,
                                'percentile_pick': percentile_pick, 'changed': False})
@@ -430,7 +523,7 @@ def select_consensus_scaffold_reads(input_tsv, all_matches_tsv, reads_fasta,
             flag = '  <== differs from percentile pick' if changed else ''
             print(f'{chr_end}: {chosen} (agreeing group {len(group)}/{len(cands)}, '
                   f'anchor {anchor[chosen]["pident"]:.2f}%){flag}{note}')
-            report.append({'chr_end': chr_end, 'pool': pool, 'pool_rule': pool_rule, 'method': 'consensus',
+            report.append({**st_cols, 'chr_end': chr_end, 'pool': pool, 'pool_rule': pool_rule, 'method': 'consensus',
                            'n_candidates': len(cands), 'group_size': len(group),
                            'window_n': window_n, 'widened': window_n != n_candidates,
                            'selected_read': chosen, 'percentile_pick': percentile_pick,
@@ -501,6 +594,41 @@ def get_softclip_from_cigar(read, side="start"):
             return read.query_sequence[-clip_length:]
 
     return ""
+
+
+
+TELO_RUN = {'suffix': re.compile(r'(?:T{1,2}G{1,3}){4,}'),   # right arm: TG1-3 toward the tip
+            'prefix': re.compile(r'(?:C{1,3}A{1,2}){4,}')}   # left arm: C1-3A at the tip
+TELO_TIP_WINDOW = 3000
+
+
+def trim_extension_to_telomere(ext, side, window=TELO_TIP_WINDOW):
+    """Cut an arm extension back to the distal edge of its terminal telomere tract.
+
+    The scaffold read may carry sequence past the telomere: an adapter porechop missed or,
+    in TeloTag libraries, the poly-A tail and tag ligated to the telomere. Grafted onto the
+    reference, that tail is what the Flye polish then rebuilds the tip from, and the
+    telomere is lost (6991 day-0 TeloTag chr12R: the extended tip ended
+    TGGTGTGTGGGTG + A*29 + CAGAGAATATGTGTAGAC; after polishing it held no telomere repeat).
+
+    Looks in the `window` bp at the tip for runs of >= 4 telomere units and cuts at the
+    outermost one. Returns (trimmed extension, bp removed, found). With no telomere run in
+    the window the extension is returned unchanged and found=False."""
+    if not ext:
+        return ext, 0, False
+    rx = TELO_RUN[side]
+    if side == 'suffix':
+        start = max(0, len(ext) - window)
+        runs = list(rx.finditer(ext, start))
+        if not runs:
+            return ext, 0, False
+        cut = runs[-1].end()
+        return ext[:cut], len(ext) - cut, True
+    runs = list(rx.finditer(ext, 0, min(window, len(ext))))
+    if not runs:
+        return ext, 0, False
+    cut = runs[0].start()
+    return ext[cut:], cut, True
 
 
 def extend_reference_multi(bamfile, reference, read_ids_file, output_fasta, trim,
@@ -665,6 +793,12 @@ def extend_reference_multi(bamfile, reference, read_ids_file, output_fasta, trim
             best_aln, clip = min(picks, key=rank)
             trimmed = (clip[:-trim] if trim > 0 else clip) if side == 'prefix' \
                 else (clip[trim:] if trim > 0 else clip)
+            trimmed, cut, found = trim_extension_to_telomere(trimmed, side)
+            if cut:
+                print(f'  {arm:<4} cut {cut:,}bp past the terminal telomere repeat (adapter / tag)')
+            elif not found:
+                print(f'  {arm:<4} WARNING no telomere repeat within {TELO_TIP_WINDOW:,}bp of the tip; '
+                      f'extension left as it is')
             extensions.setdefault(want_contig, {'prefix': [], 'suffix': []})
             extensions[want_contig][side].append((rid, trimmed, len(clip)))
             flag = ('primary' if not best_aln.is_supplementary else 'SUPPLEMENTARY')
