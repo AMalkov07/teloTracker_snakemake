@@ -461,7 +461,8 @@ rule extract_recombination_events:
 # y_prime_path / y_prime_path_circles columns analyze_features.py already writes, per end,
 # collapses reads into distinct gained arrays (the events table, also the input of the
 # across-timepoint step run_pipeline.py runs after the last sample), and draws a
-# not-to-scale schematic of every gain-like read, one PNG per end.
+# not-to-scale schematic of its onion-skin and possible onion-skin reads, one PNG per end
+# that has any.
 rule onion_skin:
     input: expand(f"{RECOMB_DIR}/{BASE}_{{ce}}_features.tsv", ce=CHROM_ENDS)
     output:
@@ -482,7 +483,7 @@ rule onion_skin:
             --events-out {output.events}
         python _pipeline/scripts/plot_yprime_copies.py \
             {params.recomb_dir} {params.base_name} {params.plots_dir} \
-            --schematic --reads {params.read_ids} --tiers {output.events}
+            --schematic --reads {params.read_ids} --tiers {output.events} --onion-only
         touch {output.marker}
         """
 

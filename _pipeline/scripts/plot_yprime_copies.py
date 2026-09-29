@@ -8,11 +8,14 @@ features TSV carries v2 path columns, the inferred origin path
 
 Usage: plot_yprime_copies.py <features_dir> <base_name> <output_dir> [--only-gain] [--schematic]
                              [--reads <file with read_ids>] [--id-map <sample>_read_id_map.tsv]
-                             [--tiers <sample>_onion_skin_events.tsv]
+                             [--tiers <sample>_onion_skin_events.tsv [--onion-only]]
 --tiers: the onion-skin events table (onion_skin_summary.py --events-out). With it, the
 schematic groups reads by onion-skin tier -- named repeats (the onion-skin calls) on top,
 then unconfirmed repeats, then every other gain-like read -- each group under its own
 header and divider, and the read's tier in its row label.
+--onion-only (with --tiers): draw only the onion-skin and possible onion-skin reads; the
+title gives how many other gain-like reads were left out. An end with none gets no figure,
+and a figure left from an earlier run is removed.
 Row labels carry the chr_end when the TSV has a chr_end column (so a combined file of reads
 from several ends stays readable).
 """
@@ -43,6 +46,9 @@ TIERS = [("named_repeat", "ONION SKIN: named repeat", "#B3261E"),
 TIER_RANK = {t: i for i, (t, _, _) in enumerate(TIERS)}
 TIER_TAG = {"named_repeat": "onion", "unconfirmed_repeat": "unconf", "none": "other"}
 read_tier = None
+onion_only = "--onion-only" in sys.argv[4:]
+if onion_only and "--tiers" not in sys.argv[4:]:
+    sys.exit("--onion-only needs --tiers <onion_skin_events.tsv>")
 if "--tiers" in sys.argv[4:]:
     import csv
     read_tier = {}
@@ -96,6 +102,14 @@ for f in sorted(glob.glob(f"{feat_dir}/{base}_chr*_features.tsv")):
                           status=status, copies=copies, ce=p[idx["chr_end"]] if "chr_end" in idx else end,
                           path=p[idx["y_prime_path"]] if "y_prime_path" in idx else "",
                           tier=(read_tier or {}).get(p[idx["read_id"]], "none")))
+    n_other = 0
+    if onion_only:
+        n_other = sum(1 for r in reads if r["tier"] not in ("named_repeat", "unconfirmed_repeat"))
+        reads = [r for r in reads if r["tier"] in ("named_repeat", "unconfirmed_repeat")]
+        if not reads:
+            stale = f"{out_dir}/{base}_{end}_ycopies_schematic.png"
+            if os.path.exists(stale): os.remove(stale)
+            continue
     if not reads: continue
     if read_tier is not None:
         reads.sort(key=lambda r:(TIER_RANK.get(r["tier"], 2), r["ce"], -len(r["copies"]), r["status"]))
@@ -155,9 +169,13 @@ for f in sorted(glob.glob(f"{feat_dir}/{base}_chr*_features.tsv")):
         ax.set_ylim(-0.7, span-0.3); ax.set_xlim(-0.2, maxx+12); ax.set_xticks([])
         for sp in ("top","right","bottom"): ax.spines[sp].set_visible(False)
         ax.set_xlabel("schematic (not to scale): anchor → Y' copies (numbers above gaps = ITS length in bp; first number = bp from anchor to first copy; last = bp to read end) → telomere side")
-        split = (f"{tier_n['named_repeat']} onion skin (named repeat), {tier_n['unconfirmed_repeat']} unconfirmed, "
-                 f"{tier_n['none']} other\n") if read_tier is not None else ""
-        ax.set_title(f"{base}: {end} — {n} gain-like read(s)" + (": " + split if split else "\n") +
+        if onion_only:
+            split = (f"{tier_n['named_repeat']} onion skin (named repeat), {tier_n['unconfirmed_repeat']} unconfirmed; "
+                     f"{n_other} other gain-like read(s) not shown\n")
+        else:
+            split = (f"{tier_n['named_repeat']} onion skin (named repeat), {tier_n['unconfirmed_repeat']} unconfirmed, "
+                     f"{tier_n['none']} other\n") if read_tier is not None else ""
+        ax.set_title(f"{base}: {end} — {n} {'onion-skin' if onion_only else 'gain-like'} read(s)" + (": " + split if split else "\n") +
                      f"each Y' copy = one box (by identity); yellow gap = ITS with its measured length; "
                      f"right label: copy count (composition) and the inferred origin path")
         handles=[mpatches.Patch(color=ANCHOR_COLOR,label="anchor"), mpatches.Patch(color=ITS_COLOR,label="ITS (inter-Y' spacer)"),

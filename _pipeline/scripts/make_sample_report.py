@@ -742,16 +742,17 @@ def render_sample(data):
                    'reading is weak; they are kept out of the repeat count. <b>Arrays</b> count distinct '
                    'gained arrays: reads with the same Y&prime; IDs and every ITS within 8 bp are one array, '
                    'so a clone is counted once. Circles are graded strong / moderate / weak; '
-                   '<b>unassigned</b> circles have no named donor. Click an end for its per-read schematic.</p>')
+                   '<b>unassigned</b> circles have no named donor. Click an end for a schematic of its onion-skin and possible onion-skin reads (ends without any have none).</p>')
         out.append('<div class="scroll"><table class="sortable"><thead><tr><th>end</th><th>gain-like</th>'
                    '<th>arrays</th><th>&ge;2 Y&prime;</th><th>1 donor</th><th>multi-donor</th>'
                    '<th>named repeats</th><th>(arrays)</th><th>unconfirmed</th>'
                    '<th>circles</th><th>S/M/W</th><th>unassigned</th><th>top donors</th></tr></thead><tbody>')
         for r in onion:
             end = str(r.get('chr_end', ''))
-            png = f'graphs/onion_skin/{data["base_name"]}_{end}_ycopies_schematic.png'
-            cell = (html.escape(end) if end == 'ALL' else
-                    f'<a href="{html.escape(png)}">{html.escape(end)}</a>')
+            png = f'{data.get("onion_plots_dir", "graphs/onion_skin")}/{data["base_name"]}_{end}_ycopies_schematic.png'
+            # an end without onion-skin reads has no schematic: plain text, not a dead link
+            cell = (html.escape(end) if end == 'ALL' or not os.path.exists(os.path.join(data['pipeline_dir'], png))
+                    else f'<a href="{html.escape(png)}">{html.escape(end)}</a>')
             n = lambda k: to_int(r.get(k)) or 0
             # summaries written before the named/unconfirmed split carry n_same_donor_repeat
             named = n('n_named_repeat') if 'n_named_repeat' in r else n('n_same_donor_repeat')
@@ -917,12 +918,15 @@ def parse_args():
     p.add_argument('--results-dir', help='results/ directory (multi-sample mode)')
     p.add_argument('--samples', nargs='+', help='sample base names (multi-sample mode)')
     p.add_argument('--compare-output', help='write a panel comparison HTML here')
+    p.add_argument('--onion-plots-dir', default='graphs/onion_skin',
+                   help='folder of the per-end onion-skin schematics, relative to the pipeline dir')
     return p.parse_args()
 
 
-def build_one(pipeline_dir, base_name, output):
+def build_one(pipeline_dir, base_name, output, onion_plots_dir='graphs/onion_skin'):
     print(f'  collecting: {base_name}')
     data = collect(pipeline_dir, base_name)
+    data['onion_plots_dir'] = onion_plots_dir
     body = render_sample(data)
     sub = (f'day-0 comparison &middot; generated {datetime.now():%Y-%m-%d %H:%M} &middot; '
            f'<span class="mono">{html.escape(pipeline_dir)}</span>')
@@ -946,7 +950,7 @@ def main():
             if not os.path.isdir(pdir):
                 print(f'  SKIP {s}: no {pdir}')
                 continue
-            collected.append(build_one(pdir, s, os.path.join(pdir, f'{s}_report.html')))
+            collected.append(build_one(pdir, s, os.path.join(pdir, f'{s}_report.html'), args.onion_plots_dir))
         if args.compare_output and collected:
             body = render_comparison(collected)
             os.makedirs(os.path.dirname(os.path.abspath(args.compare_output)), exist_ok=True)
@@ -960,7 +964,7 @@ def main():
         print('ERROR: need --pipeline-dir and --base-name (or --results-dir with --samples)')
         sys.exit(1)
     out = args.output or os.path.join(args.pipeline_dir, f'{args.base_name}_report.html')
-    build_one(args.pipeline_dir, args.base_name, out)
+    build_one(args.pipeline_dir, args.base_name, out, args.onion_plots_dir)
 
 
 if __name__ == '__main__':
