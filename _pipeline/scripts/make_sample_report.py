@@ -488,6 +488,11 @@ tbody tr:hover{background:var(--chip)}
 .legend{font-size:11.5px;color:var(--muted);margin:6px 0 0}
 .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px}
 .note{font-size:12.5px;color:var(--muted);margin:6px 0 0;line-height:1.55}
+a{color:var(--accent)} .files{font-size:12.5px;margin:4px 0 10px}
+.toc{font-size:12.5px;margin:0 0 10px} .toc a{margin-right:12px}
+.filegrid{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:12.5px}
+.filegrid .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-top:2px}
+td a{margin-right:6px}
 code{background:var(--chip);padding:1px 5px;border-radius:3px;font-size:11.5px}
 """
 
@@ -528,6 +533,73 @@ def sort_key_end(name):
     """chr10L -> (10, 'L') so ends order naturally rather than lexically."""
     m = re.match(r'(?:chr)?(\d+)([LR])?', str(name))
     return (int(m.group(1)), m.group(2) or '') if m else (999, str(name))
+
+
+def flink(data, rel, text):
+    """Link to a pipeline file (rel = path under the pipeline dir) as seen from where the report is
+    written; a file that does not exist is plain muted text, never a dead link."""
+    if not os.path.exists(os.path.join(data['pipeline_dir'], rel)):
+        return f'<span class="muted">{text}</span>'
+    href = os.path.join(data.get('link_base', '.'), rel)
+    return f'<a href="{html.escape(href)}">{text}</a>'
+
+
+def file_links(data, items, label='', bare=False):
+    """One line of links to the files that exist ('' when none do); bare = without the <p>."""
+    have = [flink(data, rel, text) for rel, text in items
+            if os.path.exists(os.path.join(data['pipeline_dir'], rel))]
+    if not have:
+        return ''
+    line = ' &middot; '.join(have)
+    return line if bare else f'<p class="files">{label + " " if label else ""}{line}</p>'
+
+
+def key_files(data):
+    """The run's main figures and tables, grouped by pipeline stage (only those that exist)."""
+    b = data['base_name']
+    onion = data.get('onion_plots_dir', 'graphs/onion_skin')
+    return [
+        ('Reads', [(f'{b}_read_summary.tsv', 'read summary'),
+                   (f'{b}_post_telo_trimming.tsv', 'telomere lengths per read'),
+                   (f'{b}_post_y_prime_probe.tsv', 'Y&prime; probe table'),
+                   (f'{b}_adapter_trimming_check.tsv', 'adapter check'),
+                   (f'blast/{b}_foldback_detail.tsv', 'foldback reads')]),
+        ('Telomere', [(f'graphs/telomere_figures/{b}_500bp.png', 'length, 0&ndash;500 bp'),
+                      (f'graphs/telomere_figures/{b}_10kb.png', 'length, 0&ndash;10 kb'),
+                      (f'graphs/telomere_figures/{b}_facet_by_chr.png', 'length by end'),
+                      ('graphs/telomere_figures/individual_chromosomes', 'per-end plots (folder)')]),
+        ('Y&prime;', [(f'graphs/y_prime_figures/{b}_delta_y_primes.png', '&Delta;Y&prime; per read-end'),
+                      (f'graphs/y_prime_figures/{b}_sign_delta_y_primes.png', 'gained / lost / unchanged'),
+                      (f'graphs/stats_for_y_primes/{b}_stats_y_prime.txt', 'Y&prime; statistics')]),
+        ('Recombination', [(f'recombination/{b}_recombination_summary.tsv', 'per-end summary'),
+                           (f'recombination_events/{b}_all_events_summary.tsv', 'all events'),
+                           ('recombination_events/README.md', 'events README'),
+                           ('graphs/recombination_tracks', 'track plots (folder)')]),
+        ('Onion skin', [(f'recombination_events/{b}_onion_skin_summary.tsv', 'per-end summary'),
+                        (f'recombination_events/{b}_onion_skin_events.tsv', 'gained arrays'),
+                        (onion, 'schematics (folder)')]),
+        ('Y&prime; variants', [(f'recombination_events/{b}_yprime_variants.tsv', 'variants'),
+                               (f'recombination_events/{b}_yprime_variants.fasta', 'consensus FASTA'),
+                               (f'recombination_events/{b}_yprime_variant_copies.tsv.gz', 'per-copy calls')]),
+    ]
+
+
+def end_links(data, end):
+    """Per-end figures and tables for the per-end recombination table."""
+    b = data['base_name']
+    onion = data.get('onion_plots_dir', 'graphs/onion_skin')
+    items = [(f'graphs/recombination_tracks/{b}_{end}_tracks.png', 'tracks'),
+             (f'graphs/telomere_figures/individual_chromosomes/{end}/{b}_500bp_individual_chr.png', 'telomere'),
+             (f'{onion}/{b}_{end}_ycopies_schematic.png', 'onion'),
+             (f'recombination/{b}_{end}_features.tsv', 'reads'),
+             (f'recombination_events/{b}_{end}_events_summary.tsv', 'events')]
+    return ' '.join(flink(data, rel, t) for rel, t in items
+                    if os.path.exists(os.path.join(data['pipeline_dir'], rel)))
+
+
+SECTIONS = [('reads', 'Read accounting'), ('recombination', 'Recombination'), ('yprime', 'Y&prime; elements'),
+            ('telomere', 'Telomere repeat length'), ('per-read', 'Per-read detail'),
+            ('completeness', 'Pipeline completeness')]
 
 
 def render_sample(data):
@@ -592,8 +664,24 @@ def render_sample(data):
                    f'Type II elongates the terminal tract and leaves Y&prime; copy number alone. '
                    f'Treat as a prompt to look, not a verdict.</p></div>')
 
+    # ---- files card: the run's main figures and tables ---------------------------------
+    rows = []
+    for grp, items in key_files(data):
+        line = file_links(data, items, bare=True)
+        if line:
+            rows.append(f'<div class="k">{grp}</div><div>{line}</div>')
+    if rows:
+        out.append('<div class="card"><div class="filegrid">' + ''.join(rows) + '</div>'
+                   '<p class="note">Figures and tables this run wrote; each section below links its own. '
+                   'Links open the files in place, so keep this report next to its run folder.</p></div>')
+    out.append('<p class="toc">' + ''.join(f'<a href="#{i}">{t}</a>' for i, t in SECTIONS) + '</p>')
+
     # ---- read accounting --------------------------------------------------------------
-    out.append('<h2>Read accounting</h2>')
+    out.append('<h2 id="reads">Read accounting</h2>')
+    b0 = data['base_name']
+    out.append(file_links(data, [(f'{b0}_read_summary.tsv', 'read summary'),
+                                 (f'{b0}_post_telo_trimming.tsv', 'telomere lengths per read'),
+                                 (f'{b0}_post_y_prime_probe.tsv', 'Y&prime; probe table')], 'Tables:'))
     if data.get('read_summary_comments'):
         out.append('<p class="note">' + '<br>'.join(html.escape(c) for c in data['read_summary_comments']) + '</p>')
     ends = sorted(data.get('per_end_reads', []), key=lambda r: sort_key_end(r['chr_end']))
@@ -609,7 +697,11 @@ def render_sample(data):
                             value_max=100, color='var(--accent2)'))
 
     # ---- recombination ----------------------------------------------------------------
-    out.append('<h2>Recombination</h2>')
+    out.append('<h2 id="recombination">Recombination</h2>')
+    out.append(file_links(data, [(f'recombination/{b0}_recombination_summary.tsv', 'per-end summary'),
+                                 (f'recombination_events/{b0}_all_events_summary.tsv', 'all events'),
+                                 ('recombination_events/README.md', 'column guide'),
+                                 ('graphs/recombination_tracks', 'track plots')], 'Files:'))
     rec_ends = sorted(data.get('per_end_recomb', []), key=lambda r: sort_key_end(r['chr_end']))
     analyzed = [r for r in rec_ends if r['status'] == 'analyzed']
     skipped = [r for r in rec_ends if r['status'] != 'analyzed']
@@ -625,7 +717,7 @@ def render_sample(data):
                    '<th>end</th><th>reads</th><th>recomb</th><th>%</th><th>spacer sw</th>'
                    '<th>X sw</th><th>Y&prime; chg</th><th>complex</th>'
                    + ('<th>call conf</th><th>donor conf</th><th>confident donors</th>' if v3 else '<th>conf</th>')
-                   + '<th>top source</th></tr></thead><tbody>')
+                   + '<th>top source</th><th>files</th></tr></thead><tbody>')
         for r in analyzed:
             out.append(
                 f'<tr><td>{html.escape(r["chr_end"])}</td>'
@@ -640,8 +732,13 @@ def render_sample(data):
                    f'<td data-v="{r["mean_dc"] or 0}">{fmt(r["mean_dc"], 2)}</td>'
                    f'<td data-v="{r["n_confident_donor"] or 0}">{fmt(r["n_confident_donor"])}</td>' if v3 else
                    f'<td data-v="{r["mean_confidence"] or 0}">{fmt(r["mean_confidence"], 3)}</td>')
-                + f'<td>{html.escape(r["source"] or "")}</td></tr>')
+                + f'<td>{html.escape(r["source"] or "")}</td>'
+                f'<td style="text-align:left">{end_links(data, r["chr_end"])}</td></tr>')
         out.append('</tbody></table></div>')
+        out.append('<p class="note"><b>files</b>: <b>tracks</b> = per-read feature tracks for the end; '
+                   '<b>telomere</b> = its telomere length plot; <b>onion</b> = onion-skin schematic (ends with '
+                   'onion-skin reads only); <b>reads</b> = every analysed read (<code>_features.tsv</code>); '
+                   '<b>events</b> = its recombinant reads.</p>')
         if v3:
             out.append('<p class="note"><b>Two confidence scores</b>, both averaged over the recombinant '
                        'reads only. <b>call conf</b> (<code>recombination_confidence</code>): is the read '
@@ -660,14 +757,20 @@ def render_sample(data):
                    'compatible donors, so it falls as copy number rises. Read it alongside the recombination '
                    'rate, not as an independent quality measure.</p>')
     if skipped:
-        out.append('<h3>Skipped ends</h3><table><thead><tr><th>end</th><th>reason</th></tr></thead><tbody>')
+        out.append('<h3>Skipped ends</h3><table><thead><tr><th>end</th><th>reason</th><th>files</th>'
+                   '</tr></thead><tbody>')
         for r in skipped:
             out.append(f'<tr><td>{html.escape(r["chr_end"])}</td>'
-                       f'<td style="text-align:left">{html.escape(r["skip_reason"] or r["status"])}</td></tr>')
+                       f'<td style="text-align:left">{html.escape(r["skip_reason"] or r["status"])}</td>'
+                       f'<td style="text-align:left">{end_links(data, r["chr_end"])}</td></tr>')
         out.append('</tbody></table>')
 
     # ---- Y' analysis ------------------------------------------------------------------
-    out.append("<h2>Y&prime; elements</h2>")
+    out.append('<h2 id="yprime">Y&prime; elements</h2>')
+    out.append(file_links(data, [(f'graphs/y_prime_figures/{b0}_delta_y_primes.png', '&Delta;Y&prime; per read-end'),
+                                 (f'graphs/y_prime_figures/{b0}_sign_delta_y_primes.png', 'gained / lost / unchanged'),
+                                 (f'graphs/stats_for_y_primes/{b0}_stats_y_prime.txt', 'Y&prime; statistics'),
+                                 (f'{b0}_post_y_prime_probe.tsv', 'Y&prime; probe table')], 'Figures:'))
     if deltas:
         out.append('<h3>Y&prime; copy number relative to the day-0 reference</h3>')
         out.append(f'<p class="note">Over the <b>{len(deltas):,} qualifying</b> read-ends '
@@ -740,6 +843,9 @@ def render_sample(data):
     onion = [r for r in data.get('onion', []) if r.get('chr_end') == 'ALL' or (to_int(r.get('n_gain_like')) or 0) > 0]
     if onion:
         out.append('<h3>Onion skin: how gained Y&prime; arrays were built</h3>')
+        out.append(file_links(data, [(f'recombination_events/{b0}_onion_skin_summary.tsv', 'per-end summary'),
+                                     (f'recombination_events/{b0}_onion_skin_events.tsv', 'gained arrays'),
+                                     (data.get('onion_plots_dir', 'graphs/onion_skin'), 'schematics')], 'Files:'))
         out.append('<p class="note">Each gained array is split into donor pieces by the path parser. A '
                    '<b>named repeat</b> is one named donor end (the read\'s own end counts, as self) giving a '
                    'strong or moderate circle, or two or more pieces. <b>Unconfirmed</b> reads hold a run of '
@@ -757,7 +863,7 @@ def render_sample(data):
             png = f'{data.get("onion_plots_dir", "graphs/onion_skin")}/{data["base_name"]}_{end}_ycopies_schematic.png'
             # an end without onion-skin reads has no schematic: plain text, not a dead link
             cell = (html.escape(end) if end == 'ALL' or not os.path.exists(os.path.join(data['pipeline_dir'], png))
-                    else f'<a href="{html.escape(png)}">{html.escape(end)}</a>')
+                    else flink(data, png, html.escape(end)))
             n = lambda k: to_int(r.get(k)) or 0
             # summaries written before the named/unconfirmed split carry n_same_donor_repeat
             named = n('n_named_repeat') if 'n_named_repeat' in r else n('n_same_donor_repeat')
@@ -780,6 +886,10 @@ def render_sample(data):
     yvs = data.get('yvariants')
     if yvs is not None:
         out.append('<h3>Recombinant Y&prime; variants</h3>')
+        out.append(file_links(data, [(f'recombination_events/{b0}_yprime_variants.tsv', 'variants'),
+                                     (f'recombination_events/{b0}_yprime_variants.fasta', 'consensus FASTA'),
+                                     (f'recombination_events/{b0}_yprime_variant_copies.tsv.gz', 'per-copy calls')],
+                              'Files:'))
         out.append('<p class="note">Y&prime; copies built from pieces of two or more day-0 Y&prime;s '
                    '(e.g. the 5&prime; part of one element and the rest of another). Every copy is compared '
                    'with all day-0 Y&prime;s at once; a variant is listed only when the same pieces recur '
@@ -812,7 +922,12 @@ def render_sample(data):
             out.append('</tbody></table></div>')
 
     # ---- telomere ---------------------------------------------------------------------
-    out.append('<h2>Telomere repeat length</h2>')
+    out.append('<h2 id="telomere">Telomere repeat length</h2>')
+    out.append(file_links(data, [(f'graphs/telomere_figures/{b0}_500bp.png', 'length, 0&ndash;500 bp'),
+                                 (f'graphs/telomere_figures/{b0}_10kb.png', 'length, 0&ndash;10 kb'),
+                                 (f'graphs/telomere_figures/{b0}_facet_by_chr.png', 'length by end'),
+                                 ('graphs/telomere_figures/individual_chromosomes', 'per-end plots'),
+                                 (f'{b0}_post_telo_trimming.tsv', 'per-read lengths')], 'Figures:'))
     if telo_stats:
         out.append('<div class="tiles">')
         for k, lab in (('n', 'Reads w/ tract'), ('median', 'Median'), ('mean', 'Mean'),
@@ -828,7 +943,9 @@ def render_sample(data):
         out.append('<p class="muted">No telomere length data available.</p>')
 
     # ---- per-read table ---------------------------------------------------------------
-    out.append('<h2>Per-read detail</h2>')
+    out.append('<h2 id="per-read">Per-read detail</h2>')
+    out.append(file_links(data, [('recombination', 'all reads, per end (folder)'),
+                                 ('recombination_events', 'recombinant reads, per end (folder)')], 'Files:'))
     if data['reads']:
         # Recombinant reads only, capped: one row per analysed read made a day-0 report ~19 MB
         # (53k rows), too big for a browser tab. Every other section above uses all reads.
@@ -868,7 +985,7 @@ def render_sample(data):
         out.append('<p class="muted">No per-read feature data available.</p>')
 
     # ---- pipeline completeness --------------------------------------------------------
-    out.append('<h2>Pipeline completeness</h2>')
+    out.append('<h2 id="completeness">Pipeline completeness</h2>')
     out.append('<p class="note">What this report could and could not read. A report is written '
                'even when a run fails part-way, so this table is how you tell an empty section '
                'from a genuine zero.</p>')
@@ -967,6 +1084,8 @@ def build_one(pipeline_dir, base_name, output, onion_plots_dir='graphs/onion_ski
     print(f'  collecting: {base_name}')
     data = collect(pipeline_dir, base_name)
     data['onion_plots_dir'] = onion_plots_dir
+    # links are relative to wherever the report is written (default: inside the pipeline dir)
+    data['link_base'] = os.path.relpath(os.path.abspath(pipeline_dir), os.path.dirname(os.path.abspath(output)))
     body = render_sample(data)
     sub = (f'day-0 comparison &middot; generated {datetime.now():%Y-%m-%d %H:%M} &middot; '
            f'<span class="mono">{html.escape(pipeline_dir)}</span>')
