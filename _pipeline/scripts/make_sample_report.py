@@ -215,6 +215,7 @@ INPUT_SPEC = [
     ('ypstats',      "Y' statistics",         'graphs/stats_for_y_primes/*_stats_y_prime.txt',      'single_sample_plots'),
     ('tracks',       "Track plots",           'graphs/recombination_tracks/*_tracks.png',           'recombination_track_plots'),
     ('onion',        "Onion-skin summary",    'recombination_events/{base}_onion_skin_summary.tsv', 'onion_skin'),
+    ('yvariants',    "Recombinant Y' variants", 'recombination_events/{base}_yprime_variants.tsv',  'yprime_variants'),
 ]
 
 
@@ -412,6 +413,10 @@ def collect(pipeline_dir, base_name):
     # -- onion skin: per-end summary of how gained Y' arrays were built -------------------
     onion = read_tsv(os.path.join(d, 'recombination_events', f'{base_name}_onion_skin_summary.tsv'))
     data['onion'] = [] if onion is None else onion.to_dict('records')
+
+    # -- recombinant Y' variants (yprime_variants.py); None = step not run -----------------
+    yv = read_tsv(os.path.join(d, 'recombination_events', f'{base_name}_yprime_variants.tsv'))
+    data['yvariants'] = None if yv is None else yv.to_dict('records')
     return data
 
 
@@ -770,6 +775,41 @@ def render_sample(data):
                 f'<td data-v="{n("n_circle_unassigned")}">{n("n_circle_unassigned"):,}</td>'
                 f'<td style="text-align:left">{html.escape(str(r.get("top_donors") or ""))}</td></tr>')
         out.append('</tbody></table></div>')
+
+    # ---- recombinant Y' variants ------------------------------------------------------
+    yvs = data.get('yvariants')
+    if yvs is not None:
+        out.append('<h3>Recombinant Y&prime; variants</h3>')
+        out.append('<p class="note">Y&prime; copies built from pieces of two or more day-0 Y&prime;s '
+                   '(e.g. the 5&prime; part of one element and the rest of another). Every copy is compared '
+                   'with all day-0 Y&prime;s at once; a variant is listed only when the same pieces recur '
+                   '(&ge;10 copies at &ge;3 ends) and a consensus of those copies confirms them. '
+                   '<b>Pieces</b> give each donor and its span along the variant (bp); '
+                   '<b>a|b</b> means both elements are identical there. <b>Switch</b> is the interval '
+                   'holding the template switch. <b>Called</b> is the ID the recombination analysis gives '
+                   'these copies, and <b>% of called</b> the share of all copies with that ID. '
+                   'Report only: the recombination calls above do not use this.</p>')
+        if not yvs:
+            out.append('<p class="muted">No recurring recombinant Y&prime; variant in this sample.</p>')
+        else:
+            out.append('<div class="scroll"><table class="sortable"><thead><tr><th>variant</th>'
+                       '<th>pieces</th><th>switch (bp)</th><th>copies</th><th>reads</th><th>ends</th>'
+                       '<th>called</th><th>% of called</th><th>edits to nearest Y&prime;</th></tr></thead><tbody>')
+            for r in yvs:
+                n = lambda k: to_int(r.get(k)) or 0
+                pct_called = to_num(r.get('pct_of_label_copies')) or 0
+                out.append(
+                    f'<tr><td>{html.escape(str(r.get("variant", "")))}</td>'
+                    f'<td style="text-align:left">{html.escape(str(r.get("segments") or ""))}</td>'
+                    f'<td>{html.escape(str(r.get("switch_intervals") or ""))}</td>'
+                    f'<td data-v="{n("copies")}">{n("copies"):,}</td>'
+                    f'<td data-v="{n("reads")}">{n("reads"):,}</td>'
+                    f'<td data-v="{n("ends")}">{n("ends")}</td>'
+                    f'<td>{html.escape(str(r.get("pipeline_labels") or ""))}</td>'
+                    f'<td data-v="{pct_called}">{pct_called:.1f}</td>'
+                    f'<td data-v="{n("nearest_edits_hp")}">{n("nearest_edits_hp")} '
+                    f'({html.escape(str(r.get("nearest_template") or ""))})</td></tr>')
+            out.append('</tbody></table></div>')
 
     # ---- telomere ---------------------------------------------------------------------
     out.append('<h2>Telomere repeat length</h2>')

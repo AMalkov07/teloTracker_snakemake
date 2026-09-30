@@ -89,6 +89,7 @@ rule all:
         f"{RESULTS}/recombination_events/.events_extracted",
         f"{GRAPH_DIR}/recombination_tracks/.plots_done",
         f"{GRAPH_DIR}/onion_skin/.plots_done",
+        f"{RESULTS}/recombination_events/{BASE}_yprime_variants.tsv",
         # Pull in the same outputs as `through_y_prime_analysis` so a single
         # `snakemake all` invocation also produces the single-sample plots
         # without the wrapper having to name multiple targets.
@@ -485,6 +486,34 @@ rule onion_skin:
             {params.recomb_dir} {params.base_name} {params.plots_dir} \
             --schematic --reads {params.read_ids} --tiers {output.events} --onion-only
         touch {output.marker}
+        """
+
+# Recombinant Y' variants: copies built from pieces of two or more day-0 Y's (e.g. the 5' part
+# of one element and the rest of another). RepeatMasker names such a copy after one parent; this
+# step re-reads every Y' copy against all of the day-0 Y's and reports the recombinants that recur
+# (consensus-confirmed). Report-only: no existing output changes.
+rule yprime_variants:
+    input:
+        features = expand(f"{RECOMB_DIR}/{BASE}_{{ce}}_features.tsv", ce=CHROM_ENDS),
+        reads    = expand(f"{TELO_DIR}/{BASE}_{{ce}}_telomere_reads.fasta", ce=CHROM_ENDS),
+        day0_ref = DAY0_REF,
+        day0_bed = DAY0_BED,
+    output:
+        tsv    = f"{RESULTS}/recombination_events/{BASE}_yprime_variants.tsv",
+        copies = f"{RESULTS}/recombination_events/{BASE}_yprime_variant_copies.tsv.gz",
+        fasta  = f"{RESULTS}/recombination_events/{BASE}_yprime_variants.fasta",
+    params:
+        recomb_dir = RECOMB_DIR,
+        telo_dir   = TELO_DIR,
+        base_name  = BASE,
+        out_dir    = f"{RESULTS}/recombination_events",
+    threads: workflow.cores
+    shell:
+        """
+        python _pipeline/scripts/yprime_variants.py \
+            {params.base_name} {params.recomb_dir} {params.telo_dir} \
+            --day0-ref {input.day0_ref} --day0-bed {input.day0_bed} \
+            --out-dir {params.out_dir} --threads {threads}
         """
 
 rule recombination_track_plots:
