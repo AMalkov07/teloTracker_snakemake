@@ -493,6 +493,15 @@ a{color:var(--accent)} .files{font-size:12.5px;margin:4px 0 10px}
 .filegrid{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:12.5px}
 .filegrid .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-top:2px}
 td a{margin-right:6px}
+#viewer{position:fixed;inset:0;background:var(--bg);z-index:50;display:none;flex-direction:column}
+#viewer.on{display:flex}
+#viewer .bar{display:flex;gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);font-size:12.5px;flex-wrap:wrap}
+#viewer .bar b{font-size:13.5px} #viewer .bar input{font:inherit;padding:3px 7px;border:1px solid var(--line);border-radius:5px;background:var(--card);color:var(--fg);min-width:200px}
+#viewer .bar button{font:inherit;padding:3px 10px;border:1px solid var(--line);border-radius:5px;background:var(--card);color:var(--fg);cursor:pointer;margin-left:auto}
+#viewer .body{flex:1;overflow:auto;padding:0 16px 16px}
+#viewer pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre-wrap;word-break:break-all}
+#viewer td{text-align:left;max-width:420px;overflow:hidden;text-overflow:ellipsis}
+#viewer th{text-align:left}
 code{background:var(--chip);padding:1px 5px;border-radius:3px;font-size:11.5px}
 """
 
@@ -515,6 +524,93 @@ document.querySelectorAll('table.sortable').forEach(function(t){
     });
   });
 });
+"""
+
+
+VIEWER_JS = r"""
+(function(){
+  var MAX_ROWS = 2000;
+  var v = document.createElement('div'); v.id = 'viewer';
+  v.innerHTML = '<div class="bar"><b id="vw-name"></b><span id="vw-info" class="muted"></span>' +
+    '<input id="vw-filter" placeholder="filter rows (any column)" style="display:none">' +
+    '<a id="vw-raw" href="#">open raw file</a><button id="vw-close">close (Esc)</button></div>' +
+    '<div class="body" id="vw-body"></div>';
+  document.body.appendChild(v);
+  var state = null;
+  function close(){ v.classList.remove('on'); document.getElementById('vw-body').innerHTML = ''; state = null; }
+  document.getElementById('vw-close').onclick = close;
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && v.classList.contains('on')) close(); });
+  function esc(x){ return String(x).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  async function readText(href){
+    var r = await fetch(href);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var buf = new Uint8Array(await r.arrayBuffer());
+    // still gzip-compressed (the server may already have unpacked it): decompress here
+    if (buf.length > 1 && buf[0] === 0x1f && buf[1] === 0x8b) {
+      if (typeof DecompressionStream === 'undefined') throw new Error('no gzip support');
+      return await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+    }
+    return new TextDecoder().decode(buf);
+  }
+  function drawTable(){
+    var q = document.getElementById('vw-filter').value.toLowerCase();
+    var rows = q ? state.rows.filter(function(r){ return r.join('\t').toLowerCase().indexOf(q) >= 0; }) : state.rows;
+    if (state.sort !== null) {
+      var i = state.sort, dir = state.asc ? 1 : -1;
+      rows = rows.slice().sort(function(a, b){
+        var x = a[i] || '', y = b[i] || '', nx = parseFloat(x), ny = parseFloat(y);
+        if (!isNaN(nx) && !isNaN(ny) && /^-?[\d.]/.test(x) && /^-?[\d.]/.test(y)) return dir * (nx - ny);
+        return dir * x.localeCompare(y);
+      });
+    }
+    var shown = rows.slice(0, MAX_ROWS);
+    document.getElementById('vw-info').textContent = state.rows.length.toLocaleString() + ' rows' +
+      (q ? ', ' + rows.length.toLocaleString() + ' match' : '') +
+      (rows.length > MAX_ROWS ? ' (first ' + MAX_ROWS.toLocaleString() + ' shown; filter or sort to see others)' : '') +
+      ' · click a header to sort';
+    var h = '<table><thead><tr>' + state.head.map(function(c, j){
+      return '<th data-i="' + j + '">' + esc(c) + (state.sort === j ? (state.asc ? ' ▲' : ' ▼') : '') + '</th>';
+    }).join('') + '</tr></thead><tbody>';
+    for (var k = 0; k < shown.length; k++) {
+      h += '<tr>' + shown[k].map(function(c){ return '<td title="' + esc(c) + '">' + esc(c) + '</td>'; }).join('') + '</tr>';
+    }
+    document.getElementById('vw-body').innerHTML = h + '</tbody></table>';
+    document.querySelectorAll('#vw-body th').forEach(function(th){
+      th.onclick = function(){ var j = +th.dataset.i; state.asc = state.sort === j ? !state.asc : true; state.sort = j; drawTable(); };
+    });
+  }
+  document.getElementById('vw-filter').oninput = function(){ if (state) drawTable(); };
+  document.addEventListener('click', async function(e){
+    var a = e.target.closest && e.target.closest('a[data-view]');
+    if (!a || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    var href = a.getAttribute('href');
+    e.preventDefault();
+    try {
+      var text = await readText(href);
+      document.getElementById('vw-name').textContent = href.split('/').pop();
+      document.getElementById('vw-raw').href = href;
+      var f = document.getElementById('vw-filter'); f.value = '';
+      if (a.dataset.view === 'table') {
+        var lines = text.replace(/\r/g, '').split('\n').filter(function(l){ return l.length; });
+        var comments = [];
+        while (lines.length && lines[0].charAt(0) === '#') comments.push(lines.shift());
+        state = {head: (lines.shift() || '').split('\t'), rows: lines.map(function(l){ return l.split('\t'); }),
+                 sort: null, asc: true};
+        f.style.display = '';
+        drawTable();
+        if (comments.length) document.getElementById('vw-body').insertAdjacentHTML('afterbegin',
+          '<pre class="muted">' + esc(comments.join('\n')) + '</pre>');
+      } else {
+        state = null; f.style.display = 'none';
+        document.getElementById('vw-info').textContent = text.length.toLocaleString() + ' characters';
+        document.getElementById('vw-body').innerHTML = '<pre>' + esc(text) + '</pre>';
+      }
+      v.classList.add('on'); document.getElementById('vw-body').scrollTop = 0;
+    } catch (err) {
+      window.location.href = href;   // cannot read it here (e.g. opened as a local file): normal link
+    }
+  });
+})();
 """
 
 
@@ -541,7 +637,21 @@ def flink(data, rel, text):
     if not os.path.exists(os.path.join(data['pipeline_dir'], rel)):
         return f'<span class="muted">{text}</span>'
     href = os.path.join(data.get('link_base', '.'), rel)
-    return f'<a href="{html.escape(href)}">{text}</a>'
+    return f'<a href="{html.escape(href)}"{view_attr(rel)}>{text}</a>'
+
+
+# Files a browser would download rather than show: the report opens them in its own viewer (VIEWER_JS),
+# reading the original file each time -- no copies are written.
+VIEW_TABLE = ('.tsv', '.tsv.gz')
+VIEW_TEXT = ('.md', '.fasta', '.fa')
+
+
+def view_attr(rel):
+    if rel.endswith(VIEW_TABLE):
+        return ' data-view="table"'
+    if rel.endswith(VIEW_TEXT):
+        return ' data-view="text"'
+    return ''
 
 
 def file_links(data, items, label='', bare=False):
@@ -1009,7 +1119,7 @@ def page(title, body, subtitle=''):
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{html.escape(title)}</title><style>{CSS}</style></head><body><div class="wrap">'
             f'<h1>{html.escape(title)}</h1><p class="sub">{subtitle}</p>{body}'
-            f'</div><script>{JS}</script></body></html>')
+            f'</div><script>{JS}{VIEWER_JS}</script></body></html>')
 
 
 def render_comparison(all_data):
