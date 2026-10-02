@@ -122,6 +122,8 @@ def validate_cfg(cfg: dict, steps: list):
     if not anchors_fa.is_file():
         errors.append(f"anchor_set '{anchor_set}' has no anchor file at {anchors_fa} "
                       f"(expected _pipeline/references/<anchor_set>.fasta)")
+    if "create_ref" in steps and cfg.get("polish_scope", "genome") not in ("genome", "ends"):
+        errors.append(f"polish_scope must be 'genome' or 'ends', not '{cfg.get('polish_scope')}'")
     if "create_ref" in steps and cfg.get("base_reference"):
         base_ref = PIPELINE_DIR / cfg["base_reference"]
         if not base_ref.is_file():
@@ -336,6 +338,7 @@ def step_create_ref(cfg: dict, dry_run: bool = False):
     if dorado_image:
         print(f"  dorado_image: {dorado_image}")
     print(f"  dorado_model: {dorado_model}")
+    print(f"  polish_scope: {cfg.get('polish_scope', 'genome')}")
 
     # 1. Write Snakemake config.yaml
     print("\n  Writing config.yaml for Snakemake...")
@@ -358,6 +361,8 @@ def step_create_ref(cfg: dict, dry_run: bool = False):
         # sets base_reference to its own <strain>_only_to_anchors.fasta.
         "REFERENCE":    cfg.get("base_reference",
                                 "_pipeline/references/6991_only_to_anchors.fasta"),
+        "POLISH_SCOPE": cfg.get("polish_scope", "genome"),
+        "POLISH_END_FLANK": str(cfg.get("polish_end_flank", 5000)),
     }
     if dorado_image:
         subs["DORADO_IMAGE"] = dorado_image
@@ -591,6 +596,12 @@ make_report: true
 # needs its own set, and a matching truncated base reference for create_ref (below).
 anchor_set: "telomerase_shutoff_anchors"
 # base_reference: "_pipeline/references/6991_only_to_anchors.fasta"   # create_ref's base; default shown
+# Polishing scope for create_ref: "genome" polishes the whole reference with every read;
+# "ends" polishes each arm (extension + polish_end_flank bp of the base) with only the reads
+# anchored to it and leaves the interiors as the base reference. Use "ends" when the library
+# is end-enriched (interiors at a few x): genome-wide polishing at that depth corrupts them.
+# polish_scope: "genome"
+# polish_end_flank: 5000
 
 # BLAST parameter -- minimum raw gapped alignment score
 min_raw_gapped_score: 5000

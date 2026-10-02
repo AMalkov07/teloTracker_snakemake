@@ -31,6 +31,13 @@ PREFIX="assembly_${STRAIN_ID}"
 # Thread configuration
 THREADS=56
 
+# Polishing scope: "genome" polishes the whole extended reference with every read.
+# "ends" polishes each arm (its extension + POLISH_END_FLANK bp of the base contig) with only
+# the reads anchored to that arm, and leaves the base contig interiors unpolished. Use "ends"
+# for end-enriched libraries: interiors at a few x are corrupted by genome-wide polishing.
+POLISH_SCOPE="genome"
+POLISH_END_FLANK=5000
+
 ###### Below does NOT need to be adjusted ######
 
 # Reference configuration (paths relative to the repo root)
@@ -215,6 +222,89 @@ samtools faidx "${EXTENDED_REF}"
 
 echo "Extended reference saved to: ${EXTENDED_REF}"
 
+# Write a BAM's header with the basecaller model on its @RG line; dorado polish
+# reads it to choose its polishing model.
+add_model_to_header() {  # in.bam out.bam
+    local hdr="${2%.bam}.header.sam"
+    samtools view -H "$1" > "$hdr"
+    if grep -q "^@RG" "$hdr"; then
+        sed -i "s/^@RG\t/@RG\tDS:basecall_model=${DORADO_MODEL}\t/" "$hdr"
+    else
+        echo -e "@RG\tID:unknown\tDS:basecall_model=${DORADO_MODEL}" >> "$hdr"
+    fi
+    samtools reheader "$hdr" "$1" > "$2"
+    samtools index "$2"
+    rm "$hdr"
+}
+
+run_dorado() {  # dorado subcommand and arguments
+    if [[ "$DORADO_MODE" == "docker" ]]; then
+        singularity exec --nv --env PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True "${DORADO_IMAGE}" dorado "$@"
+    elif [[ "$DORADO_MODE" == "local" ]]; then
+        dorado "$@"
+    else
+        echo "ERROR: unknown mode '$DORADO_MODE'"; return 1
+    fi
+}
+
+if [[ "$POLISH_SCOPE" == "ends" ]]; then
+
+# ============================================================================
+# Steps 6-8 (ends): polish each arm with its own anchored reads
+# ============================================================================
+
+echo ""
+echo "========================================================================"
+echo "Steps 6-8: Polishing each arm with the reads anchored to it (POLISH_SCOPE=ends)"
+echo "========================================================================"
+
+ENDS_DIR="${OUTPUT_DIR}/end_polish"
+rm -rf "${ENDS_DIR}"
+
+python "${SCRIPTS_DIR}/polish_ends.py" prepare \
+    --extended "${EXTENDED_REF}" --base "${REFERENCE}" --tsv "${INPUT_TSV}" \
+    --reads "${TRIMMED_FASTQ}" --flank "${POLISH_END_FLANK}" --outdir "${ENDS_DIR}"
+
+while IFS=$'\t' read -r END_ID CONTIG SIDE EXT_BP FLANK_BP SEG_BP N_READS DO_POLISH; do
+    [[ "$DO_POLISH" == "yes" ]] || continue
+    D="${ENDS_DIR}/${END_ID}"
+    echo "--- ${END_ID}: ${N_READS} anchored reads, ${SEG_BP} bp segment"
+    if flye --polish-target "$D/segment.fasta" --nano-hq "$D/reads.fastq" \
+            --out-dir "$D/flye" --threads "${THREADS}" -i 3 > "$D/flye.stdout" 2>&1; then
+        cp "$D/flye/polished_3.fasta" "$D/flye.fasta"
+    else
+        echo "WARNING: ${END_ID} Flye polish failed (see $D/flye.stdout); arm left unpolished"
+        continue
+    fi
+    if run_dorado aligner "$D/flye.fasta" "$D/reads.fastq" | samtools sort -@ "$THREADS" > "$D/aligned.bam" \
+       && add_model_to_header "$D/aligned.bam" "$D/aligned_with_model.bam" \
+       && run_dorado polish "$D/aligned_with_model.bam" "$D/flye.fasta" \
+              --threads $THREADS --batchsize 4 --draft-batchsize 500K \
+              --bam-chunk 20000 --bam-subchunk 2000 \
+              --window-len 7000 --window-overlap 3000 \
+              --ignore-read-groups --vcf --min-mapq 20 --min-depth 5 \
+              --output-dir "$D/dorado" > "$D/dorado.stdout" 2>&1; then
+        cp "$D/dorado/consensus.fasta" "$D/dorado.fasta"
+    else
+        echo "WARNING: ${END_ID} dorado polish failed (see $D/dorado.stdout); arm keeps its Flye polish"
+        cp "$D/flye.fasta" "$D/dorado.fasta"
+    fi
+done < <(tail -n +2 "${ENDS_DIR}/manifest.tsv")
+
+python "${SCRIPTS_DIR}/polish_ends.py" splice --extended "${EXTENDED_REF}" \
+    --outdir "${ENDS_DIR}" --polished-name flye.fasta --output "${FLYE_REF}"
+python "${SCRIPTS_DIR}/polish_ends.py" splice --extended "${EXTENDED_REF}" \
+    --outdir "${ENDS_DIR}" --polished-name dorado.fasta --output "${DORADO_REF}"
+
+rm -f "${FLYE_REF}.fai" "${DORADO_REF}.fai"
+samtools faidx "${FLYE_REF}"
+samtools faidx "${DORADO_REF}"
+
+echo "Flye polished reference (arms only): ${FLYE_REF}"
+echo "Dorado polished reference (arms only) saved to: ${DORADO_REF}"
+
+elif [[ "$POLISH_SCOPE" == "genome" ]]; then
+
 # ============================================================================
 # Step 6: Polish with Flye
 # ============================================================================
@@ -346,6 +436,20 @@ rm -f "${DORADO_REF}.fai"
 samtools faidx "${DORADO_REF}"
 
 echo "Dorado polished reference saved to: ${DORADO_REF}"
+
+# Genome-wide polishing at low depth deletes sequence rather than correcting it; a large
+# length change means the library does not cover the interiors (use POLISH_SCOPE="ends").
+awk -v e="$(awk '{s+=$2} END{print s}' "${EXTENDED_REF}.fai")" '{s+=$2} END{
+    d = (s - e) / e * 100
+    printf "Total length: %d bp extended -> %d bp polished (%+.2f%%)\n", e, s, d
+    if (d < -2 || d > 2) print "WARNING: polishing changed the genome length by more than 2%; " \
+        "interiors are probably under-covered. Consider POLISH_SCOPE=\"ends\"."
+}' "${DORADO_REF}.fai"
+
+else
+    echo "ERROR: unknown POLISH_SCOPE '${POLISH_SCOPE}' (use \"genome\" or \"ends\")"
+    exit 1
+fi
 
 
 # ============================================================================
