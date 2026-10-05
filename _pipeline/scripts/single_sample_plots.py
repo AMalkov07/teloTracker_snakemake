@@ -94,7 +94,9 @@ def histogram_plot_500bp_chr_facet(dataframe, size=(16, 11)):
 
     save_file_name = os.path.join(telomere_figures, f'{title_name}_facet_by_chr.png')
     print(f'Graphing {save_file_name}...')
-    g.savefig(save_file_name, dpi=300, format="png")
+    # 32 panels of 7.5 x 5 in make a ~30 x 40 in figure: at 300 dpi that was ~9,000 x 12,000 px
+    # (~105 MP), too big for browsers / VS Code to show. 100 dpi keeps the layout (~12 MP).
+    g.savefig(save_file_name, dpi=100, format="png")
     plt.close()
 
 
