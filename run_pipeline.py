@@ -85,10 +85,14 @@ def merge_configs(file_cfg: dict, args) -> dict:
         "dorado_image":   args.dorado_image,
         "dorado_model":   args.dorado_model,
         "reference_fasta": args.reference_fasta,
+        "input_type":     args.input_type,
     }
     for key, val in cli_map.items():
         if val is not None:
             cfg[key] = val
+
+    if args.no_adapter_check:
+        cfg["adapter_check"] = False
 
     # Samples for the analyze step
     if args.samples:
@@ -133,6 +137,12 @@ def normalize_cfg(cfg: dict) -> dict:
     return cfg
 
 
+def pipeline_path(path) -> Path:
+    """A config path: absolute, or relative to the pipeline directory."""
+    path = Path(path)
+    return path if path.is_absolute() else PIPELINE_DIR / path
+
+
 def validate_cfg(cfg: dict, steps: list):
     errors = []
 
@@ -145,9 +155,20 @@ def validate_cfg(cfg: dict, steps: list):
 
     if "create_ref" in steps:
         mode = cfg.get("dorado_mode", "docker")
-        if mode == "docker" and not cfg.get("dorado_image"):
-            print("WARNING: dorado_mode is 'docker' but no dorado_image specified. "
-                  "create_ref.sh will use its own hardcoded DORADO_IMAGE value.")
+        if mode not in ("docker", "local"):
+            errors.append(f"dorado_mode must be 'docker' or 'local', not '{mode}'")
+        elif mode == "docker":
+            image = cfg.get("dorado_image")
+            if not image:
+                errors.append("dorado_mode is 'docker' but dorado_image is not set: point it at a "
+                              "Singularity .sif with dorado")
+            elif not pipeline_path(image).is_file():
+                errors.append(f"dorado_image not found: {image}")
+
+    if "label_regions" in steps:
+        for key in ("label_yprime_fasta", "label_x_fasta"):
+            if cfg.get(key) and not pipeline_path(cfg[key]).is_file():
+                errors.append(f"{key} not found: {cfg[key]}")
 
     for step in ("profile", "recombination"):
         if step in steps and not step_samples(cfg):
@@ -176,6 +197,11 @@ def validate_cfg(cfg: dict, steps: list):
                   "which uses the threshold only when there are two Y' variants. For a fixed "
                   "cutoff set yprime_grouping: <percent> (e.g. 99.5).")
 
+    try:
+        resolve_yprime_reference(cfg, recombination=False)
+    except ValueError as e:
+        errors.append(str(e))
+
     # anchor_set now selects the anchor FASTA itself (not just output filenames), so a
     # missing file must fail here with a clear message rather than deep inside BLAST.
     anchor_set = cfg.get("anchor_set", "telomerase_shutoff_anchors")
@@ -183,6 +209,22 @@ def validate_cfg(cfg: dict, steps: list):
     if not anchors_fa.is_file():
         errors.append(f"anchor_set '{anchor_set}' has no anchor file at {anchors_fa} "
                       f"(expected _pipeline/references/<anchor_set>.fasta)")
+    input_type = cfg.get("input_type", "reads")
+    if input_type not in ("reads", "contigs"):
+        errors.append(f"input_type must be 'reads' or 'contigs', not '{input_type}'")
+    elif input_type == "contigs":
+        for step in ("create_ref", "recombination"):
+            if step in steps:
+                errors.append(f"{step} needs reads: input_type 'contigs' is for --steps profile only")
+    if not isinstance(cfg.get("adapter_check", True), bool):
+        errors.append(f"adapter_check must be true or false, not '{cfg.get('adapter_check')}'")
+    for key, default in (("min_read_length", 2000), ("min_qscore", 10)):
+        try:
+            if float(cfg.get(key, default)) < 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            errors.append(f"{key} must be a number >= 0, not '{cfg.get(key)}'")
+
     if "create_ref" in steps and cfg.get("polish_scope", "genome") not in ("genome", "ends"):
         errors.append(f"polish_scope must be 'genome' or 'ends', not '{cfg.get('polish_scope')}'")
     if "create_ref" in steps and cfg.get("base_reference"):
@@ -304,6 +346,13 @@ def snakemake_config_text(cfg: dict, recombination: bool = True) -> str:
         "# BLAST parameter",
         f"min_raw_gapped_score: {min_gapped}",
         "",
+        "# Profiling: input_type reads (basecalls) or contigs (assemblies); read filters; whether reads",
+        "# must show the sequencing adapter after the telomere (off for adapter-trimmed or public reads)",
+        f'input_type: "{cfg.get("input_type", "reads")}"',
+        f"adapter_check: {'true' if adapter_check_on(cfg) else 'false'}",
+        f"min_read_length: {cfg.get('min_read_length', 2000)}",
+        f"min_qscore: {cfg.get('min_qscore', 10)}",
+        "",
     ]
     if recombination:
         lines += [
@@ -313,7 +362,13 @@ def snakemake_config_text(cfg: dict, recombination: bool = True) -> str:
             f'y_prime_id_level: "{cfg.get("y_prime_id_level", "family")}"',
             "",
         ]
+    yp_path, yp_label = resolve_yprime_reference(cfg, recombination)
     lines += [
+        "# Expected Y' copies per end: the zero line of the delta-Y' plots (yprime_reference;",
+        "# an empty path means none, and the plots show absolute counts)",
+        f'yprime_reference_path: "{yp_path}"',
+        f'yprime_reference_label: "{yp_label}"',
+        "",
         "# Paths to references",
         "references:",
         # Derived from anchor_set so a strain-specific set is actually used, not just
@@ -338,6 +393,38 @@ def snakemake_config_text(cfg: dict, recombination: bool = True) -> str:
             "",
         ]
     return "\n".join(lines)
+
+
+def resolve_yprime_reference(cfg: dict, recombination: bool):
+    """(file, label) of the expected Y' counts for cfg's yprime_reference (default auto); file is
+    relative to the pipeline directory when inside it, '' for none. In recombination runs, auto
+    falls back to the day-0 sample's label BED. Raises ValueError for an unknown name or file."""
+    yr = _scripts_import("yprime_reference")
+    value = cfg.get("yprime_reference", "auto")
+    text = "" if value is None else str(value).strip()
+    if text.lower() not in ("", "auto", "none") and ("/" in text or text.endswith((".bed", ".tsv"))):
+        value = str(PIPELINE_DIR / text)          # files are given relative to the pipeline directory
+    day0_bed = (str(PIPELINE_DIR / day0_files(cfg)["day0_bed"])
+                if recombination and cfg.get("strain") and cfg.get("base_name") else None)
+    path, label = yr.resolve(value, cfg.get("strain"), day0_bed, str(PIPELINE_DIR / "_pipeline" / "references"))
+    if path:
+        rel = os.path.relpath(path, PIPELINE_DIR)
+        path = path if rel.startswith("..") else rel
+    return path or "", label
+
+
+def adapter_check_on(cfg: dict) -> bool:
+    """Whether profiling checks for the sequencing adapter after the telomere (never for contigs)."""
+    return bool(cfg.get("adapter_check", True)) and cfg.get("input_type", "reads") == "reads"
+
+
+def missing_sample_inputs(cfg: dict, samples: list, root: Path = None) -> list:
+    """One line per sample whose input file is not in bam_dir (by input_type's extensions)."""
+    pre = _scripts_import("prerequisites")
+    candidates = pre.INPUT_TYPES.get(cfg.get("input_type", "reads"), pre.READ_INPUTS)
+    input_dir = str(Path(root or PIPELINE_DIR) / cfg.get("bam_dir", "samples_dorado_basecalled"))
+    return [f"input for sample {s}: none of {pre.tried_inputs(input_dir, s, candidates)}"
+            for s in samples if pre.find_sample_input(input_dir, s, candidates) is None]
 
 
 def step_samples(cfg: dict) -> list:
@@ -367,11 +454,7 @@ def check_recombination_prereqs(cfg: dict, samples: list, root: Path = None) -> 
     problems = [f"{what}: {path}  ({hint})" for what, path, hint in pre.missing_day0_inputs(
         *(str(root / day0[k]) for k in ("day0_ref", "day0_bed", "y_prime_lib",
                                          "spacer_lib_dir", "x_element_lib")))]
-    input_dir = root / cfg.get("bam_dir", "samples_dorado_basecalled")
-    for sample in samples:
-        if pre.find_sample_input(str(input_dir), sample) is None:
-            problems.append(f"input for sample {sample}: none of {pre.tried_inputs(str(input_dir), sample)}")
-    return problems
+    return problems + missing_sample_inputs(cfg, samples, root)
 
 
 # ------------------------------------------------------------------------------
@@ -559,6 +642,10 @@ def step_label_regions(cfg: dict, dry_run: bool = False):
     anchor_set = cfg.get("anchor_set", "telomerase_shutoff_anchors")
     if anchor_set != "telomerase_shutoff_anchors":
         subs["ANCHORS_FASTA"] = f"_pipeline/references/{anchor_set}.fasta"
+    # The Y' and X sequences labelling searches the reference with (default: 6991-derived libraries).
+    for key, var in (("label_yprime_fasta", "YPRIMES_FASTA"), ("label_x_fasta", "XPRIMES_FASTA")):
+        if cfg.get(key):
+            subs[var] = cfg[key]
 
     patched = patch_script(PIPELINE_DIR / "_pipeline" / "label_regions.sh", subs)
 
@@ -643,6 +730,16 @@ def step_profile(cfg: dict, dry_run: bool = False):
     threads = cfg.get("threads", 56)
     print(f"  samples: {samples}")
     print(f"  threads: {threads}")
+    print(f"  input:   {cfg.get('input_type', 'reads')}, adapter check "
+          f"{'on' if adapter_check_on(cfg) else 'off'}")
+
+    missing = missing_sample_inputs(cfg, samples)
+    if missing:
+        print("\n  " + ("WARNING (dry run):" if dry_run else "ERROR: profiling cannot start; missing:"))
+        for m in missing:
+            print(f"    {m}")
+        if not dry_run:
+            sys.exit(1)
 
     for sample in samples:
         print(f"\n  --- Sample: {sample} ---")
@@ -750,7 +847,8 @@ SAMPLE_CONFIG = """\
 # Base name of your day-0 sample (no file extension, no .bam)
 base_name: "dorado_7302_day0_PromethION_no_tag_yes_rejection"
 
-# Yeast strain identifier
+# Yeast strain identifier (names the day-0 reference, label and library files; not needed for
+# --steps profile). The curated day-0 strains ship as 6991_curated, 7172_curated, 7302_curated.
 strain: "7302"
 
 # Directory containing input BAM/FASTQ files
@@ -761,11 +859,38 @@ bam_dir: "samples_dorado_basecalled"
 # "docker" uses a Singularity .sif image; "local" uses dorado from PATH
 dorado_mode: "docker"
 
-# Full path to the Dorado Singularity image (only needed when dorado_mode: docker)
+# Full path to the Dorado Singularity image (required when dorado_mode: docker; create_ref
+# stops up front if it is missing)
 dorado_image: "/path/to/dorado.sif"
 
 # Basecaller model that was used to generate the reads
 dorado_model: "dna_r10.4.1_e8.2_400bps_sup@v5.2.0"
+
+# -- Profiling (all steps; --steps profile runs only this part) -----------------
+
+# reads   = BAM / FASTQ basecalls in bam_dir (default)
+# contigs = an assembled genome, <base_name>.fasta / .fa / .fna (.gz) in bam_dir; profile only:
+#           each contig is cut into two halves, one per chromosome end
+input_type: "reads"
+
+# Telomere reads count as "qualifying" (telomere plots, Y' plots, read summary) only when the
+# sequencing adapter follows the telomere, which shows the read reached the molecule's end.
+# Set false for reads without adapters (dorado's default trimming, SRA/ENA downloads): porechop
+# is skipped and the telomere repeat alone decides. read_summary.tsv warns when reads look trimmed.
+adapter_check: true
+
+# Read filters (reads only): minimum length in bp, minimum mean qscore (qs:f tag; 0 = no filter)
+min_read_length: 2000
+min_qscore: 10
+
+# Expected Y' copies per chromosome end, the zero line of the delta-Y' plots:
+#   auto = the shipped reference named by strain (6991_curated, 7172_curated, 7302_curated, or a
+#          table in _pipeline/references/yprime_expected_counts/ such as 7372), else the day-0
+#          labels in recombination runs, else none
+#   none = no reference: plots show absolute Y' copies per end
+#   a shipped name (above, also 7021 7093 7154 7174 7250 7321 7323 7324 KRLT3_7637 tlc1),
+#   or a path to a label BED / counts TSV (chr_end<TAB>expected_y_primes)
+yprime_reference: "auto"
 
 # -- Optional / Defaults -------------------------------------------------------
 
@@ -813,6 +938,10 @@ yprime_boundary_trim: true
 #   average  = merge when the MEAN cross-cluster pair is above threshold (recommended default)
 #   single   = merge if ANY cross-cluster pair is above threshold (most permissive)
 yprime_linkage: "average"
+
+# Y' and X sequences label_regions searches a new reference with (default: 6991-derived).
+# label_yprime_fasta: "_pipeline/references/repeatmasker_6991_all_y_primes.fasta"
+# label_x_fasta: "_pipeline/references/6991_xprimes.fasta"
 
 # Override the automatically-extracted Y prime library with a curated one.
 # Uncomment and set if you want to use a specific FASTA.
@@ -919,6 +1048,14 @@ def parse_args():
     grp3.add_argument("--reference-fasta", metavar="PATH",
                       help="Custom reference FASTA for label_regions "
                            "(default: output of create_ref.sh)")
+
+    # Profiling
+    grp5 = parser.add_argument_group("profiling parameters")
+    grp5.add_argument("--input-type", choices=["reads", "contigs"],
+                      help="reads (BAM/FASTQ basecalls, default) or contigs (assembly FASTA; profile only)")
+    grp5.add_argument("--no-adapter-check", action="store_true",
+                      help="reads lack the sequencing adapter (adapter-trimmed or public data): skip "
+                           "porechop and count telomere reads by repeat length alone")
 
     # Recombination
     grp4 = parser.add_argument_group("recombination parameters")

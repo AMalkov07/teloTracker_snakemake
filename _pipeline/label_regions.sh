@@ -29,7 +29,8 @@ REFERENCE_DIR="results/${BASE_NAME}/_pipeline/assembly_${STRAIN_ID}"
 REFERENCE_FASTA="${REFERENCE_DIR}/assembly_${STRAIN_ID}_dorado_reference.fasta"
 #REFERENCE_FASTA="${REFERENCE_DIR}/${STRAIN_ID}.fasta"
 
-# Reference sequences for labeling (from strain 6991)
+# Reference sequences for labeling (from strain 6991; run_pipeline.py replaces the Y' and X
+# libraries with label_yprime_fasta / label_x_fasta when they are set)
 REFERENCES_DIR="_pipeline/references"
 ANCHORS_FASTA="${REFERENCES_DIR}/test_anchors.fasta"
 YPRIMES_FASTA="${REFERENCES_DIR}/repeatmasker_6991_all_y_primes.fasta"

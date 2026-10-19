@@ -17,7 +17,7 @@ Usage:
 
 Defaults:
     min_length = 2000
-    min_qscore = 10
+    min_qscore = 10    (0 turns the quality filter off)
 """
 
 import sys
@@ -76,7 +76,7 @@ print(f"  Total reads:        {total}")
 print(f"  Kept:               {kept}")
 print(f"  Skipped (qscore):   {skipped_qscore}  [qs < {min_qscore}]")
 print(f"  Skipped (length):   {skipped_length}  [len < {min_length}bp]")
-if missing_qs_tag:
+if missing_qs_tag and min_qscore > 0:
     print(f"  WARNING: {missing_qs_tag} reads had no qs:f: tag in their header — "
           f"they bypassed the qscore filter. Re-basecall with a Dorado version that "
           f"emits qs tags if strict quality filtering is required.")

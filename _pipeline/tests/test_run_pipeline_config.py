@@ -90,6 +90,24 @@ def test_recombination_config_points_at_the_day0_sample():
     assert 'x_element_lib: "results/d0/_pipeline/pretelomeric_labels/clustered_x_elements_{strain}.fasta"' in text
 
 
+def test_create_ref_needs_an_existing_dorado_image_in_docker_mode():
+    base = dict(base_name='s', strain='x')
+    assert exits(rp.validate_cfg, normalized(**base), ['create_ref'])                   # no image
+    assert exits(rp.validate_cfg, normalized(**base, dorado_image='/no/such.sif'), ['create_ref'])
+    assert not exits(rp.validate_cfg, normalized(**base, dorado_image=__file__), ['create_ref'])
+    assert not exits(rp.validate_cfg, normalized(**base, dorado_mode='local'), ['create_ref'])
+
+
+def test_label_libraries_are_checked_and_patched_in():
+    base = dict(base_name='s', strain='x')
+    assert exits(rp.validate_cfg, normalized(**base, label_x_fasta='no/such.fasta'), ['label_regions'])
+    y = '_pipeline/references/repeatmasker_6991_all_y_primes.chr16Lfix.fasta'
+    assert not exits(rp.validate_cfg, normalized(**base, label_yprime_fasta=y), ['label_regions'])
+    script = open(os.path.join(rp.PIPELINE_DIR, '_pipeline', 'label_regions.sh')).read()
+    out = rp.substitute_var(script, 'YPRIMES_FASTA', y, 'label_regions.sh')
+    assert f'YPRIMES_FASTA="{y}"' in out
+
+
 def test_recombination_prerequisites_are_listed_before_anything_runs():
     import tempfile
     with tempfile.TemporaryDirectory() as root:

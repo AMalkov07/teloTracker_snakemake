@@ -47,7 +47,7 @@ SCRIPTS_DIR="_pipeline/scripts"
 
 # Dorado configuration
 DORADO_MODE="docker"  # "docker" or "local"
-DORADO_IMAGE="/Shared/malkova_lab/dorado_files/docker_images_of_dorado/dorado-11-26-2025.sif"
+DORADO_IMAGE=""  # Singularity .sif with dorado (docker mode); run_pipeline.py sets it from dorado_image
 DORADO_MODEL="dna_r10.4.1_e8.2_400bps_sup@v5.2.0"  # Basecaller model used for original reads
 
 
@@ -58,6 +58,13 @@ DORADO_MODEL="dna_r10.4.1_e8.2_400bps_sup@v5.2.0"  # Basecaller model used for o
 echo "Starting telomere extension and polishing pipeline"
 echo "Date: $(date)"
 echo "Working directory: $(pwd)"
+
+# Polishing needs dorado; stop now rather than after the read processing and assembly.
+if [ "${DORADO_MODE}" = "docker" ] && [ ! -f "${DORADO_IMAGE}" ]; then
+    echo "ERROR: DORADO_MODE is docker but the dorado image is not set or not found: '${DORADO_IMAGE}'"
+    echo "       Set dorado_image in pipeline_config.yaml to a Singularity .sif with dorado."
+    exit 1
+fi
 
 conda activate consensus
 

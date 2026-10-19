@@ -10,6 +10,9 @@ if not config.get("strain"):
     print("ERROR: recombination is on but the config has no strain (it names the day-0 files)", file=sys.stderr)
     sys.exit(1)
 STRAIN = config["strain"]
+if INPUT_KIND != "reads":
+    print(f"ERROR: recombination needs reads (input_type: reads), not {INPUT_KIND}", file=sys.stderr)
+    sys.exit(1)
 
 # Day-0 reference + labels.  For the create_ref / label_regions steps these
 # default to results/<base_name>/.  For the recombination step on a later

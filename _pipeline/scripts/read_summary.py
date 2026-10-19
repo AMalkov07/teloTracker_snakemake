@@ -9,7 +9,8 @@ Two counts per chromosome end:
               simply the row count per chr_end.
 
   qualifying  Reads with a telomere that was actually found and measured —
-              Adapter_After_Telomere is True AND repeat_length >= 30. This is
+              Adapter_After_Telomere is True AND repeat_length >= 30 (only the
+              repeat length when the adapter check was off: --no-adapter-filter). This is
               the SAME filter single_sample_plots.py applies to build df_graph,
               so the qualifying total equals the N printed on the
               <base>_500bp.png and <base>_facet_by_chr.png titles, and the
@@ -23,7 +24,10 @@ qualifying count are the ones whose telomere and Y' numbers should not be
 trusted, which is exactly what this file is for.
 
 Usage:
-    python read_summary.py <base_name> <output_dir>
+    python read_summary.py <base_name> <output_dir> [--no-adapter-filter]
+
+The header also gives, per strand, the share of reads with a telomere that have an adapter after it,
+and a warning when the AC strand is so low that the reads look adapter-trimmed.
 
 Writes:
     <output_dir>/<base_name>_read_summary.tsv
@@ -35,8 +39,12 @@ import sys
 
 import pandas as pd
 
+from telomere_filters import MIN_TELOMERE_REPEAT, adapter_found, qualifying_mask
+
+# Usage: read_summary.py <base_name> <output_dir> [--no-adapter-filter]
 base_name  = sys.argv[1]
 output_dir = sys.argv[2]
+require_adapter = '--no-adapter-filter' not in sys.argv[3:]   # the adapter check was off
 
 input_tsv  = os.path.join(output_dir, f'{base_name}_post_y_prime_probe.tsv')
 output_tsv = os.path.join(output_dir, f'{base_name}_read_summary.tsv')
@@ -46,8 +54,29 @@ print(f'Opening {input_tsv}...')
 
 df = pd.read_csv(input_tsv, sep='\t')
 
-# Same filter as single_sample_plots.py df_graph
-is_qualifying = (df['repeat_length'] >= 30) & (df['Adapter_After_Telomere'] == True)
+# Same filter as single_sample_plots.py df_graph (telomere_filters.py)
+is_qualifying = qualifying_mask(df, require_adapter)
+
+# Reads that reach the telomere mostly carry the sequencing adapter after it: about 86 % of AC-strand
+# telomere reads in MinKNOW's own output. Far fewer means the adapters were trimmed off (dorado's
+# default trimming, or before a public upload), and those reads drop out of the qualifying set for
+# that reason alone. Warning only: nothing is changed.
+TRIMMED_AC_SHARE = 40.0
+adapter_share = {}
+if require_adapter and 'Repeat_Type' in df.columns:
+    has_telomere = pd.to_numeric(df['repeat_length'], errors='coerce') >= MIN_TELOMERE_REPEAT
+    for strand in ('AC', 'TG'):
+        sel = has_telomere & (df['Repeat_Type'] == strand)
+        if sel.sum():
+            adapter_share[strand] = (round(100 * adapter_found(df.loc[sel, 'Adapter_After_Telomere']).mean(), 1),
+                                     int(sel.sum()))
+trimmed_warning = None
+ac = adapter_share.get('AC')
+if ac and ac[1] >= 20 and ac[0] < TRIMMED_AC_SHARE:
+    trimmed_warning = (f'only {ac[0]}% of AC-strand reads with a telomere have an adapter after it '
+                       f'(MinKNOW output: about 86%). The reads look adapter-trimmed (dorado default '
+                       f'trimming, or public data), so most telomere reads are not counted as qualifying. '
+                       f'Basecall with --trim none, or set adapter_check: false.')
 
 chr_order = [f'{n}{arm}' for n in range(1, 17) for arm in ('L', 'R')]
 present   = [c for c in chr_order if c in df['chr_end'].unique()]
@@ -111,12 +140,23 @@ with open(output_tsv, 'w') as f:
         f.write(f'# removed as fold-back (hairpin) reads: {n_foldback}\n')
     if n_multi_end is not None:
         f.write(f'# removed as multi-end chimeras (anchors of two different ends): {n_multi_end}\n')
+    if adapter_share:
+        f.write('# adapter after the telomere (reads with a telomere): '
+                + ', '.join(f'{k} {v[0]}% of {v[1]}' for k, v in adapter_share.items()) + '\n')
+    if trimmed_warning:
+        f.write(f'# WARNING: {trimmed_warning}\n')
     f.write(f'# anchored: read carries that end\'s anchor\n')
-    f.write(f'# qualifying: Adapter_After_Telomere == True AND repeat_length >= 30\n')
+    if require_adapter:
+        f.write(f'# qualifying: Adapter_After_Telomere == True AND repeat_length >= {MIN_TELOMERE_REPEAT}\n')
+    else:
+        f.write(f'# qualifying: repeat_length >= {MIN_TELOMERE_REPEAT} (adapter check off)\n')
     f.write(f'#   (identical to the read set graphed in {base_name}_500bp.png)\n')
     summary.to_csv(f, sep='\t', index=False)
 
 print(summary.to_string(index=False))
+
+if trimmed_warning:
+    print(f'\nWARNING: {trimmed_warning}')
 
 low = summary[(summary['chr_end'] != 'ALL') & (summary['qualifying_reads'] < 10)]
 if len(low):

@@ -5,9 +5,12 @@ import seaborn as sns
 import numpy as np
 import sys
 
-# Usage: single_sample_plots.py <base_name> <output_dir>
+from telomere_filters import qualifying_mask
+
+# Usage: single_sample_plots.py <base_name> <output_dir> [--no-adapter-filter]
 base_name  = sys.argv[1]
 output_dir = sys.argv[2]
+require_adapter = '--no-adapter-filter' not in sys.argv[3:]   # the adapter check was off
 
 print("Starting single_sample_plots.py")
 print(f'Opening {base_name}...')
@@ -159,85 +162,12 @@ def histogram_plot_10kb(dataframe, size=(16, 11)):
     plt.close()
 
 
-def y_prime_count_violin_strip_plot(dataframe, x_plot='chr_end', y_plot='y_primes_relative_to_ref', plot_scale=(22, 9)):
-
-    sns.set(style="whitegrid")
-
-    chr_list = ([f'chr{n}R' for n in range(1, 17)] +
-                [f'chr{n}L' for n in range(1, 17)])
-    chr_list = [c for c in chr_list if c in dataframe[x_plot].unique()]
-
-    chr_color_code = ['#641E16', '#512E5F', '#4A235A', '#154360', '#2E86C1', '#0E6251', '#0B5345', '#145A32', '#7D6608', '#7E5109',
-                      '#D35400', '#626567', '#4D5656', '#212F3C', '#17202A', '#F93409', '#FFED24', '#CD6155', '#D7BDE2', '#BB8FCE',
-                      '#A9CCE3', '#AED6F1', '#A3E4D7', '#45B39D', '#229954', '#F7DC6F', '#F5B041', '#E59866', '#D7DBDD', '#95A5A6',
-                      '#5D6D7E', '#ABB2B9', '#FFC2B4', '#FFFEB4']
-    chr_color_code = chr_color_code[:len(chr_list)]
-    sns.set_palette(chr_color_code)
-
-    fig, ax = plt.subplots(figsize=plot_scale)
-
-    sns.violinplot(x=x_plot, order=chr_list, y=y_plot, data=dataframe, gridsize=1000, cut=0, palette=chr_color_code)
-    sns.stripplot(x=x_plot, order=chr_list, y=y_plot, data=dataframe, linewidth=0.5, alpha=0.6, edgecolor="k", s=4, color="#FF2400", ax=ax)
-
-    plt.legend().remove()
-    total_reads_in_plot = len(dataframe)
-    ax.set_title(f'{base_name} Delta Y Primes (N = {total_reads_in_plot} Reads, Ave. Y Prime to ref = {dataframe[y_plot].mean():.3f})',
-                 fontweight="bold", fontsize=20, color='k', pad=15)
-    plt.xlabel("Chromosome End", fontweight="bold", fontsize=20)
-    plt.ylabel("Delta Y Primes", fontweight="bold", fontsize=30)
-    plt.xticks(fontweight="bold", fontsize=13)
-    plt.yticks(fontweight="bold", fontsize=20)
-
-    for i, anchor in enumerate(chr_list):
-        df_anchor = dataframe[dataframe[x_plot] == anchor]
-        num_reads = df_anchor[y_plot].count()
-        plt.text(i, ax.get_ylim()[1] - 0.4, f'{num_reads * 100 / total_reads_in_plot:.0f}%',
-                 ha='center', fontsize=10, fontweight="bold")
-        ref_y = df_anchor['reference_y_primes'].iloc[0] if len(df_anchor) > 0 else 'N/A'
-        plt.text(i, ax.get_ylim()[0] + 0.2, f'Ref={ref_y}',
-                 ha='center', fontsize=10, fontweight="bold")
-
-    save_file_name = os.path.join(y_prime_figures, f'{base_name}_delta_y_primes.png')
-    print(f'Graphing {save_file_name}...')
-    plt.savefig(save_file_name, dpi=300, format="png")
-    plt.close()
-
-
-def delta_sign_violin_strip_plot(dataframe, x_plot='delta_y_prime_sign', y_plot='y_primes_relative_to_ref', plot_scale=(16, 9)):
-
-    sns.set(style="whitegrid")
-    fig, ax = plt.subplots(figsize=plot_scale)
-
-    sns.violinplot(x=x_plot, hue=x_plot, hue_order=["-", "+"], order=["-", "+"], y=y_plot,
-                   data=dataframe, gridsize=1000, cut=0, palette=['tab:red', 'tab:green'])
-    ax.set(ylim=(-10, 20))
-    sns.stripplot(x=x_plot, order=["-", "+"], y=y_plot, data=dataframe,
-                  linewidth=0.5, alpha=0.6, edgecolor="k", s=4, color="tab:gray", ax=ax)
-
-    plt.legend().remove()
-    total_reads_in_plot = len(dataframe)
-    total_positive = len(dataframe[dataframe['delta_y_prime_sign'] == "+"])
-    total_negative = len(dataframe[dataframe['delta_y_prime_sign'] == "-"])
-
-    ax.set_title(f'{base_name} Delta Y Primes (N = {total_reads_in_plot} Reads, - = {total_negative} & + = {total_positive})',
-                 fontweight="bold", fontsize=20, color='k', pad=15)
-    plt.xlabel("Sign of Delta Y Primes", fontweight="bold", fontsize=20)
-    plt.ylabel("Number of Delta Y Primes", fontweight="bold", fontsize=30)
-    plt.xticks(fontweight="bold", fontsize=13)
-    plt.yticks(fontweight="bold", fontsize=20)
-
-    save_file_name = os.path.join(y_prime_figures, f'{base_name}_sign_delta_y_primes.png')
-    print(f'Graphing {save_file_name}...')
-    plt.savefig(save_file_name, dpi=300, format="png")
-    plt.close()
-
-
 # ---------------------------------------------------------------------------
 # Plotting
 # ---------------------------------------------------------------------------
 
 df_all   = pd.read_csv(input_tsv, sep='\t')
-df_graph = df_all[(df_all['repeat_length'] >= 30) & (df_all['Adapter_After_Telomere'] == True)]
+df_graph = df_all[qualifying_mask(df_all, require_adapter)]
 
 # Telomere length plots
 histogram_plot_500bp(df_graph)
@@ -248,12 +178,3 @@ for chr_value in df_graph['anchor_name'].unique():
     histogram_plot_individual_chr_repeat(df_chr, chr_anchor=chr_value)
 
 histogram_plot_10kb(df_graph)
-
-# Y prime plots
-#df_y_prime = df_graph.dropna(subset=['y_primes_relative_to_ref', 'chr_end'])
-
-#y_prime_count_violin_strip_plot(df_y_prime, section='all')
-
-#df_delta = df_y_prime[df_y_prime['delta_y_prime_sign'].isin(['-', '+'])]
-#if len(df_delta) > 0:
-#    delta_sign_violin_strip_plot(df_delta)

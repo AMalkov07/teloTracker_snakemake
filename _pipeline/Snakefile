@@ -18,7 +18,7 @@ configfile: "_pipeline/config.yaml"
 import os, sys
 
 sys.path.insert(0, os.path.join(workflow.basedir, "scripts"))
-from prerequisites import READ_INPUTS, find_sample_input, tried_inputs
+from prerequisites import INPUT_TYPES, find_sample_input, tried_inputs
 
 # ---------------------------------------------------------------------------
 # Config variables
@@ -28,6 +28,21 @@ BASE   = config["base_name"]
 ANCHOR = config["anchor_set"]
 BAM_DIR = config.get("bam_dir", "samples_dorado_basecalled")
 MIN_GAPPED_SCORE = config.get("min_raw_gapped_score", 5000)
+
+# Profiling options (run_pipeline.py writes them; the defaults are the values used before they
+# could be set). input_type: reads (BAM / FASTQ basecalls) or contigs (assemblies: each contig is
+# cut into two halves, one per end, with no read filter and no adapter check).
+INPUT_KIND = config.get("input_type", "reads")
+if INPUT_KIND not in INPUT_TYPES:
+    print(f"ERROR: input_type must be one of {', '.join(INPUT_TYPES)}, not '{INPUT_KIND}'", file=sys.stderr)
+    sys.exit(1)
+MIN_READ_LENGTH = config.get("min_read_length", 2000)
+MIN_QSCORE      = config.get("min_qscore", 10)          # 0 = no quality filter
+# The sequencing adapter right after the telomere shows a read reached the end of the molecule.
+# Without it (adapter-trimmed basecalls, public reads, contigs) porechop is skipped and qualifying
+# reads need only the telomere repeat (telomere_filters.py).
+ADAPTER_CHECK      = bool(config.get("adapter_check", True)) and INPUT_KIND == "reads"
+ADAPTER_FILTER_ARG = "" if ADAPTER_CHECK else "--no-adapter-filter"
 
 # Recombination rules and their day-0 settings are read only when recombination is on. Configs
 # written before profiling and recombination were split have no such key but always carry a strain.
@@ -50,20 +65,34 @@ RECOMB_DIR  = f"{RESULTS}/recombination"
 CHROM_ENDS = [f"chr{n}{s}" for n in range(1, 17) for s in ("L", "R")]
 
 # ---------------------------------------------------------------------------
-# Detect input file (BAM, FASTQ, or FASTQ.GZ)
+# Detect input file (reads: BAM, FASTQ, FASTQ.GZ; contigs: FASTA, FASTA.GZ)
 # ---------------------------------------------------------------------------
 
-_found = find_sample_input(BAM_DIR, BASE, READ_INPUTS)
+_found = find_sample_input(BAM_DIR, BASE, INPUT_TYPES[INPUT_KIND])
 if _found is None:
-    print(f"ERROR: No input found at any of: {tried_inputs(BAM_DIR, BASE, READ_INPUTS)}", file=sys.stderr)
+    print(f"ERROR: No input found at any of: {tried_inputs(BAM_DIR, BASE, INPUT_TYPES[INPUT_KIND])}",
+          file=sys.stderr)
     sys.exit(1)
 INPUT_FILE, INPUT_TYPE = _found
+
+# Recorded in <base>_profile_settings.tsv and shown in the sample report.
+PROFILE_SETTINGS = [
+    ("input_type",       INPUT_KIND),
+    ("input_file",       INPUT_FILE),
+    ("min_read_length",  MIN_READ_LENGTH if INPUT_KIND == "reads" else "n/a"),
+    ("min_qscore",       MIN_QSCORE if INPUT_KIND == "reads" else "n/a"),
+    ("adapter_check",    "true" if ADAPTER_CHECK else "false"),
+    ("anchor_set",       ANCHOR),
+    ("yprime_reference", config.get("yprime_reference_label", "")),
+    ("yprime_reference_file", config.get("yprime_reference_path", "")),
+]
 
 # ---------------------------------------------------------------------------
 # Target rules
 # ---------------------------------------------------------------------------
 
 PROFILE_OUTPUTS = [
+    f"{RESULTS}/{BASE}_profile_settings.tsv",
     f"{RESULTS}/{BASE}_post_y_prime_probe.tsv",
     f"{GRAPH_DIR}/.plots_done",
     f"{RESULTS}/{BASE}_read_summary.tsv",

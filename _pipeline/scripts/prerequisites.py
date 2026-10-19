@@ -9,6 +9,9 @@ import os
 # A sample's input file is <input dir>/<sample><extension>; the first match wins, in this order.
 READ_INPUTS = [(".bam", "bam"), (".fastq", "fastq"), (".fq", "fastq"),
                (".fastq.gz", "fastqgz"), (".fq.gz", "fastqgz")]
+# input_type: contigs (assemblies)
+CONTIG_INPUTS = [(ext + gz, "fasta") for gz in ("", ".gz") for ext in (".fasta", ".fa", ".fna")]
+INPUT_TYPES = {"reads": READ_INPUTS, "contigs": CONTIG_INPUTS}
 
 
 def find_sample_input(input_dir, sample, candidates=READ_INPUTS):

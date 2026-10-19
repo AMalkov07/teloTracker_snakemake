@@ -34,7 +34,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import pandas as pd
 
-from verify_day0_reference import parse_lib, end_sort_key, load_bed
+from verify_day0_reference import parse_lib, end_sort_key
+from yprime_reference import load_expected_counts
 
 CONFIRMED_MIN_REPEAT = 30          # read_summary.tsv "qualifying" definition
 LOSS = "Y' Loss"
@@ -82,7 +83,9 @@ def load_probe(snapshot, sample):
     if not os.path.exists(p):
         return pd.DataFrame()
     t = pd.read_csv(p, sep='\t')
-    return t[['read_id', 'y_prime_probe_count', 'reference_y_primes']].drop_duplicates('read_id')
+    # reference_y_primes is blank when the sample was profiled without a Y' reference
+    return t[[c for c in ('read_id', 'y_prime_probe_count', 'reference_y_primes') if c in t.columns]
+             ].drop_duplicates('read_id')
 
 
 def load_summary(snapshot, sample):
@@ -100,11 +103,7 @@ def reference_arrays(day0_lib):
 
 
 def ref_counts_from_bed(day0_bed):
-    c = Counter()
-    for f in load_bed(day0_bed):
-        if f['ftype'] == 'y_prime':
-            c[f['chr_end']] += 1
-    return c
+    return Counter(load_expected_counts(day0_bed))
 
 
 def armless(src):

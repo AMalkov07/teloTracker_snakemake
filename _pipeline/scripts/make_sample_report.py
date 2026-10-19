@@ -29,6 +29,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import pandas as pd
 
+from telomere_filters import MIN_TELOMERE_REPEAT
+
 
 # --------------------------------------------------------------------------------------
 # tolerant parsing helpers
@@ -212,22 +214,29 @@ INPUT_SPEC = [
     ('recomb',       "Recombination summary", 'recombination/{base}_recombination_summary.tsv',     'recombination_summary'),
     ('features',     "Per-end features",      'recombination/{base}_*_features.tsv',                'recombination_alignment'),
     ('events',       "Recombination events",  'recombination_events/{base}_all_events_summary.tsv', 'extract_recombination_events'),
-    ('ypstats',      "Y' statistics",         'graphs/stats_for_y_primes/*_stats_y_prime.txt',      'single_sample_plots'),
+    ('ypstats',      "Y' statistics",         'graphs/stats_for_y_primes/*_stats_y_prime.txt',      'y_prime_analysis'),
     ('tracks',       "Track plots",           'graphs/recombination_tracks/*_tracks.png',           'recombination_track_plots'),
     ('onion',        "Onion-skin summary",    'recombination_events/{base}_onion_skin_summary.tsv', 'onion_skin'),
     ('yvariants',    "Recombinant Y' variants", 'recombination_events/{base}_yprime_variants.tsv',  'yprime_variants'),
 ]
 
 
+# Inputs made by the recombination rules. A sample that was only profiled (run_pipeline.py --steps
+# profile) has no recombination/ folder: those inputs were not run, which is not a failure.
+RECOMBINATION_KEYS = {'recomb', 'features', 'events', 'tracks', 'onion', 'yvariants'}
+
+
 def audit_inputs(pipeline_dir, base_name):
     """Which expected inputs exist. Never raises -- a missing directory is a finding."""
     found = []
+    profiled_only = not os.path.isdir(os.path.join(pipeline_dir, 'recombination'))
     for key, label, pattern, stage in INPUT_SPEC:
         rel = pattern.format(base=base_name)
         matches = [m for m in glob.glob(os.path.join(pipeline_dir, rel))
                    if os.path.isfile(m) and os.path.getsize(m) > 0]
         found.append({'key': key, 'label': label, 'stage': stage, 'rel': rel,
-                      'n': len(matches), 'ok': bool(matches)})
+                      'n': len(matches), 'ok': bool(matches),
+                      'not_run': profiled_only and key in RECOMBINATION_KEYS})
     return found
 
 
@@ -236,6 +245,14 @@ def collect(pipeline_dir, base_name):
     d = pipeline_dir
     data = {'base_name': base_name, 'pipeline_dir': d, 'warnings': []}
     data['audit'] = audit_inputs(d, base_name)
+    data['yprime_reference'] = yprime_reference_source(
+        os.path.join(d, 'graphs', 'stats_for_y_primes', f'{base_name}_yprime_reference.tsv'))
+    # How the sample was profiled (rule profile_settings); runs that predate the record used
+    # reads with the adapter check on.
+    settings = read_tsv(os.path.join(d, f'{base_name}_profile_settings.tsv'))
+    data['profile_settings'] = (dict(zip(settings['setting'], settings['value']))
+                                if settings is not None and 'setting' in settings.columns else {})
+    data['require_adapter'] = str(data['profile_settings'].get('adapter_check', 'true')).lower() != 'false'
 
     # -- read_summary.tsv: per-end anchored / qualifying counts, plus header comments ----
     rs_path = os.path.join(d, f'{base_name}_read_summary.tsv')
@@ -254,6 +271,8 @@ def collect(pipeline_dir, base_name):
             if m:
                 data['filtered_reads'] = int(m.group(1).replace(',', ''))
         data['read_summary_comments'] = comments
+        data['adapter_warning'] = next((c.split(':', 1)[1].strip() for c in comments
+                                        if c.startswith('WARNING:')), None)
         df = read_tsv(rs_path)
         if df is not None:
             df = df[df['chr_end'] != 'ALL'] if 'chr_end' in df.columns else df
@@ -292,11 +311,12 @@ def collect(pipeline_dir, base_name):
             delta = to_num(r.get('y_primes_relative_to_ref'))
             probe_n = to_int(r.get('y_prime_probe_count'))
             ref_n = to_int(r.get('reference_y_primes'))
-            # 'qualifying' == the pipeline's own definition in read_summary.py:
-            # adapter found after the telomere AND repeat_length >= 30. stats_y_prime.txt
-            # uses this subset, so the report must too or the two disagree.
+            # 'qualifying' == the pipeline's own definition (telomere_filters.py, used by
+            # read_summary.py): adapter found after the telomere (when the adapter check ran) AND
+            # repeat_length >= 30. stats_y_prime.txt uses this subset, so the report must too.
             adapter_ok = str(r.get('Adapter_After_Telomere', '')).strip().lower() in ('true', '1')
-            qualifying = adapter_ok and telo is not None and telo >= 30
+            qualifying = ((adapter_ok or not data['require_adapter'])
+                          and telo is not None and telo >= MIN_TELOMERE_REPEAT)
             if telo is not None and telo > 0:
                 data['telo_lengths'].append(telo)
             if delta is not None:
@@ -690,7 +710,10 @@ def key_files(data):
                       ('graphs/telomere_figures/individual_chromosomes', 'per-end plots (folder)')]),
         ('Y&prime;', [(f'graphs/y_prime_figures/{b}_delta_y_primes.png', '&Delta;Y&prime; per read-end'),
                       (f'graphs/y_prime_figures/{b}_sign_delta_y_primes.png', 'gained / lost / unchanged'),
-                      (f'graphs/stats_for_y_primes/{b}_stats_y_prime.txt', 'Y&prime; statistics')]),
+                      (f'graphs/y_prime_figures/{b}_y_prime_counts.png', 'Y&prime; copies per read-end'),
+                      (f'graphs/y_prime_figures/{b}_y_primes_vs_sample_median.png', 'vs sample median'),
+                      (f'graphs/stats_for_y_primes/{b}_stats_y_prime.txt', 'Y&prime; statistics'),
+                      (f'graphs/stats_for_y_primes/{b}_yprime_reference.tsv', 'expected Y&prime; per end')]),
         ('Recombination', [(f'recombination/{b}_recombination_summary.tsv', 'per-end summary'),
                            (f'recombination_events/{b}_all_events_summary.tsv', 'all events'),
                            ('recombination_events/README.md', 'events README'),
@@ -740,12 +763,16 @@ def render_sample(data):
 
     # --- completeness banner: the first thing on the page when anything is missing ---
     audit = data.get('audit', [])
-    missing = [a for a in audit if not a['ok']]
+    missing = [a for a in audit if not a['ok'] and not a['not_run']]
     if missing:
         out.append('<div class="banner"><b>PARTIAL REPORT</b> &mdash; '
                    f'{len(missing)} of {len(audit)} expected inputs are missing, so sections '
                    'below are incomplete. Missing values render as &mdash;, never as zero. '
                    'See <i>Pipeline completeness</i> at the foot of the page.</div>')
+
+    if data.get('adapter_warning'):
+        out.append(f'<div class="warn"><b>Reads look adapter-trimmed.</b> '
+                   f'{html.escape(data["adapter_warning"])}</div>')
 
     out.append('<div class="tiles">')
     # NOTE: {base}.fasta is the post-filter read set, so its .fai counts filtered reads,
@@ -761,10 +788,11 @@ def render_sample(data):
     out.append(tile('Telomere-anchored', f'{qualifying:,}' if have.get('read_summary') else '&mdash;',
                     (f'{pct(qualifying, anchored):.1f}% of anchored'
                      if have.get('read_summary') and anchored else '')))
+    recomb_not_run = any(a['not_run'] for a in audit)
     out.append(tile('Analyzed (recomb.)',
                     f'{data["recomb_reads"]:,}' if have.get('recomb') else '&mdash;',
                     (f'{data["recomb_events"]:,} events' if have.get('recomb')
-                     else 'recombination summary missing')))
+                     else 'recombination not run' if recomb_not_run else 'recombination summary missing')))
     if data['has_v3']:
         conf_sub = f'donor conf {data["dc_weighted"]:.2f} &middot; call conf {data["rc_weighted"]:.2f}'
     elif data['conf_weighted'] is not None:
@@ -809,7 +837,7 @@ def render_sample(data):
         out.append('<h3>Anchored reads per chromosome end</h3>')
         out.append(svg_barh([(e['chr_end'], e['anchored'], f"{e['anchored']:,}") for e in ends]))
         out.append('<h3>Telomere-anchored fraction per end</h3>')
-        out.append('<p class="note">Qualifying = adapter found after the telomere AND repeat length &ge; 30 bp. '
+        out.append(f'<p class="note">Qualifying = {qualifying_text(data)}. '
                    'A low fraction means short or absent telomere tracts, which is itself informative &mdash; '
                    'Type I survivors run low here.</p>')
         out.append(svg_barh([(e['chr_end'], e['pct_qualifying'],
@@ -889,12 +917,19 @@ def render_sample(data):
     out.append('<h2 id="yprime">Y&prime; elements</h2>')
     out.append(file_links(data, [(f'graphs/y_prime_figures/{b0}_delta_y_primes.png', '&Delta;Y&prime; per read-end'),
                                  (f'graphs/y_prime_figures/{b0}_sign_delta_y_primes.png', 'gained / lost / unchanged'),
+                                 (f'graphs/y_prime_figures/{b0}_y_prime_counts.png', 'Y&prime; copies per read-end'),
+                                 (f'graphs/y_prime_figures/{b0}_y_primes_vs_sample_median.png', 'vs sample median'),
                                  (f'graphs/stats_for_y_primes/{b0}_stats_y_prime.txt', 'Y&prime; statistics'),
                                  (f'{b0}_post_y_prime_probe.tsv', 'Y&prime; probe table')], 'Figures:'))
+    if data.get('yprime_reference') == 'none' or (data.get('yprime_reference') or '').startswith('none '):
+        out.append('<p class="note">No Y&prime; reference was set for this sample, so there is no expected '
+                   'copy number to compare with: the figures show absolute Y&prime; copies per read-end and '
+                   'copies relative to the sample\'s own median at each end. Set <code>yprime_reference</code> '
+                   'to draw the &Delta;Y&prime; plots.</p>')
     if deltas:
         out.append('<h3>Y&prime; copy number relative to the day-0 reference</h3>')
         out.append(f'<p class="note">Over the <b>{len(deltas):,} qualifying</b> read-ends '
-                   f'(adapter after telomere and repeat &ge; 30 bp), of {len(data["yp_delta_all"]):,} '
+                   f'({qualifying_text(data)}), of {len(data["yp_delta_all"]):,} '
                    'anchored read-ends total. This is the same subset the pipeline\'s '
                    '<code>stats_y_prime.txt</code> reports, so the two agree.</p>')
         out.append(svg_stacked([
@@ -1113,6 +1148,7 @@ def render_sample(data):
                '<th>status</th></tr></thead><tbody>')
     for a in data.get('audit', []):
         mark = ('<span style="color:var(--good)">present</span>' if a['ok']
+                else '<span class="muted">not run (profiling only)</span>' if a['not_run']
                 else '<span style="color:var(--bad)">MISSING</span>')
         out.append(f'<tr><td>{html.escape(a["label"])}</td>'
                    f'<td style="text-align:left"><code>{html.escape(a["stage"])}</code></td>'
@@ -1203,6 +1239,36 @@ def parse_args():
     return p.parse_args()
 
 
+def qualifying_text(data):
+    if data.get('require_adapter', True):
+        return f'adapter found after the telomere AND repeat length &ge; {MIN_TELOMERE_REPEAT} bp'
+    return f'repeat length &ge; {MIN_TELOMERE_REPEAT} bp (adapter check off)'
+
+
+def profile_settings_text(settings):
+    """One line on how the sample was profiled, from <base>_profile_settings.tsv."""
+    if not settings:
+        return ''
+    kind = settings.get('input_type', 'reads')
+    if kind == 'contigs':
+        return 'input: contigs'
+    adapter = 'on' if str(settings.get('adapter_check', 'true')).lower() != 'false' else 'off'
+    return (f"input: reads &ge; {html.escape(str(settings.get('min_read_length', '')))} bp, "
+            f"Q &ge; {html.escape(str(settings.get('min_qscore', '')))}, adapter check {adapter}")
+
+
+def yprime_reference_source(path):
+    """Where the expected Y' counts came from (y_prime_analysis.py's record), or None for runs
+    that predate the record (their counts came from tables picked by the sample name)."""
+    if not os.path.isfile(path):
+        return None
+    with open(path) as fh:
+        for line in fh:
+            if line.startswith('# source:'):
+                return line.split(':', 1)[1].strip()
+    return None
+
+
 def yprime_grouping_text(path):
     """One line saying how the day-0 Y' groups were made, from label_regions' settings file."""
     df = read_tsv(path)
@@ -1224,8 +1290,14 @@ def build_one(pipeline_dir, base_name, output, onion_plots_dir='graphs/onion_ski
     # links are relative to wherever the report is written (default: inside the pipeline dir)
     data['link_base'] = os.path.relpath(os.path.abspath(pipeline_dir), os.path.dirname(os.path.abspath(output)))
     body = render_sample(data)
-    sub = (f'day-0 comparison &middot; generated {datetime.now():%Y-%m-%d %H:%M} &middot; '
+    profiled_only = any(a['not_run'] for a in data['audit'])
+    sub = (f'{"profiling" if profiled_only else "day-0 comparison"} &middot; '
+           f'generated {datetime.now():%Y-%m-%d %H:%M} &middot; '
            f'<span class="mono">{html.escape(pipeline_dir)}</span>')
+    if profile_settings_text(data.get('profile_settings')):
+        sub += f' &middot; {profile_settings_text(data["profile_settings"])}'
+    if data.get('yprime_reference'):
+        sub += f' &middot; Y&prime; reference: {html.escape(data["yprime_reference"])}'
     if yprime_grouping:
         sub += f' &middot; {yprime_grouping_text(yprime_grouping)}'
     os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
