@@ -46,7 +46,7 @@ Open pipeline_config.yaml and change these three values:
   strain:       your new strain identifier.
                 e.g.  strain: "1234"
 
-  dorado_image: point it at the shared Dorado Singularity image:
+  dorado_image: required (create_ref stops without it). On Argon, the lab's image:
                 dorado_image: "/Shared/malkova_lab/dorado_files/docker_images_of_dorado/dorado-11-26-2025.sif"
 
 ------------------------------------------------------------------------------
@@ -108,7 +108,15 @@ allocation.
 ------------------------------------------------------------------------------
 
 The pipeline has three stages: reference creation, region labeling, and
-recombination analysis. Control which run with --steps:
+recombination analysis, plus a stand-alone read profiling step. Control which
+run with --steps:
+
+  python run_pipeline.py --base-name my_sample --steps profile
+      -> ONLY anchors the reads and measures telomere length and Y' copies
+         per chromosome end (plots + read summary + report). Needs no strain
+         and no day-0 reference; any sample works. For reads basecalled
+         without adapters (dorado default trimming, SRA) add
+         --no-adapter-check; for an assembly use --input-type contigs.
 
   python run_pipeline.py --config pipeline_config.yaml --steps all
       -> runs the ENTIRE pipeline:

@@ -7,7 +7,8 @@
 # Base name of your day-0 sample (no file extension, no .bam)
 base_name: "dorado_7302_day0_PromethION_no_tag_yes_rejection"
 
-# Yeast strain identifier
+# Yeast strain identifier (names the day-0 reference, label and library files; not needed for
+# --steps profile). The curated day-0 strains ship as 6991_curated, 7172_curated, 7302_curated.
 strain: "7302"
 
 # Directory containing input BAM/FASTQ files
@@ -18,11 +19,38 @@ bam_dir: "samples_dorado_basecalled"
 # "docker" uses a Singularity .sif image; "local" uses dorado from PATH
 dorado_mode: "docker"
 
-# Full path to the Dorado Singularity image (only needed when dorado_mode: docker)
+# Full path to the Dorado Singularity image (required when dorado_mode: docker; create_ref
+# stops up front if it is missing)
 dorado_image: "/path/to/dorado.sif"
 
 # Basecaller model that was used to generate the reads
 dorado_model: "dna_r10.4.1_e8.2_400bps_sup@v5.2.0"
+
+# -- Profiling (all steps; --steps profile runs only this part) -----------------
+
+# reads   = BAM / FASTQ basecalls in bam_dir (default)
+# contigs = an assembled genome, <base_name>.fasta / .fa / .fna (.gz) in bam_dir; profile only:
+#           each contig is cut into two halves, one per chromosome end
+input_type: "reads"
+
+# Telomere reads count as "qualifying" (telomere plots, Y' plots, read summary) only when the
+# sequencing adapter follows the telomere, which shows the read reached the molecule's end.
+# Set false for reads without adapters (dorado's default trimming, SRA/ENA downloads): porechop
+# is skipped and the telomere repeat alone decides. read_summary.tsv warns when reads look trimmed.
+adapter_check: true
+
+# Read filters (reads only): minimum length in bp, minimum mean qscore (qs:f tag; 0 = no filter)
+min_read_length: 2000
+min_qscore: 10
+
+# Expected Y' copies per chromosome end, the zero line of the delta-Y' plots:
+#   auto = the shipped reference named by strain (6991_curated, 7172_curated, 7302_curated, or a
+#          table in _pipeline/references/yprime_expected_counts/ such as 7372), else the day-0
+#          labels in recombination runs, else none
+#   none = no reference: plots show absolute Y' copies per end
+#   a shipped name (above, also 7021 7093 7154 7174 7250 7321 7323 7324 KRLT3_7637 tlc1),
+#   or a path to a label BED / counts TSV (chr_end<TAB>expected_y_primes)
+yprime_reference: "auto"
 
 # -- Optional / Defaults -------------------------------------------------------
 

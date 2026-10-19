@@ -8,15 +8,16 @@ The pipeline is driven by a single Python wrapper, `run_pipeline.py`, so you don
 
 ## Pipeline Overview
 
-The pipeline has three steps that map onto the three `--steps` choices of `run_pipeline.py`:
+The pipeline has four steps, the `--steps` choices of `run_pipeline.py`:
 
 | Step | What it does | Script(s) involved |
 |---|---|---|
-| `create_ref` | Runs the Snakemake pipeline through `through_y_prime_analysis`, then assembles and polishes a strain-specific telomeric reference using Flye and Dorado. | `create_ref.sh` (which internally runs `snakemake`) |
+| `profile` | Read profiling only: anchors reads to the 32 chromosome ends and measures telomere length and Y′ copy number per read, with plots and a per-end read summary. Needs no strain and no day-0 reference, so it runs on any sample: time points, other strains, public reads (`adapter_check: false`) or assembled genomes (`input_type: contigs`). | `Snakefile` (target `profile`, rules in `rules/profile.smk`) |
+| `create_ref` | Runs the profiling rules on the day-0 sample, then assembles and polishes a strain-specific telomeric reference using Flye and Dorado. | `create_ref.sh` (which internally runs `snakemake`) |
 | `label_regions` | Labels pre-telomeric features (Y′ elements, X elements, spacers) on the new reference and performs automatic Y′ clustering. | `label_regions.sh` |
-| `recombination` | For future time points, runs `snakemake all` against the day-0 reference to detect recombination events. | `Snakefile` (direct Snakemake invocation, one call per time point) |
+| `recombination` | For later time points, runs `snakemake all` against the day-0 reference: the profiling rules (reused when already done) and then recombination calling (`rules/recombination.smk`). Checks first that the day-0 reference, labels and libraries exist. | `Snakefile` (direct Snakemake invocation, one call per time point) |
 
-Typical workflow for a new strain: run `create_ref` + `label_regions` **once** on the day-0 sample, then run `recombination` for each later time point.
+Typical workflow for a new strain: run `create_ref` + `label_regions` **once** on the day-0 sample, then run `recombination` for each later time point. For telomere length and Y′ copy number alone, run `profile`.
 
 ---
 
@@ -39,11 +40,13 @@ Installs everything needed (BLAST, minimap2, samtools, Flye, Snakemake, RepeatMa
 singularity pull dorado.sif docker://nanoporetech/dorado:latest
 ```
 
-Point at it with `dorado_image` in the config.
+Point at it with `dorado_image` in the config. In docker mode `create_ref` stops before it starts if `dorado_image` is not set or not found.
 
 ### 3. Input data
 
 - Place your BAM (or FASTQ / FASTQ.GZ) in `samples_dorado_basecalled/` — the filename's stem must match `base_name` in the config.
+- Basecall with adapters kept (`dorado basecaller --trim none`, or MinKNOW's own output): telomere reads count as qualifying only with the adapter after the telomere. For adapter-trimmed or public reads set `adapter_check: false`; `read_summary.tsv` and the report warn when reads look trimmed.
+- For assembled genomes (`input_type: contigs`, `profile` only) put the assembly in the same folder as `<base_name>.fasta` (`.fa` / `.fna`, optionally `.gz`).
 - The `references/` directory is pre-populated with anchor FASTAs, the Y′ probe, adapter file, and strain-specific pairing libraries.
 
 ### 4. (Cluster) SGE job headers
@@ -59,6 +62,9 @@ Point at it with `dorado_image` in the config.
 python run_pipeline.py --init-config
 
 # 2. Edit pipeline_config.yaml (base_name, strain, dorado_image, samples, etc.)
+
+# Profile reads only (telomere length + Y′ count per end; no strain or day-0 reference):
+python run_pipeline.py --base-name my_sample --steps profile
 
 # 3. Build the day-0 reference (default: create_ref + label_regions):
 python run_pipeline.py --config pipeline_config.yaml
@@ -83,7 +89,7 @@ python run_pipeline.py --config pipeline_config.yaml --dry-run
 |---|---|
 | `--config FILE` | Load settings from a YAML config file. |
 | `--init-config [FILE]` | Write a fresh `pipeline_config.yaml` template and exit. Default filename: `pipeline_config.yaml`. |
-| `--steps STEP ...` | Which step(s) to run. Choices: `create_ref`, `label_regions`, `recombination`, `day0`, `all`. Default: `day0` (= `create_ref` + `label_regions`). `all` = `day0` + `recombination`. |
+| `--steps STEP ...` | Which step(s) to run. Choices: `profile`, `create_ref`, `label_regions`, `recombination`, `day0`, `all`. Default: `day0` (= `create_ref` + `label_regions`). `all` = `day0` + `recombination`. `profile` runs on `timepoint_samples` (or `base_name`) and needs no strain. |
 | `--dry-run` | Print what would be executed — patched scripts, generated `config.yaml`, Snakemake command — without running anything. Use this first. |
 | `--no-organize` | Skip the post-step pass that creates sibling symlinks (`reference.fasta`, `labels.bed`, …) at the top of `results/<base_name>/` pointing into `_pipeline/`. See [Output layout](#output-layout). |
 
@@ -100,7 +106,9 @@ python run_pipeline.py --config pipeline_config.yaml --dry-run
 | `--dorado-image PATH` | `.sif` path (only needed when mode is `docker`). |
 | `--dorado-model MODEL` | Basecaller model (e.g. `dna_r10.4.1_e8.2_400bps_sup@v5.2.0`). |
 | `--reference-fasta PATH` | Custom reference for `label_regions` (defaults to `create_ref`'s output). |
-| `--samples NAME ...` | Time-point samples for `recombination`. Overrides `timepoint_samples` in the config. |
+| `--samples NAME ...` | Samples for `profile` / `recombination`. Overrides `timepoint_samples` in the config. |
+| `--input-type {reads,contigs}` | `reads` (default) or `contigs` (assembly FASTA; `profile` only). |
+| `--no-adapter-check` | Reads lack the sequencing adapter: skip porechop and count telomere reads by repeat length alone. |
 
 ---
 
@@ -116,7 +124,7 @@ bam_dir: "samples_dorado_basecalled"
 
 # Dorado (required for create_ref)
 dorado_mode: "docker"                # or "local"
-dorado_image: "/path/to/dorado.sif"  # only needed for docker mode
+dorado_image: "/path/to/dorado.sif"  # required for docker mode
 dorado_model: "dna_r10.4.1_e8.2_400bps_sup@v5.2.0"
 
 # Optional — shown with their defaults
@@ -124,6 +132,17 @@ threads: 56
 anchor_set: "telomerase_shutoff_anchors"
 min_raw_gapped_score: 5000
 yprime_grouping: "silhouette"        # or a fixed percent cutoff, e.g. 99.5 (the published cut99.5 analyses)
+
+# Profiling — shown with their defaults
+input_type: "reads"                  # or "contigs": assembly FASTA, profile only
+adapter_check: true                  # false for adapter-trimmed reads (dorado default trimming, SRA/ENA)
+min_read_length: 2000
+min_qscore: 10                       # 0 = no quality filter
+yprime_reference: "auto"             # expected Y′ copies per end, the zero line of the ΔY′ plots (below)
+
+# Optional — Y′ / X sequences label_regions searches a new reference with (default: 6991-derived)
+# label_yprime_fasta: "_pipeline/references/repeatmasker_6991_all_y_primes.fasta"
+# label_x_fasta: "_pipeline/references/6991_xprimes.fasta"
 
 # Optional — override the auto-extracted Y′ library with a curated FASTA
 # y_prime_lib_override: "_pipeline/references/7302_features/repeatmasker_7302_all_y_primes.fasta"
@@ -139,6 +158,19 @@ timepoint_samples:
   - "dorado_7302_day3_PromethION_no_tag_yes_rejection"
   - "dorado_7302_day6_PromethION_no_tag_yes_rejection"
 ```
+
+### Expected Y′ copies (`yprime_reference`)
+
+The ΔY′ plots show each read's Y′ probe count minus the Y′ copies expected at its chromosome end.
+
+| Value | Expected copies from |
+|---|---|
+| `auto` (default) | the shipped reference named by `strain` (`6991_curated`, `7172_curated`, `7302_curated`, or a counts table such as `7372`); otherwise, in `recombination`, the day-0 sample's label BED; otherwise none |
+| a name | `_pipeline/references/day0/<name>/` (curated label BED; `<name>_curated` also matches) or `_pipeline/references/yprime_expected_counts/<name>.tsv` (7021, 7093, 7154, 7174, 7250, 7321, 7323, 7324, 7372, KRLT3_7637, tlc1) |
+| a path | a label BED (`.bed`) or a counts table (`chr_end<TAB>expected_y_primes`, all 32 ends) |
+| `none` | nothing: the plots show absolute Y′ copies per end and copies relative to the sample's own per-end median |
+
+These numbers used to be tables inside `y_prime_analysis.py`, picked by text in the sample name. The source used is recorded in `graphs/stats_for_y_primes/<sample>_yprime_reference.tsv` and shown in the sample report.
 
 ---
 
@@ -223,7 +255,7 @@ Note: `run_pipeline.py` itself does **not** call `qsub` — it runs the shell sc
 
 ### `config.yaml` (written, not patched)
 
-Before every Snakemake call, the wrapper overwrites `_pipeline/config.yaml` (not tracked by git) with a freshly generated file based on your `pipeline_config.yaml` values. The keys it emits are the ones the Snakefile reads (`base_name`, `anchor_set`, `bam_dir`, `strain`, `min_raw_gapped_score`, `attribution_mode`, `y_prime_id_level`, `references.*`). `--dry-run` prints it instead of writing it.
+Before every Snakemake call, the wrapper overwrites `_pipeline/config.yaml` (not tracked by git) with a freshly generated file based on your `pipeline_config.yaml` values. The keys it emits are the ones the Snakefile reads (`base_name`, `anchor_set`, `bam_dir`, `recombination`, the profiling options, `yprime_reference_path` / `_label`, `references.*`, and for recombination `strain`, `attribution_mode`, `y_prime_id_level` and the day-0 paths). `recombination: false` (the `profile` and `create_ref` steps) loads only the profiling rules, so no strain or day-0 files are needed. `--dry-run` prints it instead of writing it.
 
 For the `recombination` step with multiple `timepoint_samples`, `config.yaml` is **rewritten between samples**: `base_name` becomes the current time-point sample, while `references.day0_ref` / `day0_bed` / `y_prime_lib` / `spacer_lib_dir` / `x_element_lib` keep pointing back at the original day-0 sample's directory (so Snakemake reads timepoint reads from `results/<timepoint>/` but pulls the reference + labels from `results/<day0>/`).
 
@@ -235,7 +267,7 @@ The originals on disk are never modified. For each run:
 2. It does regex substitutions on bash variable assignments:
    - `BASE_NAME=...` → `BASE_NAME="<your value>"`
    - `STRAIN_ID`, `ANCHOR_SET`, `THREADS`, `REFERENCE`, `POLISH_SCOPE`, `POLISH_END_FLANK`, `DORADO_MODE`, `DORADO_IMAGE`, `DORADO_MODEL` (for `create_ref`)
-   - `STRAIN_ID`, `THREADS`, `REFERENCE_DIR`, `REFERENCE_FASTA` (pointing at `create_ref`'s output or your `reference_fasta`), `ANCHORS_FASTA` (non-default anchor sets only) and the `YPRIME_*` grouping settings (for `label_regions`)
+   - `STRAIN_ID`, `THREADS`, `REFERENCE_DIR`, `REFERENCE_FASTA` (pointing at `create_ref`'s output or your `reference_fasta`), `ANCHORS_FASTA` (non-default anchor sets only) the `YPRIME_*` grouping settings, and `YPRIMES_FASTA` / `XPRIMES_FASTA` when `label_yprime_fasta` / `label_x_fasta` are set (for `label_regions`)
 3. The patched content is written to a temporary file in the repo root (`telo_create_ref_*.sh` or `telo_label_regions_*.sh`).
 4. `bash <tempfile>` is executed with the repo root as `cwd`.
 5. The temp file is deleted on successful exit; on failure the path is printed so you can inspect.
@@ -244,13 +276,13 @@ The regex (in `substitute_var`) handles double-quoted, single-quoted and unquote
 
 ### `snakemake all` (direct call)
 
-For the `recombination` step the wrapper doesn't touch a shell script — it just calls `snakemake -s _pipeline/Snakefile all -c <threads>` directly, once per time-point sample, rewriting `_pipeline/config.yaml` between calls.
+For the `recombination` step the wrapper doesn't touch a shell script — it just calls `snakemake -s _pipeline/Snakefile all -c <threads>` directly, once per time-point sample, rewriting `_pipeline/config.yaml` between calls. The `profile` step does the same with `snakemake ... profile`.
 
 ### Files that are NEVER modified
 
 - `create_ref.sh` (on disk) — patches happen in memory only.
 - `label_regions.sh` (on disk) — same.
-- `Snakefile` — never patched; all Snakemake customization goes through `config.yaml`.
+- `Snakefile` and `rules/*.smk` — never patched; all Snakemake customization goes through `config.yaml`.
 - Anything in `_pipeline/references/`, `_pipeline/scripts/`, or `samples_dorado_basecalled/`.
 
 ---
@@ -267,6 +299,8 @@ For the `recombination` step the wrapper doesn't touch a shell script — it jus
 - **"could not find 'VAR=' in ... to substitute"** — a variable name in the wrapper no longer matches the shell script (e.g. you renamed a bash var). The wrapper stops rather than let the script run with its built-in default.
 - **Snakemake says `_pipeline/config.yaml` not found, or fails at module load with `KeyError: ...`** — the file is written by `run_pipeline.py` and is not in git, so a fresh clone has none. Run the wrapper (or `--dry-run` to see what it would write); the generated file has `references.y_prime_lib`, `spacer_lib_dir`, `x_element_lib`, etc.
 - **Calling Snakemake directly after a `recombination` run** — `_pipeline/config.yaml` holds the settings of the wrapper's last Snakemake call, i.e. the **last** time-point sample. Check it, or rerun the wrapper step for the sample you want, before calling Snakemake yourself.
+- **"recombination cannot start; these are missing"** — the day-0 sample's reference, label BED or Y′ / spacer / X library is not where `base_name` and `strain` point, or a sample's input file is not in `bam_dir`. Run `label_regions` on the day-0 sample (after `create_ref`, or with `reference_fasta` set to a curated genome). Calling Snakemake directly stops with the same list.
+- **"Reads look adapter-trimmed"** (in `read_summary.tsv` and the report) — few telomere reads carry the sequencing adapter, so few count as qualifying. Basecall with `--trim none`, or set `adapter_check: false`.
 - **Want to see what would happen without risk** — `--dry-run` prints the patched scripts and the Snakemake commands without executing.
 
 ---
@@ -360,11 +394,13 @@ source: chr4
 ├── consensus.yaml             # Conda environment spec
 ├── _pipeline/
 │   ├── config.yaml            # Auto-generated by run_pipeline.py (not in git; do not hand-edit)
-│   ├── Snakefile              # Full snakemake pipeline
+│   ├── Snakefile              # Snakemake entry point: settings, targets, includes rules/
+│   ├── rules/                 # profile.smk (steps 0-6) + recombination.smk (steps 9.5-13)
 │   ├── create_ref.sh          # Reference assembly + polishing
 │   ├── label_regions.sh       # Pre-telomeric feature labeling
 │   ├── references/            # Anchors, probe, adapters, labelling libraries
-│   │   └── day0/              # Curated 6991 / 7172 / 7302 day-0 genomes + labels
+│   │   ├── day0/              # Curated 6991 / 7172 / 7302 day-0 genomes + labels
+│   │   └── yprime_expected_counts/  # Expected Y′ copies per end for other strains
 │   ├── scripts/               # Python scripts called by Snakefile / label_regions
 │   │   └── organize_outputs.py  # Creates sibling symlinks under results/<base>/
 │   └── tests/                 # Plain test scripts: python _pipeline/tests/test_<name>.py
