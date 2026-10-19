@@ -72,10 +72,24 @@ the most interesting class of event, **Y'-only gains**:
    the `read_summary.tsv` "qualifying" definition), `telomere_repeat_length`,
    `y_prime_probe_count` and `y_prime_tail_bp`. A Loss on an unconfirmed end keeps its
    status but its confidence is halved and `qc_flags` gains `loss_unconfirmed_end`.
+   **What counts as a Loss (strict prefix rule, 2026-10-19):** a read with fewer copies than
+   the reference is a Loss only when its copies equal the reference's first copies (the
+   distal ones are gone). If any of its copies differs from the reference copy at that
+   position, it is a change there (`1st Y' Change` / `Y' Recombination`, with the usual
+   fingerprint / donor search on the rest) and `qc_flags` gains
+   `array_shorter_than_reference`. `y_prime_reference_count` gives the day-0 copy number.
 7. **Mechanism tag** `recombination_mechanism`: `donor_transfer`,
-   `donor_transfer_candidates:<n>`, `tandem_amplification_same_end`, `subtelomere_switch`,
-   `array_contraction`, `array_contraction_unconfirmed`, `single_y_prime_change`,
-   `unmatched_array`.
+   `donor_transfer_candidates:<n>`, `tandem_amplification_same_end`,
+   `array_rearrangement_same_end` (a shorter array whose change matches the read's own end),
+   `subtelomere_switch`, `array_contraction`, `array_contraction_unconfirmed`,
+   `single_y_prime_change`, `unmatched_array`. A spacer / X switch is tagged
+   `subtelomere_switch` even when the Y' array is also shorter (it used to read
+   `array_contraction`).
+   **Axes without a day-0 library entry.** When the end has no X (or no spacer) in the day-0
+   library, every read gets `not_in_library` on that axis (no call, source empty) and
+   `qc_flags` gains `x_not_in_day0_library` / `spacer_not_in_day0_library`; the summary column
+   `axes_not_in_day0_library` lists them and the sample report shows n/a. (Before 2026-10-19
+   every X hit at such an end was a `full_switch`, and every spacer chunk a switch.)
 8. **(ID, ITS) path** (`yprime_path.py`). Every Y' array is written as (variant ID, length of
    the ITS that follows) tokens; ITS lengths measured from the RepeatMasker hit gaps reproduce
    the reference ITS to ±2 bp, so they separate ends whose Y' IDs are identical (a run of long

@@ -171,8 +171,10 @@ x_element_confidence = min(1, pident/100 * (0.5 + gap/20)), where gap is the
 identity lead over the next cluster. An X switch always counts as a
 structural donor in reconciliation (11d).
 
-Known issue, planned fix: if this end has no X in the day-0 library, step 2
-can never succeed, so every read with an X hit is called a full_switch.
+If this end has no X in the day-0 library (no x_core / x_variable row in its
+label BED), step 2 cannot apply: every read is reported as "not_in_library"
+(no X call, empty source) and flagged x_not_in_day0_library. The spacer axis
+does the same when the end is missing from the spacer library.
 ```
 
 ---
@@ -199,8 +201,9 @@ can never succeed, so every read with an X hit is called a full_switch.
    - "1st Y' Change"    — position 1 (anchor-proximal) already differs
    - "Y' Recombination" — divergence at position 2+
    - "Y' Loss"          — read has fewer Y primes than reference
-                          (decided by count alone: the surviving IDs are not
-                          compared, so a change in them is hidden; planned fix)
+                          AND its copies equal the reference's first copies.
+                          A shorter read whose copies differ is a change at the
+                          first differing position (flag array_shorter_than_reference)
    - "Y' Gain"          — read has more Y primes than reference
 
 4. Find COMPATIBLE REFERENCE ENDS:
