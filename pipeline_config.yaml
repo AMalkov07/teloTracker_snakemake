@@ -36,10 +36,15 @@ anchor_set: "telomerase_shutoff_anchors"
 # BLAST parameter -- minimum raw gapped alignment score
 min_raw_gapped_score: 5000
 
-# Y prime clustering: percent identity threshold for grouping
-# Higher = more groups (finer resolution, risk of misassignment with ONT error)
-# Lower  = fewer groups (coarser, more reliable)
-yprime_identity_threshold: 97.0
+# Y prime grouping: how Y' copies are grouped into IDs (ID1, ID2, ...).
+#   silhouette = data-driven: picks the number of groups with the best silhouette score (default)
+#   <percent>  = fixed identity cutoff, e.g. 97, 99 or 99.5. Higher = more, finer groups.
+#                97 and 99 are the benchmarked cuts (~10 and ~12 groups on day-0 references at
+#                the same false-mismatch rate); 99.5 is the cutoff of the published cut99.5
+#                analyses (see _pipeline/references/day0/README.md).
+# Group IDs depend on this setting, so compare samples grouped the same way.
+# (Configs that set yprime_stop_mode / yprime_identity_threshold directly still work.)
+yprime_grouping: "silhouette"
 
 # Y' variants at least this identical are merged before clustering
 yprime_dedup_threshold: 99.9
@@ -65,8 +70,8 @@ yprime_boundary_trim: true
 # and analyzes each entry of timepoint_samples against it.
 
 # Time-point samples to analyze against the day-0 reference, IN TIME ORDER.
-# Each is run as: snakemake recombination_summary -c THREADS with the
-# appropriate base_name set in config.yaml.
+# Each is run as: snakemake -s _pipeline/Snakefile all -c THREADS, with base_name in
+# _pipeline/config.yaml set to that sample.
 timepoint_samples:
   - "dorado_7302_day3_PromethION_no_tag_yes_rejection"
   - "dorado_7302_day6_PromethION_no_tag_yes_rejection"

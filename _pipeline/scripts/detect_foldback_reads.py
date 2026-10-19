@@ -98,6 +98,22 @@ def write_fasta(path, records):
             out.write(f'>{name}\n{seq}\n')
 
 
+DETAIL_COLUMNS = ['read_id', 'anchor_name', 'read_length', 'pident', 'align_len',
+                  'read_start', 'read_end', 'orientation', 'hairpin_asymmetry_bp',
+                  'hairpin_asymmetry_pct', 'hairpin_confidence']
+
+
+def write_outputs(read_ids, detail, ids_path, detail_path=None):
+    """Write the fold-back ID list and, if requested, the per-hit detail table. Both files are
+    always written (header-only detail when nothing was found): Snakemake declares both as
+    outputs, so a sample with no fold-backs must not leave one missing."""
+    with open(ids_path, 'w') as out:
+        for r in sorted(read_ids):
+            out.write(r + '\n')
+    if detail_path:
+        pd.DataFrame(detail, columns=DETAIL_COLUMNS).to_csv(detail_path, sep='\t', index=False)
+
+
 def main():
     a = parse_args()
 
@@ -110,7 +126,7 @@ def main():
     df = df[df['read_bp_used_for_match'] > df['total_anchor_length'] / 2]
     if df.empty:
         print('No anchored reads; nothing to check.')
-        open(a.output, 'w').close()
+        write_outputs([], [], a.output, a.detail_tsv)
         return
     best = df.sort_values('bitscore', ascending=False).drop_duplicates('read_id')
     assigned = dict(zip(best['read_id'], best['anchor_name']))
@@ -212,11 +228,7 @@ def main():
                         })
             print(f'  {anchor_name:<16} {len(rids):>6} reads  fold-backs: {n_here}')
 
-    with open(a.output, 'w') as out:
-        for r in sorted(foldbacks):
-            out.write(r + '\n')
-    if a.detail_tsv and detail:
-        pd.DataFrame(detail).to_csv(a.detail_tsv, sep='\t', index=False)
+    write_outputs(foldbacks, detail, a.output, a.detail_tsv)
 
     n = len(foldbacks)
     print(f'\nfold-back reads detected: {n} of {len(assigned):,} '

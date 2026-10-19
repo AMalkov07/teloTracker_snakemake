@@ -33,7 +33,11 @@ with open(log_file, 'r') as f_in:
             line = line.strip('\n')
             read_id     = line.split(' ')[0]
             read_strand = line.split(' ')[1]
-            adapter_after_telomere_repeat = False
+            # Reset every per-read value: a read whose start:/end: line is missing must not
+            # inherit the previous read's telomere sequence (it is dropped as 'N/A' below).
+            adapter_after_telomere_repeat  = False
+            telomere_sequence              = 'N/A'
+            poly_tag_after_telomere_repeat = 'N/A'
             continue
 
         elif start_of_read_pattern in line:

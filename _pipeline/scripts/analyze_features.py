@@ -1607,11 +1607,15 @@ def reconcile_features_v2(spacer_result, x_element_result, y_prime_result, supp_
         if strong:
             structural_axes.append('spacer')
     if x_has_recomb and x_source and not _same_end(x_source, chr_end):
-        strong = x_conf >= STRUCTURAL_MIN_CONF
-        votes[x_source] += VOTE_WEIGHTS['x_element'] * (1.0 if strong else max(x_conf, 0.1))
+        # An X switch always names the proximal donor. It has already passed call_x_element's
+        # coverage (X_MIN_SWITCH_COVERAGE) and identity-gap (X_MIN_SWITCH_GAP_PCT) rules, and its
+        # confidence is at least pident/200, so a STRUCTURAL_MIN_CONF test would only fail
+        # below 40 % identity -- which no megablast hit covering half an X element has. The
+        # test was therefore never false and is not applied; x_element_confidence still feeds
+        # recombination_confidence and donor_confidence.
+        votes[x_source] += VOTE_WEIGHTS['x_element']
         axis_source['x_element'] = x_source
-        if strong:
-            structural_axes.append('x_element')
+        structural_axes.append('x_element')
     if supp_chr_ends:
         s = supp_chr_ends[0]
         if not _same_end(s, chr_end):
@@ -2148,6 +2152,12 @@ def main():
         write_results_tsv([], args.output_tsv)
         write_skipped_sidecar(args.output_tsv, args.chr_end, n_reads, args.min_reads_per_chr_end)
         return
+
+    # This end is analysed: a .skipped sidecar left by an earlier low-coverage run would make
+    # the aggregator report it as skipped regardless of these results.
+    stale_sidecar = args.output_tsv + '.skipped'
+    if os.path.exists(stale_sidecar):
+        os.remove(stale_sidecar)
 
     if n_reads == 0:
         # Only reachable when --min-reads-per-chr-end is 0 (explicit override).

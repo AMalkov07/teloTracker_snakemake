@@ -21,12 +21,14 @@ import pandas as pd
 from collections import defaultdict
 
 
+# IUPAC complements (upper and lower case); anything else passes through unchanged.
+_COMPLEMENT = str.maketrans('ACGTRYKMBVDHNSWacgtrykmbvdhnsw',
+                            'TGCAYRMKVBHDNSWtgcayrmkvbhdnsw')
+
+
 def reverse_complement(seq):
-    """Return reverse complement of a DNA sequence."""
-    complement = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G',
-                  'a': 't', 't': 'a', 'g': 'c', 'c': 'g',
-                  'N': 'N', 'n': 'n'}
-    return ''.join(complement.get(base, base) for base in reversed(seq))
+    """Return reverse complement of a DNA sequence, including IUPAC ambiguity codes."""
+    return seq.translate(_COMPLEMENT)[::-1]
 
 
 def load_reference(fasta_path):

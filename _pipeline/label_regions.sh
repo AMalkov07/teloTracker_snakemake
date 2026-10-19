@@ -4,11 +4,17 @@
 #$ -j y
 #$ -cwd
 
-conda activate consensus
-
 set -e  # Exit on error
 set -u  # Exit on undefined variable
 set -o pipefail  # Exit on pipe failure
+
+# run_pipeline.py runs this script from an already activated environment; a direct qsub may
+# start with none (or base) active. A bare `conda activate` fails in a non-interactive shell,
+# so source conda's shell setup first.
+if [ -z "${CONDA_DEFAULT_ENV:-}" ] || [ "${CONDA_DEFAULT_ENV}" = "base" ]; then
+    source "$(conda info --base)/etc/profile.d/conda.sh"
+    conda activate consensus
+fi
 
 # ============================================================================
 # Configuration - Edit these values for your reference
@@ -224,6 +230,7 @@ if [ -f "${LABELED_TSV}" ]; then
         --stop-mode    "${YPRIME_STOP_MODE}" \
         --identity-threshold "${YPRIME_IDENTITY_THRESHOLD}" \
         --dedup-threshold    "${YPRIME_DEDUP_THRESHOLD}" \
+        --settings-out "${OUTPUT_DIR}/yprime_grouping_${STRAIN_ID}.tsv" \
         --threads      "${THREADS}"
 
     # Replace extracted FASTA with clustered version
@@ -276,11 +283,13 @@ X_ELEMENT_SEQUENCES="${OUTPUT_DIR}/${STRAIN_ID}_whole_x_regions_sequences.fasta"
 # Verify required files exist
 if [ ! -f "${SIMPLIFIED_BED}" ]; then
     echo "ERROR: Simplified BED file not found: ${SIMPLIFIED_BED}"
-    echo "Skipping pairing creation"
+    echo "Cannot build the spacer / X libraries recombination needs."
+    exit 1
 else
     if [ ! -f "${EXTRACTED_YPRIMES}" ]; then
         echo "ERROR: Extracted Y primes not found: ${EXTRACTED_YPRIMES}"
-        echo "Skipping pairing creation"
+        echo "Cannot build the spacer / X libraries recombination needs."
+        exit 1
     else
         # Step 1: Create chopped spacer sequences
         echo ""
@@ -416,7 +425,9 @@ echo "  - X element sequences: ${X_ELEMENT_SEQUENCES}"
 echo "  - Spacer pairings: ${OUTPUT_DIR}/pairings_for_spacers/${STRAIN_ID}_pairings/"
 echo "  - Clustered X elements: ${OUTPUT_DIR}/clustered_x_elements_${STRAIN_ID}.fasta"
 echo ""
-echo "You can now run the telomere analysis pipeline with:"
-echo "  qsub telomere_analysis_complete.sh dorado_${STRAIN_ID}_dayX_PromethION_no_tag_yes_rejection"
+echo "  - Y' grouping settings: ${OUTPUT_DIR}/yprime_grouping_${STRAIN_ID}.tsv"
+echo ""
+echo "You can now run recombination against this day-0 reference with:"
+echo "  python run_pipeline.py --config pipeline_config.yaml --steps recombination --samples <time-point samples>"
 echo ""
 echo "End time: $(date)"

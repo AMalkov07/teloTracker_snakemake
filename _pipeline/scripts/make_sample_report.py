@@ -1187,10 +1187,27 @@ def parse_args():
     p.add_argument('--compare-output', help='write a panel comparison HTML here')
     p.add_argument('--onion-plots-dir', default='graphs/onion_skin',
                    help='folder of the per-end onion-skin schematics, relative to the pipeline dir')
+    p.add_argument('--yprime-grouping', default=None,
+                   help="the day-0 labels' yprime_grouping_<strain>.tsv (label_regions output): "
+                        "shown in the header, since Y' group IDs depend on it")
     return p.parse_args()
 
 
-def build_one(pipeline_dir, base_name, output, onion_plots_dir='graphs/onion_skin'):
+def yprime_grouping_text(path):
+    """One line saying how the day-0 Y' groups were made, from label_regions' settings file."""
+    df = read_tsv(path)
+    rows = dict(zip(df['setting'], df['value'])) if df is not None and 'setting' in df.columns else {}
+    if not rows:
+        return "Y&prime; groups: not recorded (day-0 labels predate the grouping record)"
+    if rows.get('stop_mode') == 'threshold':
+        how = f"threshold {html.escape(str(rows.get('identity_threshold')))} %"
+    else:
+        how = 'silhouette'
+    n = rows.get('n_groups')
+    return f"Y&prime; groups: {how}" + (f" ({html.escape(str(n))} groups)" if n not in (None, '') else '')
+
+
+def build_one(pipeline_dir, base_name, output, onion_plots_dir='graphs/onion_skin', yprime_grouping=None):
     print(f'  collecting: {base_name}')
     data = collect(pipeline_dir, base_name)
     data['onion_plots_dir'] = onion_plots_dir
@@ -1199,6 +1216,8 @@ def build_one(pipeline_dir, base_name, output, onion_plots_dir='graphs/onion_ski
     body = render_sample(data)
     sub = (f'day-0 comparison &middot; generated {datetime.now():%Y-%m-%d %H:%M} &middot; '
            f'<span class="mono">{html.escape(pipeline_dir)}</span>')
+    if yprime_grouping:
+        sub += f' &middot; {yprime_grouping_text(yprime_grouping)}'
     os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
     with open(output, 'w') as fh:
         fh.write(page(f'{base_name} — TeloTracker report', body, sub))
@@ -1233,7 +1252,7 @@ def main():
         print('ERROR: need --pipeline-dir and --base-name (or --results-dir with --samples)')
         sys.exit(1)
     out = args.output or os.path.join(args.pipeline_dir, f'{args.base_name}_report.html')
-    build_one(args.pipeline_dir, args.base_name, out, args.onion_plots_dir)
+    build_one(args.pipeline_dir, args.base_name, out, args.onion_plots_dir, args.yprime_grouping)
 
 
 if __name__ == '__main__':

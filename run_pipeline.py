@@ -94,6 +94,42 @@ def merge_configs(file_cfg: dict, args) -> dict:
     return cfg
 
 
+def normalize_cfg(cfg: dict) -> dict:
+    """Coerce config values once, before anything uses them.
+
+    - strain and sample names become strings (YAML reads `strain: 7302` as an int);
+    - a trailing .bam is dropped from base_name and the time-point samples (the Snakefile
+      finds the input file's extension itself, so names never carry it);
+    - yprime_grouping ("silhouette", or a percent identity such as 99.5 for a fixed cutoff)
+      is resolved into yprime_stop_mode / yprime_identity_threshold, which older configs
+      set directly and which are still accepted.
+    """
+    def _name(v):
+        v = str(v)
+        return v[:-4] if v.endswith(".bam") else v
+
+    if cfg.get("strain") is not None:
+        cfg["strain"] = str(cfg["strain"])
+    if cfg.get("base_name"):
+        cfg["base_name"] = _name(cfg["base_name"])
+    if cfg.get("timepoint_samples"):
+        cfg["timepoint_samples"] = [_name(x) for x in cfg["timepoint_samples"]]
+
+    grouping = cfg.get("yprime_grouping")
+    if grouping is not None:
+        if str(grouping).strip().lower() == "silhouette":
+            cfg["yprime_stop_mode"] = "silhouette"
+        else:
+            try:
+                cfg["yprime_identity_threshold"] = float(grouping)
+            except (TypeError, ValueError):
+                print(f"ERROR: yprime_grouping must be 'silhouette' or a percent identity "
+                      f"such as 99.5, not '{grouping}'")
+                sys.exit(1)
+            cfg["yprime_stop_mode"] = "threshold"
+    return cfg
+
+
 def validate_cfg(cfg: dict, steps: list):
     errors = []
 
@@ -114,6 +150,27 @@ def validate_cfg(cfg: dict, steps: list):
         if not cfg.get("timepoint_samples") and not cfg.get("base_name"):
             errors.append("At least one sample is required for the recombination step. "
                           "Use --samples or set timepoint_samples in the config file.")
+        if not cfg.get("strain"):
+            errors.append("--strain (or strain in config) is required for recombination: "
+                          "it names the day-0 reference, label and library files")
+
+    if "label_regions" in steps:
+        stop_mode = cfg.get("yprime_stop_mode", "silhouette")
+        if stop_mode not in ("silhouette", "threshold"):
+            errors.append(f"yprime_stop_mode must be 'silhouette' or 'threshold', not '{stop_mode}'")
+        threshold = cfg.get("yprime_identity_threshold", 97.0)
+        try:
+            threshold = float(threshold)
+            if not 50 <= threshold <= 100:
+                errors.append(f"the Y' identity threshold is a percent between 50 and 100 "
+                              f"(e.g. 99.5, not 0.995); got {threshold}")
+        except (TypeError, ValueError):
+            errors.append(f"the Y' identity threshold must be a number, not '{threshold}'")
+        if (stop_mode == "silhouette" and "yprime_identity_threshold" in cfg
+                and "yprime_grouping" not in cfg):
+            print("WARNING: yprime_identity_threshold is set but Y' groups are chosen by silhouette, "
+                  "which uses the threshold only when there are two Y' variants. For a fixed "
+                  "cutoff set yprime_grouping: <percent> (e.g. 99.5).")
 
     # anchor_set now selects the anchor FASTA itself (not just output filenames), so a
     # missing file must fail here with a clear message rather than deep inside BLAST.
@@ -142,21 +199,30 @@ def validate_cfg(cfg: dict, steps: list):
 def substitute_var(content: str, var_name: str, new_value: str, script_name: str = "") -> str:
     """
     Replace a bash variable assignment line like:
-        VAR_NAME="old"           -> VAR_NAME="new_value"
-        VAR_NAME=old             -> VAR_NAME="new_value"
+        VAR_NAME="old"             -> VAR_NAME="new_value"
+        VAR_NAME=old               -> VAR_NAME="new_value"
+        VAR_NAME='old'             -> VAR_NAME="new_value"
+        export VAR_NAME="old"      -> export VAR_NAME="new_value"
         VAR_NAME="old"  # comment  -> VAR_NAME="new_value"  # comment
 
-    Handles quoted values, unquoted values, and preserves trailing comments.
-    Anchored to line-start so commented-out lines (#VAR_NAME=...) are ignored.
+    Handles quoted and unquoted values, leading indentation, `export`, trailing comments and
+    CRLF line endings. Anchored to line-start so commented-out lines (#VAR_NAME=...) are ignored.
+    The new value is written inside double quotes with double quotes and backslashes escaped;
+    `$` still expands, as it always has. A variable that is not found is an error: the script
+    would otherwise run with its own built-in default.
     """
-    # Group 1: "VAR="
-    # Group 2: the current value -- either a double-quoted string or a bare word
+    # Group 1: indentation, optional "export ", "VAR="
+    # Group 2: the current value -- a double-quoted string, a single-quoted string or a bare word
     # Group 3: optional trailing whitespace + comment
-    pattern = rf'^({re.escape(var_name)}=)("(?:[^"\\]|\\.)*"|\S*)(\s*#.*)?$'
-    replacement = rf'\g<1>"{new_value}"\g<3>'
-    new_content, n = re.subn(pattern, replacement, content, flags=re.MULTILINE)
+    # Group 4: optional carriage return (CRLF files)
+    pattern = (rf'^([ \t]*(?:export[ \t]+)?{re.escape(var_name)}=)'
+               r'("(?:[^"\\]|\\.)*"|\'[^\']*\'|[^\s#]*)([ \t]*#[^\r\n]*)?(\r?)$')
+    quoted = '"' + new_value.replace('\\', '\\\\').replace('"', '\\"') + '"'
+    new_content, n = re.subn(pattern, lambda m: m.group(1) + quoted + (m.group(3) or '') + m.group(4),
+                             content, flags=re.MULTILINE)
     if n == 0:
-        print(f"  WARNING: could not find '{var_name}=' in {script_name} to substitute.")
+        sys.exit(f"ERROR: could not find '{var_name}=' in {script_name} to substitute; "
+                 f"the script would run with its built-in default.")
     return new_content
 
 
@@ -172,20 +238,27 @@ def patch_script(script_path: Path, subs: dict) -> str:
 # Snakemake config.yaml writer
 # ------------------------------------------------------------------------------
 
-def write_snakemake_config(cfg: dict, dest: Path = None):
-    """Write the config.yaml consumed by the Snakemake pipeline.
-
-    Emits the key structure the current Snakefile reads at module load time.
-    """
+def write_snakemake_config(cfg: dict, dest: Path = None, dry_run: bool = False):
+    """Write the config.yaml consumed by the Snakemake pipeline (print it instead on a dry run)."""
     if dest is None:
         dest = PIPELINE_DIR / "_pipeline" / "config.yaml"
+    text = snakemake_config_text(cfg)
+    if dry_run:
+        print(f"  [DRY RUN] Would write {dest}:")
+        for line in text.splitlines():
+            print(f"    {line}")
+        return
+    dest.write_text(text)
+    print(f"  Written: {dest}")
 
+
+def snakemake_config_text(cfg: dict) -> str:
+    """The config.yaml text: the key structure the current Snakefile reads at module load time."""
     base_name    = cfg["base_name"]
     strain       = cfg["strain"]
     bam_dir      = cfg.get("bam_dir", "samples_dorado_basecalled")
     anchor_set   = cfg.get("anchor_set", "telomerase_shutoff_anchors")
     min_gapped   = cfg.get("min_raw_gapped_score", 5000)
-    yp_threshold = cfg.get("yprime_identity_threshold", 97.0)
     yp_override  = cfg.get("y_prime_lib_override")
 
     # Day-0 sample whose reference + labels are used as the read-against.
@@ -204,8 +277,10 @@ def write_snakemake_config(cfg: dict, dest: Path = None):
         "# BLAST parameter",
         f"min_raw_gapped_score: {min_gapped}",
         "",
-        "# Y prime clustering threshold (percent identity for grouping)",
-        f"yprime_identity_threshold: {yp_threshold}",
+        "# Recombination calling (the Snakefile's defaults when absent; written so the",
+        "# recombination rules and the onion-skin time course use the same values)",
+        f'attribution_mode: "{cfg.get("attribution_mode", "v2")}"',
+        f'y_prime_id_level: "{cfg.get("y_prime_id_level", "family")}"',
         "",
         "# Paths to references",
         "references:",
@@ -228,8 +303,7 @@ def write_snakemake_config(cfg: dict, dest: Path = None):
         f'  x_element_lib: "results/{day0_base}/_pipeline/pretelomeric_labels/clustered_x_elements_{{strain}}.fasta"',
         "",
     ])
-    dest.write_text("\n".join(lines))
-    print(f"  Written: {dest}")
+    return "\n".join(lines)
 
 
 # ------------------------------------------------------------------------------
@@ -290,9 +364,7 @@ def run_script(patched_content: str, label: str, extra_args: list = None, dry_ru
         print(f"\nERROR: {label} failed (exit code {e.returncode})")
         print(f"  Temp script retained at: {tmp_path}")
         sys.exit(e.returncode)
-    finally:
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
+    os.unlink(tmp_path)
 
 
 # ------------------------------------------------------------------------------
@@ -327,10 +399,6 @@ def step_create_ref(cfg: dict, dry_run: bool = False):
     dorado_image = cfg.get("dorado_image", "")
     dorado_model = cfg.get("dorado_model", "dna_r10.4.1_e8.2_400bps_sup@v5.2.0")
 
-    # create_ref.sh expects BASE_NAME without extension
-    if base_name.endswith(".bam"):
-        base_name = base_name[:-4]
-
     print(f"  base_name:    {base_name}")
     print(f"  strain:       {strain}")
     print(f"  threads:      {threads}")
@@ -342,8 +410,7 @@ def step_create_ref(cfg: dict, dry_run: bool = False):
 
     # 1. Write Snakemake config.yaml
     print("\n  Writing config.yaml for Snakemake...")
-    if not dry_run:
-        write_snakemake_config(cfg)
+    write_snakemake_config(cfg, dry_run=dry_run)
 
     # 2. Patch create_ref.sh
     # ANCHOR_SET must match the Snakemake config: create_ref.sh builds the
@@ -455,6 +522,10 @@ def write_sample_report(sample: str, cfg: dict):
         print(f"  NOTE: no {pipeline_dir}; skipping HTML report")
         return
     cmd = [sys.executable, script, "--pipeline-dir", pipeline_dir, "--base-name", sample]
+    # How the day-0 Y' groups were made (label_regions output), shown in the report header.
+    if cfg.get("base_name") and cfg.get("strain"):
+        cmd += ["--yprime-grouping", os.path.join("results", cfg["base_name"], "_pipeline", "pretelomeric_labels",
+                                                  f"yprime_grouping_{cfg['strain']}.tsv")]
     try:
         subprocess.run(cmd, check=True, cwd=PIPELINE_DIR)
     except Exception as exc:                                        # noqa: BLE001
@@ -492,7 +563,7 @@ def onion_skin_timecourse(cfg: dict, samples: list, day0_base: str, dry_run: boo
 
 def step_recombination(cfg: dict, dry_run: bool = False):
     print("\n" + "=" * 70)
-    print("STEP 3: Recombination Analysis  (snakemake recombination_summary + single-sample plots + events + track plots)")
+    print("STEP 3: Recombination Analysis  (snakemake all: summary, single-sample plots, events, track plots)")
     print("=" * 70)
 
     samples = cfg.get("timepoint_samples") or []
@@ -533,7 +604,7 @@ def step_recombination(cfg: dict, dry_run: bool = False):
         cmd = ["snakemake", "-s", "_pipeline/Snakefile", "all", "-c", str(threads)]
 
         if dry_run:
-            print(f"  [DRY RUN] Would write config.yaml with base_name={sample}, day0_base={day0_base}")
+            write_snakemake_config(per_sample_cfg, dry_run=True)
             print(f"  [DRY RUN] Would run: {' '.join(cmd)}")
             continue
 
@@ -542,7 +613,7 @@ def step_recombination(cfg: dict, dry_run: bool = False):
         try:
             subprocess.run(cmd, check=True, cwd=PIPELINE_DIR)
         except subprocess.CalledProcessError as e:
-            print(f"\nERROR: snakemake recombination_summary/through_y_prime_analysis failed for {sample} (exit code {e.returncode})")
+            print(f"\nERROR: snakemake all failed for {sample} (exit code {e.returncode})")
             # still write the report: it shows which stages did produce output, which is
             # exactly what you want when diagnosing the failure
             write_sample_report(sample, cfg)
@@ -606,11 +677,15 @@ anchor_set: "telomerase_shutoff_anchors"
 # BLAST parameter -- minimum raw gapped alignment score
 min_raw_gapped_score: 5000
 
-# Y prime clustering: percent identity threshold for grouping (threshold mode).
-# 97 and 99 are the benchmarked cuts: on day-0 references they give ~10 and ~12 groups at
-# the same false-mismatch rate. Higher = more groups (finer resolution).
-# In silhouette mode this only decides the 2-variant case, which silhouette cannot score.
-yprime_identity_threshold: 97.0
+# Y prime grouping: how Y' copies are grouped into IDs (ID1, ID2, ...).
+#   silhouette = data-driven: picks the number of groups with the best silhouette score (default)
+#   <percent>  = fixed identity cutoff, e.g. 97, 99 or 99.5. Higher = more, finer groups.
+#                97 and 99 are the benchmarked cuts (~10 and ~12 groups on day-0 references at
+#                the same false-mismatch rate); 99.5 is the cutoff of the published cut99.5
+#                analyses (see _pipeline/references/day0/README.md).
+# Group IDs depend on this setting, so compare samples grouped the same way.
+# (Configs that set yprime_stop_mode / yprime_identity_threshold directly still work.)
+yprime_grouping: "silhouette"
 
 # Y prime clustering: variants at least this identical are merged before clustering
 yprime_dedup_threshold: 99.9
@@ -625,11 +700,6 @@ yprime_boundary_trim: true
 #   average  = merge when the MEAN cross-cluster pair is above threshold (recommended default)
 #   single   = merge if ANY cross-cluster pair is above threshold (most permissive)
 yprime_linkage: "average"
-
-# Y prime clustering: how to pick the cluster count
-#   silhouette = data-driven; picks k with the highest silhouette score (recommended default)
-#   threshold  = fixed cutoff from yprime_identity_threshold above
-yprime_stop_mode: "silhouette"
 
 # Override the automatically-extracted Y prime library with a curated one.
 # Uncomment and set if you want to use a specific FASTA.
@@ -647,8 +717,8 @@ yprime_stop_mode: "silhouette"
 # and analyzes each entry of timepoint_samples against it.
 
 # Time-point samples to analyze against the day-0 reference, IN TIME ORDER.
-# Each is run as: snakemake recombination_summary -c THREADS with the
-# appropriate base_name set in config.yaml.
+# Each is run as: snakemake -s _pipeline/Snakefile all -c THREADS, with base_name in
+# _pipeline/config.yaml set to that sample.
 timepoint_samples:
   - "dorado_7302_day3_PromethION_no_tag_yes_rejection"
   - "dorado_7302_day6_PromethION_no_tag_yes_rejection"
@@ -738,8 +808,8 @@ def parse_args():
     # Recombination
     grp4 = parser.add_argument_group("recombination parameters")
     grp4.add_argument("--samples", nargs="+", metavar="NAME",
-                      help="Sample base names to analyze (runs snakemake recombination_summary "
-                           "for each). Overrides timepoint_samples in config.")
+                      help="Sample base names to analyze (runs snakemake all for each). "
+                           "Overrides timepoint_samples in config.")
 
     return parser.parse_args()
 
@@ -765,7 +835,7 @@ def main():
         file_cfg = load_yaml_config(args.config)
         print(f"Loaded config from: {args.config}")
 
-    cfg = merge_configs(file_cfg, args)
+    cfg = normalize_cfg(merge_configs(file_cfg, args))
 
     # Resolve steps -- expand shortcuts, preserve order, deduplicate
     steps = []
@@ -792,9 +862,6 @@ def main():
     organize_enabled = not args.no_organize
     day0_base = cfg.get("base_name", "")
     strain = cfg.get("strain", "")
-    # create_ref.sh strips a trailing .bam, so strip here too for symlink-target resolution
-    if day0_base.endswith(".bam"):
-        day0_base = day0_base[:-4]
 
     if "create_ref" in steps:
         step_create_ref(cfg, dry_run=args.dry_run)

@@ -446,6 +446,39 @@ awk -v e="$(awk '{s+=$2} END{print s}' "${EXTENDED_REF}.fai")" '{s+=$2} END{
         "interiors are probably under-covered. Consider POLISH_SCOPE=\"ends\"."
 }' "${DORADO_REF}.fai"
 
+# The genome total hides losses on single chromosomes (the 7172 / 7302 rebuilds lost 188 kb
+# and 83 kb of interior sequence, under 2 % of the genome), so compare every contig.
+# Flag any that changed by more than 1 % or 10 kb; the table is kept next to the reference.
+POLISH_CHECK_TSV="${OUTPUT_DIR}/polish_length_check.tsv"
+awk -F'\t' -v OFS='\t' -v out="${POLISH_CHECK_TSV}" '
+    NR == FNR { ext[$1] = $2; next }
+    {
+        n_pol++
+        if (!($1 in ext)) { unmatched++; next }
+        d = $2 - ext[$1]; pct = d / ext[$1] * 100
+        flag = (pct < -1 || pct > 1 || d < -10000 || d > 10000) ? "CHANGED" : "ok"
+        if (!header++) print "contig", "extended_bp", "polished_bp", "change_bp", "change_pct", "flag" > out
+        printf "%s\t%d\t%d\t%+d\t%+.2f\t%s\n", $1, ext[$1], $2, d, pct, flag > out
+        if (flag == "CHANGED") bad[++nbad] = sprintf("  %-20s %12d -> %12d bp (%+d bp, %+.2f%%)", $1, ext[$1], $2, d, pct)
+    }
+    END {
+        if (unmatched == n_pol) {
+            print "NOTE: polished contig names do not match the extended reference; per-contig check skipped."
+            exit
+        }
+        if (unmatched) printf "NOTE: %d polished contig(s) have no counterpart in the extended reference.\n", unmatched
+        if (nbad) {
+            print "========================================================================"
+            printf "WARNING: polishing changed the length of %d contig(s) by more than 1%% or 10 kb:\n", nbad
+            for (i = 1; i <= nbad; i++) print bad[i]
+            print "Interiors are probably under-covered; consider POLISH_SCOPE=\"ends\"."
+            print "========================================================================"
+        } else {
+            print "Per-contig length check: no contig changed by more than 1% or 10 kb."
+        }
+        print "Per-contig lengths: " out
+    }' "${EXTENDED_REF}.fai" "${DORADO_REF}.fai"
+
 else
     echo "ERROR: unknown POLISH_SCOPE '${POLISH_SCOPE}' (use \"genome\" or \"ends\")"
     exit 1

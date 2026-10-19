@@ -76,6 +76,10 @@ def summarize(recombination_dir, base_name, output_summary):
 
         try:
             df = pd.read_csv(fpath, sep='\t')
+        except pd.errors.EmptyDataError:
+            # analyze_features writes a bare newline when an end has no reads: report it as
+            # 'no_events' below instead of dropping the end from the summary.
+            df = pd.DataFrame()
         except Exception as e:
             print(f'  Warning: could not read {fpath}: {e}')
             continue

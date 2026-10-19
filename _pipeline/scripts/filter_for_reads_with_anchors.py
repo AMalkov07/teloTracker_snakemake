@@ -24,7 +24,8 @@ def read_direction(match_start_on_anchor, match_end_on_anchor):
     return 'forward' if match_start_on_anchor < match_end_on_anchor else 'reverse'
 
 def read_length_past_anchor_calc(total_read_length, match_start_on_read, match_end_on_read,
-                                  match_start_on_anchor, match_end_on_anchor, l_end_chr, alignment_direction):
+                                  match_start_on_anchor, match_end_on_anchor, l_end_chr, alignment_direction,
+                                  total_anchor_length):
     if l_end_chr:
         if alignment_direction == 'forward':
             missing = match_start_on_anchor - 1
@@ -34,10 +35,10 @@ def read_length_past_anchor_calc(total_read_length, match_start_on_read, match_e
             return (total_read_length - match_end_on_read) - missing
     else:
         if alignment_direction == 'forward':
-            missing = 5040 - match_end_on_anchor
+            missing = total_anchor_length - match_end_on_anchor
             return (total_read_length - match_end_on_read) - missing
         else:
-            missing = 5040 - match_start_on_anchor
+            missing = total_anchor_length - match_start_on_anchor
             return match_start_on_read - missing
 
 def wanted_sequence(l_end_chr, alignment_direction):
@@ -93,7 +94,8 @@ df_unique['alignment_direction']   = df_unique.apply(lambda r: read_direction(r[
 df_unique['repeat_type']           = df_unique.apply(lambda r: repeat_type_of_read(r['l_end_chr'], r['alignment_direction']), axis=1)
 df_unique['read_length_past_anchor'] = df_unique.apply(
     lambda r: read_length_past_anchor_calc(r['total_read_length'], r['match_start_on_read'], r['match_end_on_read'],
-                                           r['match_start_on_anchor'], r['match_end_on_anchor'], r['l_end_chr'], r['alignment_direction']), axis=1)
+                                           r['match_start_on_anchor'], r['match_end_on_anchor'], r['l_end_chr'], r['alignment_direction'],
+                                           r['total_anchor_length']), axis=1)
 df_unique['wanted_section_of_read'] = df_unique.apply(lambda r: wanted_sequence(r['l_end_chr'], r['alignment_direction']), axis=1)
 
 df_unique = df_unique.sort_values(['read_id', 'bitscore', 'match_length', 'read_bp_used_for_match'], ascending=False)

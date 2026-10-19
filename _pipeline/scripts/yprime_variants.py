@@ -81,20 +81,35 @@ def hp_condense(s):
 # ---------------------------------------------------------------------------
 
 def load_templates(ref_fasta, bed):
-    """{'chr2L1': seq} for every chr*_Y_Prime_n in the BED, oriented as the BED strand gives it."""
-    genome = {k.split()[0]: v.upper() for k, v in read_fasta(ref_fasta).items()}
-    out = {}
+    """{'chr2L1': seq} for every chr*_Y_Prime_n in the BED, oriented as the BED strand gives it.
+    Contig names are matched without the `_extended` suffix create_ref references carry, since
+    the label BED strips it."""
+    genome = {_strip_extended(k.split()[0]): v.upper() for k, v in read_fasta(ref_fasta).items()}
+    out, missing = {}, set()
     with open(bed) as fh:
         for line in fh:
             c = line.rstrip('\n').split('\t')
             if len(c) < 5:
                 continue
             m = YP_NAME.match(c[3])
-            if not m or c[0] not in genome:
+            if not m:
                 continue
-            s = genome[c[0]][int(c[1]):int(c[2])]
+            contig = _strip_extended(c[0])
+            if contig not in genome:
+                missing.add(c[0])
+                continue
+            s = genome[contig][int(c[1]):int(c[2])]
             out[f'{m.group(1)}{m.group(2)}'] = rc(s) if c[4] == '-' else s
+    if missing and not out:
+        sys.exit(f'ERROR: none of the Y\' copies in {bed} could be found in {ref_fasta} '
+                 f'(contigs not in the FASTA: {", ".join(sorted(missing))})')
+    if missing:
+        print(f'  WARNING: Y\' copies on contigs missing from {ref_fasta} skipped: {", ".join(sorted(missing))}')
     return out
+
+
+def _strip_extended(name):
+    return name[:-len('_extended')] if name.endswith('_extended') else name
 
 
 def merge_templates(templates, max_edits=MERGE_EDITS):

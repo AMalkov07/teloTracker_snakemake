@@ -631,7 +631,7 @@ def trim_extension_to_telomere(ext, side, window=TELO_TIP_WINDOW):
     return ext[cut:], cut, True
 
 
-def extend_reference_multi(bamfile, reference, read_ids_file, output_fasta, trim,
+def extend_reference_multi(bamfile, reference, read_ids_file, output_fasta,
                            chr_arm_pairs_file=None):
     """
     Extend reference genome using soft-clipped bases from multiple reads
@@ -641,7 +641,6 @@ def extend_reference_multi(bamfile, reference, read_ids_file, output_fasta, trim
         reference: Path to reference FASTA file
         read_ids_file: Path to file with read IDs (one per line)
         output_fasta: Path to output extended FASTA file
-        trim: Number of bp to trim from the end of extensions to remove adapters
         chr_arm_pairs_file: "<chr_end>\\t<read_id>" pairs from select_reads. When
             supplied, each scaffold's clip is taken from the alignment on its OWN
             chromosome's contig, running off its OWN end of that contig -- and
@@ -711,8 +710,6 @@ def extend_reference_multi(bamfile, reference, read_ids_file, output_fasta, trim
     extensions = {}  # Store extensions per reference
 
     print(f"\nSearching for soft-clipped bases from {len(read_ids)} reads...")
-    if trim != 0:
-        print(f"Will trim {trim}bp from extension ends to remove adapters")
 
     if read_to_arm:
         # ---- contig + end binding -------------------------------------------
@@ -766,7 +763,7 @@ def extend_reference_multi(bamfile, reference, read_ids_file, output_fasta, trim
                 if not at_end:
                     continue
                 clip = get_softclip_from_cigar(a, side='start' if side == 'prefix' else 'end')
-                if clip and len(clip) > trim:
+                if clip:
                     picks.append((a, clip))
 
             if not picks:
@@ -791,9 +788,9 @@ def extend_reference_multi(bamfile, reference, read_ids_file, output_fasta, trim
                 return (dist, -ident)
 
             best_aln, clip = min(picks, key=rank)
-            trimmed = (clip[:-trim] if trim > 0 else clip) if side == 'prefix' \
-                else (clip[trim:] if trim > 0 else clip)
-            trimmed, cut, found = trim_extension_to_telomere(trimmed, side)
+            # Adapters / tags past the telomere are cut here, measured from the telomere.
+            # (A fixed --trim N used to exist; it cut the contig-junction side, never ran.)
+            trimmed, cut, found = trim_extension_to_telomere(clip, side)
             if cut:
                 print(f'  {arm:<4} cut {cut:,}bp past the terminal telomere repeat (adapter / tag)')
             elif not found:
@@ -813,13 +810,11 @@ def extend_reference_multi(bamfile, reference, read_ids_file, output_fasta, trim
             if ref_name not in extensions:
                 extensions[ref_name] = {'prefix': [], 'suffix': []}
             prefix = get_softclip_from_cigar(read, side="start")
-            if prefix and len(prefix) > trim:
-                trimmed_prefix = prefix[:-trim] if trim > 0 else prefix
-                extensions[ref_name]['prefix'].append((read.query_name, trimmed_prefix, len(prefix)))
+            if prefix:
+                extensions[ref_name]['prefix'].append((read.query_name, prefix, len(prefix)))
             suffix = get_softclip_from_cigar(read, side="end")
-            if suffix and len(suffix) > trim:
-                trimmed_suffix = suffix[trim:] if trim > 0 else suffix
-                extensions[ref_name]['suffix'].append((read.query_name, trimmed_suffix, len(suffix)))
+            if suffix:
+                extensions[ref_name]['suffix'].append((read.query_name, suffix, len(suffix)))
 
     samfile.close()
 

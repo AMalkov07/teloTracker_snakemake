@@ -62,21 +62,17 @@ CHROM_ENDS = [f"chr{n}{s}" for n in range(1, 17) for s in ("L", "R")]
 
 import os, sys
 
-_bam_path   = os.path.join(BAM_DIR, BASE + ".bam")
-_fastq_path = os.path.join(BAM_DIR, BASE + ".fastq")
-_fqgz_path  = os.path.join(BAM_DIR, BASE + ".fastq.gz")
-
-if os.path.exists(_bam_path):
-    INPUT_FILE = _bam_path
-    INPUT_TYPE = "bam"
-elif os.path.exists(_fastq_path):
-    INPUT_FILE = _fastq_path
-    INPUT_TYPE = "fastq"
-elif os.path.exists(_fqgz_path):
-    INPUT_FILE = _fqgz_path
-    INPUT_TYPE = "fastqgz"
+# First match wins, in this order.
+_INPUT_CANDIDATES = [(".bam", "bam"), (".fastq", "fastq"), (".fq", "fastq"),
+                     (".fastq.gz", "fastqgz"), (".fq.gz", "fastqgz")]
+for _ext, _type in _INPUT_CANDIDATES:
+    _path = os.path.join(BAM_DIR, BASE + _ext)
+    if os.path.exists(_path):
+        INPUT_FILE, INPUT_TYPE = _path, _type
+        break
 else:
-    print(f"ERROR: No input found at {_bam_path}, {_fastq_path}, or {_fqgz_path}", file=sys.stderr)
+    _tried = ", ".join(os.path.join(BAM_DIR, BASE + e) for e, _ in _INPUT_CANDIDATES)
+    print(f"ERROR: No input found at any of: {_tried}", file=sys.stderr)
     sys.exit(1)
 
 # ---------------------------------------------------------------------------
@@ -284,10 +280,14 @@ rule blast_y_primes:
         """
         mkdir -p {YP_BLAST}
         echo -e "read_id\\ttotal_read_length\\tread_bp_used_for_match\\tmatch_start_on_read\\tmatch_end_on_read\\tanchor_name\\ttotal_anchor_length\\tmatch_start_on_anchor\\tmatch_end_on_anchor\\tpident\\tbitscore\\tevalue" > {output}
-        blastn -query {input} -db {PROBE_DB} \
-            -perc_identity 90 -num_threads {threads} \
-            -outfmt "6 qseqid qlen length qstart qend sseqid slen sstart send pident bitscore evalue" \
-            >> {output} || true
+        # An end with no anchored reads has an empty FASTA: keep the header-only table. Any
+        # other blastn failure fails the rule rather than reading as zero Y' copies.
+        if [ -s {input} ]; then
+            blastn -query {input} -db {PROBE_DB} \
+                -perc_identity 90 -num_threads {threads} \
+                -outfmt "6 qseqid qlen length qstart qend sseqid slen sstart send pident bitscore evalue" \
+                >> {output}
+        fi
         """
 
 # ---------------------------------------------------------------------------

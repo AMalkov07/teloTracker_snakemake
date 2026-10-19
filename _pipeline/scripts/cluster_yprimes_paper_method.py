@@ -110,6 +110,9 @@ def parse_args():
                    help='Output FASTA with rewritten IDn_Color headers (for pipeline integration)')
     p.add_argument('--label', default=None,
                    help='Label for output filenames (auto-generated if not set)')
+    p.add_argument('--settings-out', default=None,
+                   help='Write the grouping settings and group count here (TSV), so results '
+                        'built on these Y\' IDs can say which grouping produced them')
     p.add_argument('--threads', type=int, default=4)
 
     args = p.parse_args()
@@ -233,6 +236,25 @@ def assign_ids_and_colors(cluster_labels, seq_names):
             assignments[idx] = (id_str, color)
 
     return assignments
+
+
+def write_grouping_settings(path, args, n_groups, n_sequences):
+    """Record how the Y' groups were made. Group IDs only mean something together with these
+    settings: the same genome grouped at 97 % or by silhouette gives different IDs."""
+    if not path:
+        return
+    rows = [('stop_mode', args.stop_mode),
+            ('identity_threshold', f'{args.identity_threshold:g}'),
+            ('linkage', args.linkage),
+            ('dedup_threshold', f'{args.dedup_threshold:g}'),
+            ('homopolymer_condensation', 'yes' if args.condense else 'no'),
+            ('n_yprime_sequences', n_sequences),
+            ('n_groups', n_groups)]
+    with open(path, 'w') as f:
+        f.write('setting\tvalue\n')
+        for k, v in rows:
+            f.write(f'{k}\t{v}\n')
+    print(f"  Grouping settings: {path}")
 
 
 def write_clustered_fasta(original_entries, deduped_names, cluster_labels,
@@ -605,6 +627,7 @@ def main():
         if args.output_fasta:
             write_clustered_fasta(entries, names, [1] * len(names),
                                   {h: h for h in names}, args.output_fasta)
+        write_grouping_settings(args.settings_out, args, 1 if entries else 0, len(entries))
         print("\nDone.")
         return
 
@@ -759,6 +782,7 @@ def main():
         print("\n--- Writing clustered FASTA ---")
         write_clustered_fasta(entries, deduped_names, labels, original_to_rep,
                               args.output_fasta)
+    write_grouping_settings(args.settings_out, args, best_k, len(entries))
 
     # Create Figure 3A
     print("\n--- Creating figures ---")
