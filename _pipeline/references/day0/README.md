@@ -38,8 +38,7 @@ label output to standard BED; these files will be regenerated and re-committed t
 base_name: "6991_curated"
 strain: "6991_curated"
 reference_fasta: "_pipeline/references/day0/6991_curated/6991_curated.fasta"
-yprime_stop_mode: "threshold"
-yprime_identity_threshold: 99.5
+yprime_grouping: 99.5              # same as yprime_stop_mode: threshold + yprime_identity_threshold: 99.5
 ```
 
 Run `--steps label_regions recombination` (see the main README). `label_regions` rebuilds the Y' / spacer / X
@@ -62,8 +61,9 @@ and to the `reference_fasta` of each cut99.5 run; the BEDs are identical to thos
 ## Other references in this repository
 
 - `results/dorado_7302_day0_PromethION_no_tag_yes_rejection/` holds an older **create_ref build** of 7302 (added
-  March 2026, `637cc9b`). It predates ends-only polishing and is **not** the curated 7302 genome above. It stays
-  because the README and config template use that sample name as their example.
+  March 2026, `637cc9b`). It predates ends-only polishing and is **not** the curated 7302 genome above. It is
+  in the old folder layout (`results/<sample>/assembly_7302/`, no `_pipeline/`), so the current pipeline does
+  not find it on its own; it stays because the README and config template use that sample name as their example.
 - Files in `_pipeline/references/` that the pipeline reads by default: the anchor sets
   (`telomerase_shutoff_anchors.fasta`, `test_anchors.fasta`, with BLAST databases), the create_ref base reference
   `6991_only_to_anchors.fasta`, the Y' probe `y_prime_probe.fasta`, the adapter sequences, and the labelling

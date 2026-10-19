@@ -98,12 +98,16 @@ For each read:
    If not (expected for most/all reads due to sequencing errors):
      → Proceed to chunk analysis (steps 1-4 below)
 
-   NOTE: Track what percentage of reads are resolved by this quick check.
-   This metric is reported in the output as "spacer_quick_check_skipped"
-   and in the summary TSV as "pct_spacer_quick_check_skipped".
-   Expected: very few reads will pass (Nanopore ~5% error rate means
-   even a perfect spacer will have errors). This check is intentionally
-   strict — we want to measure how many reads have a truly perfect match.
+   NOTE: the per-read output column "spacer_quick_check_skipped" records
+   which reads were resolved this way (there is no summary percentage).
+   Expected: very few reads pass (Nanopore errors break exact matches).
+   Known issues, planned fix (they change calls, so they wait for a
+   before/after rerun): the check only searches the read as given, not its
+   reverse complement, and on create_ref references it can take the spacer
+   from the wrong contig ("chr1" also matches "chr10_extended").
+
+   In v2 attribution (the default) the chunk walk below only uses chunks
+   inside the read's spacer interval (anchor -> X element / first Y').
 
 1. CHOP the entire read into non-overlapping 250bp chunks
 
@@ -146,17 +150,29 @@ For each read:
 
 ---
 
-## Step 11b: X Element Chunk Analysis (detailed)
+## Step 11b: X Element Call (detailed)
 
 ```
-Same approach as spacer, but BLASTs against the combined X element library.
+The X element is NOT chunked: the whole read is BLASTed (megablast,
+e-value 1e-10, up to 100 targets) against the clustered day-0 X library,
+so the read's hit to its own X is reported alongside any other cluster.
 
-X elements are shorter than spacers (typically 500-1500bp = 2-6 chunks)
-so fewer chunks will have hits. The analysis logic is identical:
+1. The best hit by bitscore names the read's X cluster.
+2. Same cluster as this end's day-0 X  -> x_element_recombination = "no_change"
+3. Another cluster:
+   - the hit must cover >= 50 % of that library X (X_MIN_SWITCH_COVERAGE),
+     else "no_data" (a short fragment cannot call a switch);
+   - it must beat the read's best hit to its OWN cluster by >= 1 identity
+     point (X_MIN_SWITCH_GAP_PCT), else "no_change" (a near-tie);
+   - otherwise "full_switch", source = that cluster's end.
+   There is no mid-element switch position: x_element_switch_pos is always -1.
 
-Chunk:    ...  12    13    14    15    ...
-Source:        chr9R chr9R chr8L chr8L
-                          ^^^^ SWITCH
+x_element_confidence = min(1, pident/100 * (0.5 + gap/20)), where gap is the
+identity lead over the next cluster. An X switch always counts as a
+structural donor in reconciliation (11d).
+
+Known issue, planned fix: if this end has no X in the day-0 library, step 2
+can never succeed, so every read with an X hit is called a full_switch.
 ```
 
 ---
@@ -164,9 +180,10 @@ Source:        chr9R chr9R chr8L chr8L
 ## Step 11c: Y Prime Analysis (detailed)
 
 ```
-1. BLAST the FULL READ (not chunked) against Y prime library
-   - 80% identity minimum, merge adjacent hits, filter hits < 500bp
-   - Deduplicate overlapping hits (keep best score)
+1. RepeatMasker on the FULL READ (not chunked) against the day-0 Y prime
+   library (-s, --cutoff 1000); overlapping hits are deduplicated (best score
+   kept). There is no minimum hit length (the original design's 500 bp filter
+   was never implemented; planned fix).
 
 2. Order Y prime hits anchor-to-telomere on the read
    (reverse order if telo_side = 'beginning')
@@ -182,6 +199,8 @@ Source:        chr9R chr9R chr8L chr8L
    - "1st Y' Change"    — position 1 (anchor-proximal) already differs
    - "Y' Recombination" — divergence at position 2+
    - "Y' Loss"          — read has fewer Y primes than reference
+                          (decided by count alone: the surviving IDs are not
+                          compared, so a change in them is hidden; planned fix)
    - "Y' Gain"          — read has more Y primes than reference
 
 4. Find COMPATIBLE REFERENCE ENDS:
@@ -210,7 +229,7 @@ CASE 1: ALL FEATURES AGREE
 │                                                                 │
 │  → recombination_source = "chr8L"                               │
 │  → cross_feature_consistent = True                              │
-│  → confidence = HIGH (base × 1.1 boost)                        │
+│  → high donor confidence (every axis supports chr8L)            │
 └─────────────────────────────────────────────────────────────────┘
 
 CASE 2: FEATURES PARTIALLY AGREE
@@ -221,7 +240,7 @@ CASE 2: FEATURES PARTIALLY AGREE
 │                                                                 │
 │  → recombination_source = "chr8L"                               │
 │  → cross_feature_consistent = True (no contradiction)           │
-│  → confidence = MODERATE                                        │
+│  → lower donor confidence (fewer supporting axes)               │
 └─────────────────────────────────────────────────────────────────┘
 
 CASE 3: FEATURES DISAGREE
@@ -233,7 +252,7 @@ CASE 3: FEATURES DISAGREE
 │  → recombination_source = "chr8L" (most votes)                  │
 │  → cross_feature_consistent = False                             │
 │  → is_complex_event = True                                      │
-│  → confidence = LOW (base × 0.3 penalty)                       │
+│  → low donor confidence (chr12R dissents)                       │
 │  → Note: may indicate compound recombination                    │
 └─────────────────────────────────────────────────────────────────┘
 
@@ -248,29 +267,23 @@ CASE 4: NO RECOMBINATION
 └─────────────────────────────────────────────────────────────────┘
 
 
-CONFIDENCE SCORING — Three Factors:
+VOTING (v2 attribution, see docs/attribution_v2.md):
+  - A spacer switch with spacer_confidence >= STRUCTURAL_MIN_CONF (0.2) and
+    every X switch are STRUCTURAL donors: they name the proximal donor, and
+    the Y' fingerprint then does not vote for the source (it is reported as
+    y_prime_donor; disagreement marks a complex event).
+  - A weaker spacer switch still votes, scaled by its confidence.
+  - The first minimap2 supplementary alignment votes too (not yet restricted
+    to the read's own chromosome; planned fix).
 
-  Factor 1: FEATURE DISTINCTIVENESS (how unique is this feature type?)
-  ┌──────────────┬───────┬─────────────────────────────────────────┐
-  │ Feature      │ Weight│ Reason                                  │
-  ├──────────────┼───────┼─────────────────────────────────────────┤
-  │ Spacer       │  0.9  │ Generally unique between chr ends       │
-  │ Y prime      │  0.6  │ Distinct between IDs but ID assignment  │
-  │              │       │ can be unreliable                       │
-  │ X element    │  0.4  │ Often similar across chr ends           │
-  └──────────────┴───────┴─────────────────────────────────────────┘
-
-  Factor 2: SEPARATION (how clear is the best match?)
-  - Best match 99%, second-best 50%  → separation = high  → confident
-  - Best match 90%, second-best 85%  → separation = low   → ambiguous
-  - Formula: (best_identity - second_best_identity) / best_identity
-
-  Factor 3: COMPLEXITY (do features agree?)
-  - All agree               → ×1.0 (or ×1.1 with Y prime support)
-  - Partially agree         → ×0.7
-  - Features disagree       → ×0.3 (large penalty)
-
-  FINAL CONFIDENCE = Factor1 × Factor2 × Factor3
+CONFIDENCE (replaces the original three-factor formula):
+  recombination_confidence — confidence in the read's call: a noisy-OR of
+      the per-axis strengths (spacer switch, X switch confidence, Y' change
+      strength). Unchanged reads score higher when the read is confirmed to
+      reach the telomere (adapter or concordant read ends).
+  donor_confidence — confidence in the named donor: supporting vs dissenting
+      evidence across axes, and the margin of the winning vote.
+  overall_confidence — older combined score, kept for compatibility.
 ```
 
 ---
@@ -309,7 +322,9 @@ Y prime analysis:
 Cross-feature reconciliation:
   recombination_detected      — True/False
   recombination_source        — best overall source chr end (or "ambiguous")
-  overall_confidence           — 0-1, three-factor score
+  recombination_confidence    — 0-1, confidence in the call (see 11d)
+  donor_confidence            — 0-1, confidence in the named donor (see 11d)
+  overall_confidence          — older combined score, kept for compatibility
   cross_feature_consistent    — True if all features agree
   cross_feature_detail        — breakdown of what each feature found
   is_complex_event            — True if features disagree

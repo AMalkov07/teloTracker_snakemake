@@ -14,7 +14,7 @@ The pipeline has three steps that map onto the three `--steps` choices of `run_p
 |---|---|---|
 | `create_ref` | Runs the Snakemake pipeline through `through_y_prime_analysis`, then assembles and polishes a strain-specific telomeric reference using Flye and Dorado. | `create_ref.sh` (which internally runs `snakemake`) |
 | `label_regions` | Labels pre-telomeric features (Y′ elements, X elements, spacers) on the new reference and performs automatic Y′ clustering. | `label_regions.sh` |
-| `recombination` | For future time points, runs `snakemake recombination_summary` against the day-0 reference to detect recombination events. | `Snakefile` (direct Snakemake invocation, one call per time point) |
+| `recombination` | For future time points, runs `snakemake all` against the day-0 reference to detect recombination events. | `Snakefile` (direct Snakemake invocation, one call per time point) |
 
 Typical workflow for a new strain: run `create_ref` + `label_regions` **once** on the day-0 sample, then run `recombination` for each later time point.
 
@@ -123,13 +123,14 @@ dorado_model: "dna_r10.4.1_e8.2_400bps_sup@v5.2.0"
 threads: 56
 anchor_set: "telomerase_shutoff_anchors"
 min_raw_gapped_score: 5000
-yprime_identity_threshold: 97.0
+yprime_grouping: "silhouette"        # or a fixed percent cutoff, e.g. 99.5 (the published cut99.5 analyses)
 
 # Optional — override the auto-extracted Y′ library with a curated FASTA
-# y_prime_lib_override: "references/7302_features/repeatmasker_7302_all_y_primes.fasta"
+# y_prime_lib_override: "_pipeline/references/7302_features/repeatmasker_7302_all_y_primes.fasta"
 
-# Optional — custom reference for label_regions
-# reference_fasta: "path/to/custom_reference.fasta"
+# Optional — custom reference for label_regions, e.g. one of the curated day-0 genomes
+# shipped in _pipeline/references/day0/ (see the README there)
+# reference_fasta: "_pipeline/references/day0/6991_curated/6991_curated.fasta"
 
 # Recombination — base_name above is treated as the day-0 reference sample.
 # Recombination reads results/<base_name>/_pipeline/{assembly_<strain>,pretelomeric_labels}
@@ -150,7 +151,7 @@ results/<base_name>/
 ├── _pipeline/                       ← every file produced by Snakemake + the shell scripts
 │   ├── assembly_<strain>/           (create_ref.sh output)
 │   ├── pretelomeric_labels/         (label_regions.sh output)
-│   ├── recombination/               (snakemake recombination_summary output)
+│   ├── recombination/               (recombination step output)
 │   ├── blast/, porechop/, graphs/   (intermediates — feel free to ignore)
 │   └── ...                          (everything else the pipeline produces)
 ├── reference.fasta                  → _pipeline/assembly_<strain>/assembly_<strain>_dorado_reference.fasta
@@ -165,14 +166,14 @@ Important:
 
 - **Deleting a symlink does not delete the underlying file.** The symlinks are just pointers; the real files live inside `_pipeline/`.
 - **A symlink only appears after its target has been produced.** If `create_ref.sh` has finished but `label_regions.sh` hasn't, you'll see `reference.fasta` but not `labels.bed`.
-- **`scripts/organize_outputs.py`** creates and refreshes these symlinks. It's run automatically after every step by `run_pipeline.py`; disable with `--no-organize` if you'd rather work with the raw `_pipeline/` layout.
+- **`_pipeline/scripts/organize_outputs.py`** creates and refreshes these symlinks. It's run automatically after every step by `run_pipeline.py`; disable with `--no-organize` if you'd rather work with the raw `_pipeline/` layout.
 - **Migration from older runs:** if you have existing `results/<base>/` directories produced before this change, move them by hand:
   ```bash
   cd results/<base_name>
   mkdir _pipeline
   # shopt -s dotglob  # uncomment if you also want hidden files moved
   mv * _pipeline/ 2>/dev/null
-  python ../../scripts/organize_outputs.py <base_name>
+  python ../../_pipeline/scripts/organize_outputs.py <base_name>
   ```
 
 ---
@@ -222,7 +223,7 @@ Note: `run_pipeline.py` itself does **not** call `qsub` — it runs the shell sc
 
 ### `config.yaml` (written, not patched)
 
-Each run, the wrapper overwrites `config.yaml` at the repo root with a freshly generated file based on your `pipeline_config.yaml` values. The keys it emits are the ones the Snakefile reads at module load (`base_name`, `anchor_set`, `bam_dir`, `strain`, `min_raw_gapped_score`, `yprime_identity_threshold`, `references.*`).
+Before every Snakemake call, the wrapper overwrites `_pipeline/config.yaml` (not tracked by git) with a freshly generated file based on your `pipeline_config.yaml` values. The keys it emits are the ones the Snakefile reads (`base_name`, `anchor_set`, `bam_dir`, `strain`, `min_raw_gapped_score`, `attribution_mode`, `y_prime_id_level`, `references.*`). `--dry-run` prints it instead of writing it.
 
 For the `recombination` step with multiple `timepoint_samples`, `config.yaml` is **rewritten between samples**: `base_name` becomes the current time-point sample, while `references.day0_ref` / `day0_bed` / `y_prime_lib` / `spacer_lib_dir` / `x_element_lib` keep pointing back at the original day-0 sample's directory (so Snakemake reads timepoint reads from `results/<timepoint>/` but pulls the reference + labels from `results/<day0>/`).
 
@@ -233,24 +234,24 @@ The originals on disk are never modified. For each run:
 1. The wrapper reads the script file into memory.
 2. It does regex substitutions on bash variable assignments:
    - `BASE_NAME=...` → `BASE_NAME="<your value>"`
-   - `STRAIN_ID=...`, `THREADS=...`, `DORADO_MODE=...`, `DORADO_IMAGE=...`, `DORADO_MODEL=...` (for `create_ref`)
-   - `REFERENCE_DIR=...`, `REFERENCE_FASTA=...` (for `label_regions`, pointing at `create_ref`'s output or your `--reference-fasta`)
+   - `STRAIN_ID`, `ANCHOR_SET`, `THREADS`, `REFERENCE`, `POLISH_SCOPE`, `POLISH_END_FLANK`, `DORADO_MODE`, `DORADO_IMAGE`, `DORADO_MODEL` (for `create_ref`)
+   - `STRAIN_ID`, `THREADS`, `REFERENCE_DIR`, `REFERENCE_FASTA` (pointing at `create_ref`'s output or your `reference_fasta`), `ANCHORS_FASTA` (non-default anchor sets only) and the `YPRIME_*` grouping settings (for `label_regions`)
 3. The patched content is written to a temporary file in the repo root (`telo_create_ref_*.sh` or `telo_label_regions_*.sh`).
 4. `bash <tempfile>` is executed with the repo root as `cwd`.
 5. The temp file is deleted on successful exit; on failure the path is printed so you can inspect.
 
-The regex (in `substitute_var`) handles quoted values, unquoted values, and trailing comments. It matches line-start, so commented-out assignments (`#VAR=...`) are left alone.
+The regex (in `substitute_var`) handles double-quoted, single-quoted and unquoted values, indentation, `export`, trailing comments and CRLF line endings. Commented-out assignments (`#VAR=...`) are left alone. A variable it cannot find is an error, since the script would otherwise run with its own built-in default.
 
-### `snakemake recombination_summary` (direct call)
+### `snakemake all` (direct call)
 
-For the `recombination` step the wrapper doesn't touch a shell script — it just calls `snakemake recombination_summary -c <threads>` directly, once per time-point sample, rewriting `config.yaml` between calls.
+For the `recombination` step the wrapper doesn't touch a shell script — it just calls `snakemake -s _pipeline/Snakefile all -c <threads>` directly, once per time-point sample, rewriting `_pipeline/config.yaml` between calls.
 
 ### Files that are NEVER modified
 
 - `create_ref.sh` (on disk) — patches happen in memory only.
 - `label_regions.sh` (on disk) — same.
 - `Snakefile` — never patched; all Snakemake customization goes through `config.yaml`.
-- Anything in `references/`, `scripts/`, or `samples_dorado_basecalled/`.
+- Anything in `_pipeline/references/`, `_pipeline/scripts/`, or `samples_dorado_basecalled/`.
 
 ---
 
@@ -261,11 +262,11 @@ For the `recombination` step the wrapper doesn't touch a shell script — it jus
   source "$(conda info --base)/etc/profile.d/conda.sh"
   conda activate consensus
   ```
-  `run_pipeline.py` already injects the same `source` at the top of patched `create_ref.sh`/`label_regions.sh`, so you only need this in the outer qsub wrapper.
+  `label_regions.sh` does this itself when no environment (or only `base`) is active; `create_ref.sh` uses whatever environment it is started from. Under `run_pipeline.py` both inherit the wrapper's environment, so you only need this in the outer qsub wrapper.
 - **"PyYAML is required"** — activate the `consensus` conda env first.
-- **"could not find 'VAR=' in ... to substitute"** — a variable name in the wrapper no longer matches the shell script (e.g. you renamed a bash var). The wrapper will warn but continue; the script will run with its default value.
-- **Snakemake fails at module load with `KeyError: ...`** — your `pipeline_config.yaml` is missing a key the Snakefile expects. Run with `--dry-run`, inspect the generated `config.yaml`, and verify it has `references.y_prime_lib`, `spacer_lib_dir`, `x_element_lib_dir`, etc.
-- **Broken `config.yaml` after a `recombination` run** — the wrapper overwrites `config.yaml` with the **last** sample's settings. Re-run `--steps create_ref` or `--steps label_regions` (both call the config writer) to reset it for the day-0 sample.
+- **"could not find 'VAR=' in ... to substitute"** — a variable name in the wrapper no longer matches the shell script (e.g. you renamed a bash var). The wrapper stops rather than let the script run with its built-in default.
+- **Snakemake says `_pipeline/config.yaml` not found, or fails at module load with `KeyError: ...`** — the file is written by `run_pipeline.py` and is not in git, so a fresh clone has none. Run the wrapper (or `--dry-run` to see what it would write); the generated file has `references.y_prime_lib`, `spacer_lib_dir`, `x_element_lib`, etc.
+- **Calling Snakemake directly after a `recombination` run** — `_pipeline/config.yaml` holds the settings of the wrapper's last Snakemake call, i.e. the **last** time-point sample. Check it, or rerun the wrapper step for the sample you want, before calling Snakemake yourself.
 - **Want to see what would happen without risk** — `--dry-run` prints the patched scripts and the Snakemake commands without executing.
 
 ---
@@ -356,15 +357,20 @@ source: chr4
 .
 ├── run_pipeline.py            # Single-entry wrapper
 ├── pipeline_config.yaml       # User-facing config
-├── config.yaml                # Auto-generated by run_pipeline.py (do not hand-edit)
-├── Snakefile                  # Full snakemake pipeline
-├── create_ref.sh              # Reference assembly + polishing
-├── label_regions.sh           # Pre-telomeric feature labeling
 ├── consensus.yaml             # Conda environment spec
-├── references/                # Anchors, probe, adapters, strain pairing libraries
-├── scripts/                   # Python scripts called by Snakefile / label_regions
-│   └── organize_outputs.py    # Creates sibling symlinks under results/<base>/
-├── samples_dorado_basecalled/ # Your input BAM/FASTQ files
+├── _pipeline/
+│   ├── config.yaml            # Auto-generated by run_pipeline.py (not in git; do not hand-edit)
+│   ├── Snakefile              # Full snakemake pipeline
+│   ├── create_ref.sh          # Reference assembly + polishing
+│   ├── label_regions.sh       # Pre-telomeric feature labeling
+│   ├── references/            # Anchors, probe, adapters, labelling libraries
+│   │   └── day0/              # Curated 6991 / 7172 / 7302 day-0 genomes + labels
+│   ├── scripts/               # Python scripts called by Snakefile / label_regions
+│   │   └── organize_outputs.py  # Creates sibling symlinks under results/<base>/
+│   └── tests/                 # Plain test scripts: python _pipeline/tests/test_<name>.py
+├── docs/                      # Recombination logic and attribution notes
+├── verification/              # One-off analyses and benchmarks (not part of the pipeline)
+├── samples_dorado_basecalled/ # Your input BAM / FASTQ / FASTQ.GZ (.fq / .fq.gz) files
 └── results/                   # Per-sample outputs — see "Output layout" above
     └── <base_name>/
         ├── _pipeline/         # Everything produced by the pipeline
