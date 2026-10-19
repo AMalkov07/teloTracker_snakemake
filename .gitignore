@@ -52,3 +52,9 @@ verification/labels_curated/
 verification/read_id_maps/
 verification/reports/onion_skin/
 verification/snapshot_curated_all/
+
+# Per-run Snakemake config, rewritten by run_pipeline.py on every call
+_pipeline/config.yaml
+
+# Local alignment data, not part of the pipeline
+map8R/

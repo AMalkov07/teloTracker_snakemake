@@ -27,7 +27,7 @@ samtools faidx "$REF"
 # ---- Step 0: build per-end spacer reference by alignment ----
 minimap2 -x map-ont --secondary=no -t 16 "$REF" "$ANCHORS" 2>/dev/null > "$OUT/anchors.paf"
 minimap2 -x map-ont --secondary=no -t 16 "$REF" "$XELEM"   2>/dev/null > "$OUT/xelem.paf"
-python3 compute_spacer_intervals.py "$OUT/anchors.paf" "$OUT/xelem.paf" > "$OUT/spacer_regions.txt"
+python3 verification/apobec/compute_spacer_intervals.py "$OUT/anchors.paf" "$OUT/xelem.paf" > "$OUT/spacer_regions.txt"
 : > "$OUT/spacer_reference.fasta"
 while read -r end region; do
     samtools faidx "$REF" "$region" | awk -v e="$end" 'NR==1{print ">"e"_spacer"; next}{print}' >> "$OUT/spacer_reference.fasta"
@@ -68,7 +68,7 @@ run_arm() {
     map_perend "$surv" "$OUT/${tag}_surv.bam"
     MPILEUP "$OUT/${tag}_d0.bam"   > "$OUT/${tag}_d0.pileup"
     MPILEUP "$OUT/${tag}_surv.bam" > "$OUT/${tag}_surv.pileup"
-    ndiff=$(python3 apobec_build_consensus.py "$OUT/spacer_reference.fasta" "$OUT/${tag}_d0.pileup" \
+    ndiff=$(python3 verification/apobec/apobec_build_consensus.py "$OUT/spacer_reference.fasta" "$OUT/${tag}_d0.pileup" \
                 "$OUT/${tag}_day0_consensus.fa" "$OUT/${tag}_day0_diffs.tsv")
     echo "[$tag] day-0 spacer differences vs reference: $ndiff  (see ${tag}_day0_diffs.tsv)"
 }
@@ -78,6 +78,6 @@ run_arm EV  dorado_AM7575_EV-3-D0_072226  dorado_AM7575_EV-3-4c
 
 echo
 echo "############## APOBEC MOTIF RESULTS (spacers) ##############"
-python3 apobec_classify_subtract.py "$OUT/spacer_reference.fasta" "$OUT/A3A_surv.pileup" "$OUT/A3A_d0.pileup" "A3A-4c (APOBEC3A)" | tee "$OUT/A3A_result.txt"
-python3 apobec_classify_subtract.py "$OUT/spacer_reference.fasta" "$OUT/EV_surv.pileup"  "$OUT/EV_d0.pileup"  "EV-4c (control)"    | tee "$OUT/EV_result.txt"
+python3 verification/apobec/apobec_classify_subtract.py "$OUT/spacer_reference.fasta" "$OUT/A3A_surv.pileup" "$OUT/A3A_d0.pileup" "A3A-4c (APOBEC3A)" | tee "$OUT/A3A_result.txt"
+python3 verification/apobec/apobec_classify_subtract.py "$OUT/spacer_reference.fasta" "$OUT/EV_surv.pileup"  "$OUT/EV_d0.pileup"  "EV-4c (control)"    | tee "$OUT/EV_result.txt"
 echo "DONE"

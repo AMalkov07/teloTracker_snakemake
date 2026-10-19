@@ -37,7 +37,7 @@ run_arm() {
         | samtools sort -@ 8 -o "$OUT/${tag}_d0.bam" -
     samtools index "$OUT/${tag}_d0.bam"
     MPILEUP "$ANCHORS" "$OUT/${tag}_d0.bam" > "$OUT/${tag}_d0.pileup"
-    ndiff=$(python3 apobec_build_consensus.py "$ANCHORS" "$OUT/${tag}_d0.pileup" \
+    ndiff=$(python3 verification/apobec/apobec_build_consensus.py "$ANCHORS" "$OUT/${tag}_d0.pileup" \
                 "$OUT/${tag}_baseline.fa" "$OUT/${tag}_day0_diffs.tsv")
     echo "[$tag] day-0 anchor differences vs reference anchors: $ndiff  (see ${tag}_day0_diffs.tsv)"
     samtools faidx "$OUT/${tag}_baseline.fa"
@@ -54,6 +54,6 @@ run_arm EV  dorado_AM7575_EV-3-D0_072226  dorado_AM7575_EV-3-4c
 
 echo
 echo "############## APOBEC MOTIF RESULTS (anchors) ##############"
-python3 apobec_classify.py "$OUT/A3A_baseline.fa" "$OUT/A3A_surv.pileup" "A3A-4c (APOBEC3A)"  | tee "$OUT/A3A_result.txt"
-python3 apobec_classify.py "$OUT/EV_baseline.fa"  "$OUT/EV_surv.pileup"  "EV-4c (control)"     | tee "$OUT/EV_result.txt"
+python3 verification/apobec/apobec_classify.py "$OUT/A3A_baseline.fa" "$OUT/A3A_surv.pileup" "A3A-4c (APOBEC3A)"  | tee "$OUT/A3A_result.txt"
+python3 verification/apobec/apobec_classify.py "$OUT/EV_baseline.fa"  "$OUT/EV_surv.pileup"  "EV-4c (control)"     | tee "$OUT/EV_result.txt"
 echo "DONE"

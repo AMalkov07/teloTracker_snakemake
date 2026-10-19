@@ -60,7 +60,7 @@ run_arm() {
     map_perend "$surv" "$OUT/${tag}_surv.bam"
     MPILEUP "$OUT/${tag}_d0.bam"   > "$OUT/${tag}_d0.pileup"
     MPILEUP "$OUT/${tag}_surv.bam" > "$OUT/${tag}_surv.pileup"
-    ndiff=$(python3 apobec_build_consensus.py "$OUT/x_reference.fasta" "$OUT/${tag}_d0.pileup" \
+    ndiff=$(python3 verification/apobec/apobec_build_consensus.py "$OUT/x_reference.fasta" "$OUT/${tag}_d0.pileup" \
                 "$OUT/${tag}_day0_consensus.fa" "$OUT/${tag}_day0_diffs.tsv")
     echo "[$tag] day-0 X differences vs X reference: $ndiff  (see ${tag}_day0_diffs.tsv)"
 }
@@ -70,6 +70,6 @@ run_arm EV  dorado_AM7575_EV-3-D0_072226  dorado_AM7575_EV-3-4c
 
 echo
 echo "############## APOBEC MOTIF RESULTS (X-elements) ##############"
-python3 apobec_classify_subtract.py "$OUT/x_reference.fasta" "$OUT/A3A_surv.pileup" "$OUT/A3A_d0.pileup" "A3A-4c (APOBEC3A)" | tee "$OUT/A3A_result.txt"
-python3 apobec_classify_subtract.py "$OUT/x_reference.fasta" "$OUT/EV_surv.pileup"  "$OUT/EV_d0.pileup"  "EV-4c (control)"    | tee "$OUT/EV_result.txt"
+python3 verification/apobec/apobec_classify_subtract.py "$OUT/x_reference.fasta" "$OUT/A3A_surv.pileup" "$OUT/A3A_d0.pileup" "A3A-4c (APOBEC3A)" | tee "$OUT/A3A_result.txt"
+python3 verification/apobec/apobec_classify_subtract.py "$OUT/x_reference.fasta" "$OUT/EV_surv.pileup"  "$OUT/EV_d0.pileup"  "EV-4c (control)"    | tee "$OUT/EV_result.txt"
 echo "DONE"
