@@ -71,6 +71,46 @@ def test_substitute_var_missing_variable_is_an_error():
     assert exits(rp.substitute_var, 'X=1\n', 'Y', '2', 't.sh')
 
 
+def test_profile_config_needs_no_strain_or_day0_keys():
+    text = rp.snakemake_config_text(normalized(base_name='s'), recombination=False)
+    assert 'recombination: false' in text and 'base_name: "s"' in text
+    for key in ('strain:', 'day0_ref', 'day0_bed', 'y_prime_lib', 'spacer_lib_dir', 'x_element_lib',
+                'attribution_mode'):
+        assert key not in text, key
+    assert 'anchors: "_pipeline/references/telomerase_shutoff_anchors.fasta"' in text
+    assert not exits(rp.validate_cfg, normalized(base_name='s'), ['profile'])
+    assert exits(rp.validate_cfg, normalized(), ['profile'])           # no sample at all
+
+
+def test_recombination_config_points_at_the_day0_sample():
+    cfg = normalized(base_name='t3', strain='7172_curated', _day0_base='d0')
+    text = rp.snakemake_config_text(cfg, recombination=True)
+    assert 'recombination: true' in text and 'strain: "7172_curated"' in text
+    assert 'day0_bed: "results/d0/_pipeline/pretelomeric_labels/pretelomeric_regions_7172_curated_simp.bed"' in text
+    assert 'x_element_lib: "results/d0/_pipeline/pretelomeric_labels/clustered_x_elements_{strain}.fasta"' in text
+
+
+def test_recombination_prerequisites_are_listed_before_anything_runs():
+    import tempfile
+    with tempfile.TemporaryDirectory() as root:
+        cfg = normalized(base_name='d0', strain='S', timepoint_samples=['t3'])
+        problems = rp.check_recombination_prereqs(cfg, rp.step_samples(cfg), root)
+        assert len(problems) == 6, problems            # reference, BED, 3 libraries, t3's input
+        assert any('spacer library' in p for p in problems) and any('t3' in p for p in problems)
+        labels = os.path.join(root, 'results', 'd0', '_pipeline', 'pretelomeric_labels')
+        os.makedirs(os.path.join(labels, 'pairings_for_spacers', 'S_pairings'))
+        os.makedirs(os.path.join(root, 'results', 'd0', '_pipeline', 'assembly_S'))
+        os.makedirs(os.path.join(root, 'samples_dorado_basecalled'))
+        for f in ('assembly_S/assembly_S_dorado_reference.fasta',
+                  'pretelomeric_labels/pretelomeric_regions_S_simp.bed',
+                  'pretelomeric_labels/extracted_yprimes_S.fasta',
+                  'pretelomeric_labels/clustered_x_elements_S.fasta',
+                  'pretelomeric_labels/pairings_for_spacers/S_pairings/chr1L.fasta'):
+            open(os.path.join(root, 'results', 'd0', '_pipeline', f), 'w').close()
+        open(os.path.join(root, 'samples_dorado_basecalled', 't3.fq.gz'), 'w').close()
+        assert rp.check_recombination_prereqs(cfg, ['t3'], root) == []
+
+
 if __name__ == '__main__':
     failed = 0
     for name, fn in sorted(globals().items()):

@@ -1,16 +1,24 @@
 """
-TeloTracker Snakemake Pipeline — Steps 0-12
+TeloTracker Snakemake pipeline.
 
-Steps 0-6:  Core analysis (based on new TeloTracker telomere_analysis.sh)
-Steps 10-12: Recombination detection (chunk-based, all features analyzed)
+Profiling (rules/profile.smk, steps 0-6): reads -> anchored reads per chromosome end, telomere
+length, Y' probe count, plots, read summary. Needs no strain and no day-0 reference.
+Recombination (rules/recombination.smk, steps 9.5-13): compares each end's reads with the day-0
+sample's reference, labels and libraries. Included only when the config turns it on
+(run_pipeline.py does for --steps recombination); its rules take the profiling outputs as inputs,
+so asking for recombination runs (or reuses) profiling first.
 
-Run:
-  snakemake --cores N                         # full pipeline
-  snakemake through_y_prime_analysis --cores N # steps 0-6 only
-  snakemake recombination_summary --cores N    # full through step 12
+Run (run_pipeline.py writes _pipeline/config.yaml):
+  snakemake -s _pipeline/Snakefile profile -c N   # profiling only (older name: through_y_prime_analysis)
+  snakemake -s _pipeline/Snakefile all -c N       # profiling + recombination when it is on
 """
 
 configfile: "_pipeline/config.yaml"
+
+import os, sys
+
+sys.path.insert(0, os.path.join(workflow.basedir, "scripts"))
+from prerequisites import READ_INPUTS, find_sample_input, tried_inputs
 
 # ---------------------------------------------------------------------------
 # Config variables
@@ -18,28 +26,13 @@ configfile: "_pipeline/config.yaml"
 
 BASE   = config["base_name"]
 ANCHOR = config["anchor_set"]
-STRAIN = config["strain"]
 BAM_DIR = config.get("bam_dir", "samples_dorado_basecalled")
 MIN_GAPPED_SCORE = config.get("min_raw_gapped_score", 5000)
 
-# Day-0 reference + labels.  For the create_ref / label_regions steps these
-# default to results/<base_name>/.  For the recombination step on a later
-# time point, run_pipeline.py rewrites base_name to the time-point sample but
-# writes day0_ref / day0_bed pointing back at the day-0 directory.
-DAY0_REF  = config["references"].get(
-    "day0_ref",
-    f"results/{BASE}/_pipeline/assembly_{STRAIN}/assembly_{STRAIN}_dorado_reference.fasta",
-)
-DAY0_BED  = config["references"].get(
-    "day0_bed",
-    f"results/{BASE}/_pipeline/pretelomeric_labels/pretelomeric_regions_{STRAIN}_simp.bed",
-)
+# Recombination rules and their day-0 settings are read only when recombination is on. Configs
+# written before profiling and recombination were split have no such key but always carry a strain.
+RECOMBINATION = bool(config.get("recombination", "strain" in config))
 
-# Use curated Y prime library override if specified, otherwise use extracted version
-Y_PRIME_LIB    = config["references"].get("y_prime_lib_override",
-                    config["references"]["y_prime_lib"].replace("{strain}", STRAIN))
-SPACER_LIB_DIR = config["references"]["spacer_lib_dir"].replace("{strain}", STRAIN)
-X_ELEM_LIB     = config["references"]["x_element_lib"].replace("{strain}", STRAIN)
 ANCHOR_DB      = config["references"]["anchors"]
 ADAPTER_FILE   = config["references"]["adapters"]
 PROBE_DB       = config["references"]["probe"]
@@ -60,474 +53,40 @@ CHROM_ENDS = [f"chr{n}{s}" for n in range(1, 17) for s in ("L", "R")]
 # Detect input file (BAM, FASTQ, or FASTQ.GZ)
 # ---------------------------------------------------------------------------
 
-import os, sys
-
-# First match wins, in this order.
-_INPUT_CANDIDATES = [(".bam", "bam"), (".fastq", "fastq"), (".fq", "fastq"),
-                     (".fastq.gz", "fastqgz"), (".fq.gz", "fastqgz")]
-for _ext, _type in _INPUT_CANDIDATES:
-    _path = os.path.join(BAM_DIR, BASE + _ext)
-    if os.path.exists(_path):
-        INPUT_FILE, INPUT_TYPE = _path, _type
-        break
-else:
-    _tried = ", ".join(os.path.join(BAM_DIR, BASE + e) for e, _ in _INPUT_CANDIDATES)
-    print(f"ERROR: No input found at any of: {_tried}", file=sys.stderr)
+_found = find_sample_input(BAM_DIR, BASE, READ_INPUTS)
+if _found is None:
+    print(f"ERROR: No input found at any of: {tried_inputs(BAM_DIR, BASE, READ_INPUTS)}", file=sys.stderr)
     sys.exit(1)
+INPUT_FILE, INPUT_TYPE = _found
 
 # ---------------------------------------------------------------------------
 # Target rules
 # ---------------------------------------------------------------------------
 
+PROFILE_OUTPUTS = [
+    f"{RESULTS}/{BASE}_post_y_prime_probe.tsv",
+    f"{GRAPH_DIR}/.plots_done",
+    f"{RESULTS}/{BASE}_read_summary.tsv",
+]
+RECOMBINATION_OUTPUTS = [
+    f"{RECOMB_DIR}/{BASE}_recombination_summary.tsv",
+    f"{RESULTS}/recombination_events/.events_extracted",
+    f"{GRAPH_DIR}/recombination_tracks/.plots_done",
+    f"{GRAPH_DIR}/onion_skin/.plots_done",
+    f"{RESULTS}/recombination_events/{BASE}_yprime_variants.tsv",
+]
+
+# Everything this config asks for: profiling, plus recombination when it is on.
 rule all:
-    input:
-        f"{RECOMB_DIR}/{BASE}_recombination_summary.tsv",
-        f"{RESULTS}/recombination_events/.events_extracted",
-        f"{GRAPH_DIR}/recombination_tracks/.plots_done",
-        f"{GRAPH_DIR}/onion_skin/.plots_done",
-        f"{RESULTS}/recombination_events/{BASE}_yprime_variants.tsv",
-        # Pull in the same outputs as `through_y_prime_analysis` so a single
-        # `snakemake all` invocation also produces the single-sample plots
-        # without the wrapper having to name multiple targets.
-        f"{RESULTS}/{BASE}_post_y_prime_probe.tsv",
-        f"{GRAPH_DIR}/.plots_done",
-        f"{RESULTS}/{BASE}_read_summary.tsv",
+    input: PROFILE_OUTPUTS + (RECOMBINATION_OUTPUTS if RECOMBINATION else [])
 
+rule profile:
+    input: PROFILE_OUTPUTS
+
+# Older name of `profile` (create_ref.sh runs it).
 rule through_y_prime_analysis:
-    input:
-        f"{RESULTS}/{BASE}_post_y_prime_probe.tsv",
-        f"{GRAPH_DIR}/.plots_done",
-        f"{RESULTS}/{BASE}_read_summary.tsv",
+    input: PROFILE_OUTPUTS
 
-# ===========================================================================
-# CORE ANALYSIS (Steps 0-6)
-# ===========================================================================
-
-# ---------------------------------------------------------------------------
-# Step 0a: Convert input to raw FASTQ
-# ---------------------------------------------------------------------------
-
-rule prep_raw_fastq:
-    input: INPUT_FILE
-    output: f"{RESULTS}/{BASE}_raw.fastq"
-    threads: 1
-    run:
-        if INPUT_TYPE == "bam":
-            shell("samtools fastq -T '*' {input} > {output}")
-        elif INPUT_TYPE == "fastqgz":
-            shell("zcat {input} > {output}")
-        else:
-            shell("cp {input} {output}")
-
-# ---------------------------------------------------------------------------
-# Step 0b: Filter reads (>= 2000bp, qscore >= 10)
-# ---------------------------------------------------------------------------
-
-rule filter_reads:
-    input: f"{RESULTS}/{BASE}_raw.fastq"
-    output: f"{RESULTS}/{BASE}.fastq"
-    threads: 1
-    shell: "python _pipeline/scripts/filter_reads.py {input} {output}"
-
-# ---------------------------------------------------------------------------
-# Step 0c: Convert filtered FASTQ to FASTA
-# ---------------------------------------------------------------------------
-
-rule convert_to_fasta:
-    input: f"{RESULTS}/{BASE}.fastq"
-    output: f"{RESULTS}/{BASE}.fasta"
-    threads: 1
-    shell: "sed -n '1~4s/^@/>/p;2~4p' {input} > {output}"
-
-# ---------------------------------------------------------------------------
-# Step 1: BLAST reads for chromosome anchors
-# ---------------------------------------------------------------------------
-
-rule blast_anchors:
-    input:
-        fasta = f"{RESULTS}/{BASE}.fasta",
-        db    = ANCHOR_DB,
-    output: f"{BLAST_DIR}/{BASE}_blasted_{ANCHOR}.tsv"
-    threads: workflow.cores
-    shell:
-        """
-        mkdir -p {BLAST_DIR}
-        echo -e "read_id\\ttotal_read_length\\tread_bp_used_for_match\\tmatch_start_on_read\\tmatch_end_on_read\\tanchor_name\\ttotal_anchor_length\\tmatch_start_on_anchor\\tmatch_end_on_anchor\\tpident\\tbitscore\\tevalue" > {output}
-        blastn -query {input.fasta} -db {input.db} \
-            -task dc-megablast -perc_identity 85 -min_raw_gapped_score {MIN_GAPPED_SCORE} \
-            -num_threads {threads} \
-            -outfmt "6 qseqid qlen length qstart qend sseqid slen sstart send pident bitscore evalue" \
-            >> {output}
-        """
-
-# ---------------------------------------------------------------------------
-# Step 2: Filter BLAST results
-# ---------------------------------------------------------------------------
-
-rule detect_foldbacks:
-    """Flag hairpin reads: the same anchor twice, in opposite orientations.
-
-    Re-BLASTs each ANCHORED read against ONLY its assigned anchor, without
-    -min_raw_gapped_score (that flag filters on the preliminary gapped score,
-    which systematically hides the degraded second copy of a fold-back).
-    Detection only -- it cannot reassign a read or anchor a new one.
-    """
-    input:
-        blast   = f"{BLAST_DIR}/{BASE}_blasted_{ANCHOR}.tsv",
-        fasta   = f"{RESULTS}/{BASE}.fasta",
-        anchors = ANCHOR_DB,   # db prefix is the FASTA path itself
-    output:
-        ids    = f"{BLAST_DIR}/{BASE}_foldback_read_ids.txt",
-        detail = f"{BLAST_DIR}/{BASE}_foldback_detail.tsv",
-    threads: workflow.cores
-    shell:
-        """
-        samtools faidx {input.fasta}
-        python _pipeline/scripts/detect_foldback_reads.py \
-            --blast-tsv     {input.blast} \
-            --reads-fasta   {input.fasta} \
-            --anchors-fasta {input.anchors} \
-            --output        {output.ids} \
-            --detail-tsv    {output.detail} \
-            --threads       {threads}
-        """
-
-
-rule filter_anchors:
-    input:
-        blast    = f"{BLAST_DIR}/{BASE}_blasted_{ANCHOR}.tsv",
-        foldback = f"{BLAST_DIR}/{BASE}_foldback_read_ids.txt",
-    output: f"{BLAST_DIR}/top_matches_{BASE}_blasted_{ANCHOR}.tsv"
-    threads: 1
-    shell:
-        "python _pipeline/scripts/filter_for_reads_with_anchors.py "
-        "{BASE} {ANCHOR} {RESULTS} {input.foldback}"
-
-# ---------------------------------------------------------------------------
-# Step 3: Split and label reads per chromosome end
-# ---------------------------------------------------------------------------
-
-rule split_and_label:
-    input: f"{BLAST_DIR}/top_matches_{BASE}_blasted_{ANCHOR}.tsv"
-    output:
-        fasta = expand(f"{CHR_DIR}/{BASE}_blasted_{ANCHOR}_{{ce}}_anchor_reads.fasta", ce=CHROM_ENDS),
-        tsv   = expand(f"{CHR_DIR}/{BASE}_blasted_{ANCHOR}_{{ce}}_anchor_reads.tsv",   ce=CHROM_ENDS),
-    threads: 1
-    shell:
-        """
-        python _pipeline/scripts/split_and_label_all_reads_include_anchor.py {BASE} {ANCHOR} {RESULTS}
-        for f in {output.fasta} {output.tsv}; do touch -a "$f"; done
-        """
-
-# ---------------------------------------------------------------------------
-# Step 4a: Concatenate per-chr-end reads
-# ---------------------------------------------------------------------------
-
-rule aggregate_chromosomes:
-    input: expand(f"{CHR_DIR}/{BASE}_blasted_{ANCHOR}_{{ce}}_anchor_reads.fasta", ce=CHROM_ENDS)
-    output: f"{RESULTS}/{BASE}_all_chr_anchored_reads.fasta"
-    threads: 1
-    shell: "cat {input} > {output}"
-
-# ---------------------------------------------------------------------------
-# Step 4b: Porechop adapter trimming
-# ---------------------------------------------------------------------------
-
-rule porechop_trim:
-    input: f"{RESULTS}/{BASE}_all_chr_anchored_reads.fasta"
-    output:
-        fastq = f"{PCHOP_DIR}/{BASE}_trimmed.fastq",
-        fasta = f"{PCHOP_DIR}/{BASE}_trimmed.fasta",
-        log   = f"{PCHOP_DIR}/{BASE}_porechop.log",
-    threads: workflow.cores
-    shell:
-        """
-        mkdir -p {PCHOP_DIR}
-        porechop_abi -t {threads} --format fastq -ddb -v 3 --no_split \
-            -cap {ADAPTER_FILE} \
-            -i {input} -o {output.fastq} > {output.log}
-        sed -n '1~4s/^@/>/p;2~4p' {output.fastq} > {output.fasta}
-        """
-
-# ---------------------------------------------------------------------------
-# Step 4c: Adapter check + telomere trimming
-# ---------------------------------------------------------------------------
-
-rule parse_porechop_and_trim:
-    input:
-        log   = f"{PCHOP_DIR}/{BASE}_porechop.log",
-        fasta = f"{RESULTS}/{BASE}.fasta",
-    output:
-        adapter_tsv = f"{RESULTS}/{BASE}_adapter_trimming_check.tsv",
-        telo_tsv    = f"{RESULTS}/{BASE}_post_telo_trimming.tsv",
-    threads: 1
-    shell:
-        """
-        python _pipeline/scripts/check_for_adapters.py {BASE} {input.log} {RESULTS}
-        python _pipeline/scripts/compare_adapter_callers_dorado.py {BASE} {ANCHOR} {RESULTS} {input.fasta}
-        python _pipeline/scripts/fine_telomere_trimming.py {BASE} {ANCHOR} {RESULTS}
-        """
-
-# ---------------------------------------------------------------------------
-# Step 5: BLAST anchored reads for Y' probe (per chr end)
-# ---------------------------------------------------------------------------
-
-rule blast_y_primes:
-    input: f"{CHR_DIR}/{BASE}_blasted_{ANCHOR}_{{chr_end}}_anchor_reads.fasta"
-    output: f"{YP_BLAST}/{BASE}_{{chr_end}}_blasted_probe.tsv"
-    threads: workflow.cores
-    shell:
-        """
-        mkdir -p {YP_BLAST}
-        echo -e "read_id\\ttotal_read_length\\tread_bp_used_for_match\\tmatch_start_on_read\\tmatch_end_on_read\\tanchor_name\\ttotal_anchor_length\\tmatch_start_on_anchor\\tmatch_end_on_anchor\\tpident\\tbitscore\\tevalue" > {output}
-        # An end with no anchored reads has an empty FASTA: keep the header-only table. Any
-        # other blastn failure fails the rule rather than reading as zero Y' copies.
-        if [ -s {input} ]; then
-            blastn -query {input} -db {PROBE_DB} \
-                -perc_identity 90 -num_threads {threads} \
-                -outfmt "6 qseqid qlen length qstart qend sseqid slen sstart send pident bitscore evalue" \
-                >> {output}
-        fi
-        """
-
-# ---------------------------------------------------------------------------
-# Step 6: Y prime analysis + plots
-# ---------------------------------------------------------------------------
-
-rule y_prime_analysis:
-    input:
-        probes = expand(f"{YP_BLAST}/{BASE}_{{ce}}_blasted_probe.tsv", ce=CHROM_ENDS),
-        telo   = f"{RESULTS}/{BASE}_post_telo_trimming.tsv",
-    output: f"{RESULTS}/{BASE}_post_y_prime_probe.tsv"
-    threads: 1
-    shell: "python _pipeline/scripts/y_prime_analysis.py {BASE} {RESULTS}"
-
-rule single_sample_plots:
-    input: f"{RESULTS}/{BASE}_post_y_prime_probe.tsv"
-    output: touch(f"{GRAPH_DIR}/.plots_done")
-    threads: 1
-    shell:
-        """
-        mkdir -p {GRAPH_DIR}
-        python _pipeline/scripts/single_sample_plots.py {BASE} {RESULTS}
-        """
-
-# Per-end anchored vs qualifying counts. Qualifying uses the same filter as the
-# 500bp/facet plots, so this file states in numbers what those graphs show.
-rule read_summary:
-    input: f"{RESULTS}/{BASE}_post_y_prime_probe.tsv"
-    output: f"{RESULTS}/{BASE}_read_summary.tsv"
-    threads: 1
-    shell: "python _pipeline/scripts/read_summary.py {BASE} {RESULTS}"
-
-# ===========================================================================
-# RECOMBINATION ANALYSIS (Steps 10-12)
-# ===========================================================================
-
-# ---------------------------------------------------------------------------
-# Step 9.5: Filter reads to telomere-confirmed only
-# ---------------------------------------------------------------------------
-
-rule filter_telomere_reads:
-    input:
-        telo_tsv  = f"{RESULTS}/{BASE}_post_telo_trimming.tsv",
-        chr_reads = expand(f"{CHR_DIR}/{BASE}_blasted_{ANCHOR}_{{ce}}_anchor_reads.fasta", ce=CHROM_ENDS),
-    output: expand(f"{TELO_DIR}/{BASE}_{{ce}}_telomere_reads.fasta", ce=CHROM_ENDS)
-    threads: 1
-    shell:
-        """
-        python _pipeline/scripts/filter_telomere_reads.py \
-            --telo-tsv    {input.telo_tsv} \
-            --input-dir   {CHR_DIR} \
-            --output-dir  {TELO_DIR} \
-            --base-name   {BASE} \
-            --anchor-set  {ANCHOR}
-        """
-
-# ---------------------------------------------------------------------------
-# Step 10: minimap2 alignment (supplementary evidence only)
-# ---------------------------------------------------------------------------
-
-rule recombination_alignment:
-    input:
-        reads    = f"{TELO_DIR}/{BASE}_{{chr_end}}_telomere_reads.fasta",
-        day0_ref = DAY0_REF,
-    output:
-        tsv = f"{RECOMB_DIR}/{BASE}_{{chr_end}}_alignment.tsv",
-        bam = f"{RECOMB_DIR}/{BASE}_{{chr_end}}.bam",
-    threads: workflow.cores
-    shell:
-        """
-        mkdir -p {RECOMB_DIR}
-        python _pipeline/scripts/run_alignment.py \
-            --reads-fasta {input.reads} \
-            --day0-ref    {input.day0_ref} \
-            --chr-end     {wildcards.chr_end} \
-            --output-tsv  {output.tsv} \
-            --output-bam  {output.bam} \
-            --threads     {threads}
-        """
-
-# ---------------------------------------------------------------------------
-# Step 11: Combined feature analysis (per chr end)
-# ---------------------------------------------------------------------------
-
-rule recombination_analyze:
-    input:
-        reads       = f"{TELO_DIR}/{BASE}_{{chr_end}}_telomere_reads.fasta",
-        alignment   = f"{RECOMB_DIR}/{BASE}_{{chr_end}}_alignment.tsv",
-        anchor_tsv  = f"{CHR_DIR}/{BASE}_blasted_{ANCHOR}_{{chr_end}}_anchor_reads.tsv",
-        day0_bed    = DAY0_BED,
-        day0_ref    = DAY0_REF,
-        y_prime_lib = Y_PRIME_LIB,
-        telo_tsv    = f"{RESULTS}/{BASE}_post_telo_trimming.tsv",
-        probe_tsv   = f"{RESULTS}/{BASE}_post_y_prime_probe.tsv",
-    output:
-        tsv = f"{RECOMB_DIR}/{BASE}_{{chr_end}}_features.tsv",
-    params:
-        chr_end           = "{chr_end}",
-        strain            = STRAIN,
-        spacer_lib_dir    = SPACER_LIB_DIR,
-        x_element_lib     = X_ELEM_LIB,
-        attribution_mode  = config.get("attribution_mode", "v2"),
-        y_prime_id_level  = config.get("y_prime_id_level", "family"),
-    threads: workflow.cores
-    shell:
-        """
-        python _pipeline/scripts/analyze_features.py \
-            --reads-fasta       {input.reads} \
-            --alignment-tsv     {input.alignment} \
-            --anchor-tsv        {input.anchor_tsv} \
-            --day0-bed          {input.day0_bed} \
-            --day0-ref          {input.day0_ref} \
-            --y-prime-lib       {input.y_prime_lib} \
-            --spacer-lib-dir    {params.spacer_lib_dir} \
-            --x-element-lib     {params.x_element_lib} \
-            --telo-tsv          {input.telo_tsv} \
-            --probe-tsv         {input.probe_tsv} \
-            --attribution-mode  {params.attribution_mode} \
-            --y-prime-id-level  {params.y_prime_id_level} \
-            --chr-end           {params.chr_end} \
-            --strain            {params.strain} \
-            --output-tsv        {output.tsv} \
-            --threads           {threads}
-        """
-
-# ---------------------------------------------------------------------------
-# Step 12: Summary across all chr ends
-# ---------------------------------------------------------------------------
-
-rule recombination_summary:
-    input: expand(f"{RECOMB_DIR}/{BASE}_{{ce}}_features.tsv", ce=CHROM_ENDS)
-    output: f"{RECOMB_DIR}/{BASE}_recombination_summary.tsv"
-    params:
-        recomb_dir = RECOMB_DIR,
-        base_name  = BASE,
-    threads: 1
-    shell:
-        """
-        python _pipeline/scripts/aggregate_recombination.py \
-            --recombination-dir {params.recomb_dir} \
-            --base-name         {params.base_name} \
-            --output-summary    {output}
-        """
-
-# ---------------------------------------------------------------------------
-# Step 13a: Filter event-only TSVs (slim + full) for downstream investigation
-# ---------------------------------------------------------------------------
-
-rule extract_recombination_events:
-    input: expand(f"{RECOMB_DIR}/{BASE}_{{ce}}_features.tsv", ce=CHROM_ENDS)
-    output:
-        marker = f"{RESULTS}/recombination_events/.events_extracted",
-    params:
-        recomb_dir = RECOMB_DIR,
-        base_name  = BASE,
-        events_dir = f"{RESULTS}/recombination_events",
-    threads: 1
-    shell:
-        """
-        mkdir -p {params.events_dir}
-        python _pipeline/scripts/extract_recombination_events.py \
-            {params.recomb_dir} {params.base_name} {params.events_dir}
-        touch {output.marker}
-        """
-
-# ---------------------------------------------------------------------------
-# Step 13b: Per-chr_end track plots (only chr_ends with at least one event)
-# ---------------------------------------------------------------------------
-
-# "Onion skin": how each gained Y' array was assembled from donor pieces -- circles (a donor
-# piece copied in tandem) and the same donor contributing several pieces. Aggregates the
-# y_prime_path / y_prime_path_circles columns analyze_features.py already writes, per end,
-# collapses reads into distinct gained arrays (the events table, also the input of the
-# across-timepoint step run_pipeline.py runs after the last sample), and draws a
-# not-to-scale schematic of its onion-skin and possible onion-skin reads, one PNG per end
-# that has any.
-rule onion_skin:
-    input: expand(f"{RECOMB_DIR}/{BASE}_{{ce}}_features.tsv", ce=CHROM_ENDS)
-    output:
-        summary = f"{RESULTS}/recombination_events/{BASE}_onion_skin_summary.tsv",
-        events  = f"{RESULTS}/recombination_events/{BASE}_onion_skin_events.tsv",
-        marker  = f"{GRAPH_DIR}/onion_skin/.plots_done",
-    params:
-        recomb_dir = RECOMB_DIR,
-        base_name  = BASE,
-        plots_dir  = f"{GRAPH_DIR}/onion_skin",
-        read_ids   = f"{GRAPH_DIR}/onion_skin/{BASE}_gain_like_read_ids.txt",
-    threads: 1
-    shell:
-        """
-        mkdir -p {params.plots_dir}
-        python _pipeline/scripts/onion_skin_summary.py \
-            {params.base_name} {params.recomb_dir} {output.summary} {params.read_ids} \
-            --events-out {output.events}
-        python _pipeline/scripts/plot_yprime_copies.py \
-            {params.recomb_dir} {params.base_name} {params.plots_dir} \
-            --schematic --reads {params.read_ids} --tiers {output.events} --onion-only
-        touch {output.marker}
-        """
-
-# Recombinant Y' variants: copies built from pieces of two or more day-0 Y's (e.g. the 5' part
-# of one element and the rest of another). RepeatMasker names such a copy after one parent; this
-# step re-reads every Y' copy against all of the day-0 Y's and reports the recombinants that recur
-# (consensus-confirmed). Report-only: no existing output changes.
-rule yprime_variants:
-    input:
-        features = expand(f"{RECOMB_DIR}/{BASE}_{{ce}}_features.tsv", ce=CHROM_ENDS),
-        reads    = expand(f"{TELO_DIR}/{BASE}_{{ce}}_telomere_reads.fasta", ce=CHROM_ENDS),
-        day0_ref = DAY0_REF,
-        day0_bed = DAY0_BED,
-    output:
-        tsv    = f"{RESULTS}/recombination_events/{BASE}_yprime_variants.tsv",
-        copies = f"{RESULTS}/recombination_events/{BASE}_yprime_variant_copies.tsv.gz",
-        fasta  = f"{RESULTS}/recombination_events/{BASE}_yprime_variants.fasta",
-    params:
-        recomb_dir = RECOMB_DIR,
-        telo_dir   = TELO_DIR,
-        base_name  = BASE,
-        out_dir    = f"{RESULTS}/recombination_events",
-    threads: workflow.cores
-    shell:
-        """
-        python _pipeline/scripts/yprime_variants.py \
-            {params.base_name} {params.recomb_dir} {params.telo_dir} \
-            --day0-ref {input.day0_ref} --day0-bed {input.day0_bed} \
-            --out-dir {params.out_dir} --threads {threads}
-        """
-
-rule recombination_track_plots:
-    input: expand(f"{RECOMB_DIR}/{BASE}_{{ce}}_features.tsv", ce=CHROM_ENDS)
-    output:
-        marker = f"{GRAPH_DIR}/recombination_tracks/.plots_done",
-    params:
-        recomb_dir = RECOMB_DIR,
-        base_name  = BASE,
-        plots_dir  = f"{GRAPH_DIR}/recombination_tracks",
-    threads: 1
-    shell:
-        """
-        mkdir -p {params.plots_dir}
-        python _pipeline/scripts/plot_recombination_tracks.py \
-            {params.recomb_dir} {params.base_name} {params.plots_dir}
-        """
+include: "rules/profile.smk"
+if RECOMBINATION:
+    include: "rules/recombination.smk"
