@@ -60,6 +60,14 @@ def test_no_hits_is_no_data():
     assert call([])['x_element_recombination'] == 'no_data'
 
 
+def test_end_not_in_library_is_not_a_switch():
+    # no X of its own in the day-0 library: every hit would otherwise "differ" -> full_switch
+    r = af.call_x_element([hit('ID19', 'chr4L', 99.0, 712)], 'chr10R', '')
+    assert r['x_element_recombination'] == af.AXIS_NOT_IN_LIBRARY and r['x_element_source'] == ''
+    assert r['x_element_start'] == 10000          # the X span still bounds the spacer walk
+    assert af.call_x_element([], 'chr10R', '')['x_element_recombination'] == af.AXIS_NOT_IN_LIBRARY
+
+
 if __name__ == '__main__':
     failed = 0
     for name, fn in sorted(globals().items()):

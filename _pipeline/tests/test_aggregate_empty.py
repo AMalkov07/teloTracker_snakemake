@@ -35,6 +35,14 @@ def test_skipped_sidecar_still_reported_as_skipped():
     assert s.loc['chr3L', 'status'] == 'skipped'
 
 
+def test_axes_not_in_day0_library_column():
+    row = {'read_id': 'r1', 'recombination_detected': False, 'y_prime_recombination_status': 'No Change',
+           'spacer_recombination': 'no_change', 'x_element_recombination': 'not_in_library'}
+    s = summarize({'chr4L': [row], 'chr5R': [dict(row, x_element_recombination='no_change')]})
+    assert s.loc['chr4L', 'axes_not_in_day0_library'] == 'x_element'
+    assert pd.isna(s.loc['chr5R', 'axes_not_in_day0_library'])     # empty string reads back as NaN
+
+
 if __name__ == '__main__':
     failed = 0
     for name, fn in sorted(globals().items()):

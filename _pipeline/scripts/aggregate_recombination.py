@@ -110,6 +110,12 @@ def summarize(recombination_dir, base_name, output_summary):
         xe_col = 'x_element_recombination'
         xe_switch = len(df[df[xe_col].isin(['switch_detected', 'full_switch'])]) if xe_col in df.columns else 0
 
+        # Axes this end has no day-0 library entry for (analyze_features marks every read
+        # 'not_in_library'): a 0 in n_spacer_switch / n_x_element_switch then means "not
+        # analysable", not "no switch".
+        axes_missing = ';'.join(axis for axis, col in (('spacer', sp_col), ('x_element', xe_col))
+                                if col in df.columns and (df[col] == 'not_in_library').any())
+
         # Confidence stats
         conf_col = 'overall_confidence'
         mean_conf = df[conf_col].mean() if conf_col in df.columns else 0.0   # deprecated, see below
@@ -180,6 +186,7 @@ def summarize(recombination_dir, base_name, output_summary):
             'pct_recombination': round(100 * n_recomb / max(total, 1), 1),
             'n_spacer_switch': sp_switch,
             'n_x_element_switch': xe_switch,
+            'axes_not_in_day0_library': axes_missing,
             'n_y_prime_change': yp_change,
             'n_y_prime_no_change': yp_no_change,
             'n_y_prime_gain': _n("Y' Gain"),

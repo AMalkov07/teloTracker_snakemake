@@ -334,6 +334,8 @@ def collect(pipeline_dir, base_name):
                 'pct': to_num(r.get('pct_recombination')),
                 'n_spacer_switch': to_num(r.get('n_spacer_switch')),
                 'n_x_element_switch': to_num(r.get('n_x_element_switch')),
+                # axes with no day-0 library entry for this end: shown as n/a, not as 0 switches
+                'axes_missing': str(r.get('axes_not_in_day0_library', '') or '').split(';'),
                 'n_y_prime_change': to_num(r.get('n_y_prime_change')),
                 'mean_confidence': to_num(r.get('mean_confidence')),
                 'mean_rc': to_num(r.get('mean_recombination_confidence')),
@@ -619,6 +621,14 @@ def tile(key, value, sub=''):
     return f'<div class="tile"><div class="k">{key}</div><div class="v">{value}</div>{s}</div>'
 
 
+def _axis_cell(r, axis, key):
+    """Per-end switch count, or n/a when the end has no day-0 library entry for that axis."""
+    if axis in r.get('axes_missing', []):
+        return ('<td data-v="-1" title="no day-0 library entry for this end, so no call">'
+                '<span class="muted">n/a</span></td>')
+    return f'<td data-v="{r[key] or 0}">{fmt(r[key])}</td>'
+
+
 def fmt(value, dec=0, dash='&mdash;'):
     if value is None:
         return dash
@@ -834,9 +844,9 @@ def render_sample(data):
                 f'<td data-v="{r["total_reads"]}">{r["total_reads"]:,}</td>'
                 f'<td data-v="{r["n_recombination"] or 0}">{fmt(r["n_recombination"])}</td>'
                 f'<td data-v="{r["pct"] or 0}">{fmt(r["pct"], 1)}%</td>'
-                f'<td data-v="{r["n_spacer_switch"] or 0}">{fmt(r["n_spacer_switch"])}</td>'
-                f'<td data-v="{r["n_x_element_switch"] or 0}">{fmt(r["n_x_element_switch"])}</td>'
-                f'<td data-v="{r["n_y_prime_change"] or 0}">{fmt(r["n_y_prime_change"])}</td>'
+                + _axis_cell(r, 'spacer', 'n_spacer_switch')
+                + _axis_cell(r, 'x_element', 'n_x_element_switch')
+                + f'<td data-v="{r["n_y_prime_change"] or 0}">{fmt(r["n_y_prime_change"])}</td>'
                 f'<td data-v="{r["n_complex_events"] or 0}">{fmt(r["n_complex_events"])}</td>'
                 + (f'<td data-v="{r["mean_rc"] or 0}">{fmt(r["mean_rc"], 2)}</td>'
                    f'<td data-v="{r["mean_dc"] or 0}">{fmt(r["mean_dc"], 2)}</td>'

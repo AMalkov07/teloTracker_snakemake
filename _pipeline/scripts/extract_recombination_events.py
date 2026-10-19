@@ -73,8 +73,8 @@ appear here. chr_ends with zero such events have no files in this folder.
 | overall_confidence | Confidence score 0-1 (higher = more reliable call) |
 | switch_pos | Earliest non-(-1) switch position from spacer or x-element axes; -1 if no positional switch |
 | evidence | Human-readable axis-by-axis call summary (from cross_feature_detail) |
-| spacer_recombination | Spacer axis call: no_change / switch_detected / full_switch / no_data |
-| x_element_recombination | X-element axis call: same vocabulary |
+| spacer_recombination | Spacer axis call: no_change / switch_detected / full_switch / no_data / not_in_library (the end has no spacer in the day-0 library, so no call) |
+| x_element_recombination | X-element axis call: same vocabulary (not_in_library = no X of its own in the day-0 library) |
 | y_prime_recombination_status | Y' axis: No Change / 1st Y' Change / Y' Recombination / Y' Loss / Y' Gain |
 | y_prime_observed_array | Y' cluster IDs detected in this read, ordered (e.g. ID1,ID2,ID2) |
 | is_complex_event | True if multiple non-self sources are involved |

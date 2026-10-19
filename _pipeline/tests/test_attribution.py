@@ -264,6 +264,63 @@ def test_loss_confirmation():
     assert 'loss_unconfirmed_end' in bad['qc_flags_extra']
 
 
+def test_shorter_array_with_a_different_copy_is_a_change_not_a_loss():
+    # strict prefix rule: chr4R (ID1 x7) read carrying one ID2 lost copies AND changed ID
+    lib = _lib()
+    arrays = af.build_reference_arrays(lib)
+    y = af.compare_y_prime_arrays(['ID2'], _ref(arrays['chr4R']), lib, arrays, 'chr4R')
+    assert y['y_prime_recombination_status'] == "1st Y' Change"
+    assert (y['y_prime_divergence_idx'], y['y_prime_gained_segment']) == (0, 'ID2')
+    assert y['y_prime_reference_count'] == 7
+    rec = af.reconcile_features(_no_spacer('chr4R'), _no_x('chr4R'), y, [], 'chr4R', {'confirmed': True})
+    assert rec['recombination_detected']
+    assert not rec['recombination_mechanism'].startswith('array_contraction')
+    assert 'array_shorter_than_reference' in rec['qc_flags_extra']
+
+
+def test_shorter_array_rearranged_from_own_copies():
+    # chr13L ID2,ID1,ID2,ID1 -> ID2,ID2: changed at position 2, the gained ID2 is chr13L's own
+    lib = _lib()
+    arrays = af.build_reference_arrays(lib)
+    y = af.compare_y_prime_arrays(['ID2', 'ID2'], _ref(arrays['chr13L']), lib, arrays, 'chr13L')
+    assert y['y_prime_recombination_status'] == "Y' Recombination" and y['y_prime_divergence_idx'] == 1
+    rec = af.reconcile_features(_no_spacer('chr13L'), _no_x('chr13L'), y, [], 'chr13L', {'confirmed': True})
+    assert rec['recombination_mechanism'] == 'array_rearrangement_same_end'
+
+
+def test_loss_with_spacer_switch_is_a_subtelomere_switch():
+    lib = _lib()
+    y = af.compare_y_prime_arrays(['ID2', 'ID1'], _ref(['ID2', 'ID1', 'ID2', 'ID1']), lib, af.build_reference_arrays(lib), 'chr13L')
+    assert y['y_prime_recombination_status'] == "Y' Loss"
+    sp = {'spacer_source': 'chr8L', 'spacer_recombination': 'switch_detected', 'spacer_confidence': 0.8}
+    rec = af.reconcile_features(sp, _no_x('chr13L'), y, [], 'chr13L', {'confirmed': True})
+    assert rec['recombination_mechanism'] == 'subtelomere_switch'
+    assert rec['recombination_source'] == 'chr8L'
+
+
+def test_axes_not_in_library_are_not_recombinant():
+    sp = af.not_in_library_spacer_result()
+    x = af.mark_axis_not_in_library({'x_element_source': 'chr4L', 'x_element_recombination': 'full_switch',
+                                     'x_element_confidence': 0.9}, 'x_element')
+    y = {'y_prime_recombination_status': 'No Change'}
+    rec = af.reconcile_features(sp, x, y, [], 'chr10R')
+    assert not rec['recombination_detected'] and rec['recombination_source'] == ''
+
+
+def test_library_membership_helpers():
+    import tempfile
+    with tempfile.NamedTemporaryFile('w', suffix='.fasta', delete=False) as fh:
+        fh.write('>chr1L_12kb_spacer_section_1_from_repeat_to_plus_12kb#1\nACGT\n'
+                 '>chr10R_9kb_spacer_section_1_from_repeat_to_plus_9kb#1\nACGT\n')
+    try:
+        assert af.library_chr_ends(fh.name) == {'chr1L', 'chr10R'}
+    finally:
+        os.remove(fh.name)
+    assert af.library_chr_ends(None) == set()
+    feats = [{'feature_type': 'anchor'}, {'feature_type': 'x_core'}, {'feature_type': 'y_prime'}]
+    assert af.axes_in_day0_labels(feats) == (True, False)
+    assert af.merge_qc_flags('a;b', 'b', '', 'c') == 'a;b;c'
+
 def test_spacer_switch_confidence_reflects_per_chunk_gap():
     # 10 chunks: 4 match chr2L at 99%, then 6 match chr8L at 99% while chr2L only reaches 92%
     hits = []

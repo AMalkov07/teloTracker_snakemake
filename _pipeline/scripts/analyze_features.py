@@ -83,6 +83,11 @@ MIN_SWITCH_GAP_PCT = 3.0
 X_MIN_SWITCH_COVERAGE = 0.5
 X_MIN_SWITCH_GAP_PCT = 1.0
 
+# Axis state when the end being analysed has no entry in that axis' day-0 library (no X /
+# spacer labelled for it on the day-0 reference, or no library at all). Without its own
+# entry a read can only ever "differ", so no spacer / X call is made for that end.
+AXIS_NOT_IN_LIBRARY = 'not_in_library'
+
 # ---------------------------------------------------------------------------
 # Attribution mode (see docs/attribution_v2.md)
 #   legacy : the pre-2026-09 behaviour -- source voted by spacer / x-element /
@@ -1018,6 +1023,52 @@ def expected_x_cluster_id(x_cluster_info, expected_chr_end):
     return ''
 
 
+def mark_axis_not_in_library(result, axis):
+    """Turn an axis result ('spacer' or 'x_element') into the not-in-library state. The source
+    is cleared; coordinates are kept (the X span bounds the spacer walk)."""
+    out = dict(result)
+    out[f'{axis}_recombination'] = AXIS_NOT_IN_LIBRARY
+    out[f'{axis}_source'] = ''
+    return out
+
+
+def not_in_library_spacer_result():
+    return {'spacer_start': -1, 'spacer_end': -1, 'spacer_size': 0, 'spacer_source': '',
+            'spacer_switch_pos': -1, 'spacer_best_identity': 0.0, 'spacer_second_best_identity': 0.0,
+            'spacer_confidence': 0.0, 'spacer_recombination': AXIS_NOT_IN_LIBRARY,
+            'spacer_plurality_source': '', 'spacer_quick_check_skipped': False}
+
+
+def library_chr_ends(fasta_path):
+    """Chromosome ends named in a library FASTA's headers."""
+    ends = set()
+    if fasta_path and os.path.exists(fasta_path):
+        with open(fasta_path) as fh:
+            for line in fh:
+                if line.startswith('>'):
+                    ends.add(_subject_to_chr_end(line[1:].split()[0]))
+    return ends
+
+
+def axes_in_day0_labels(features):
+    """(x_in_library, spacer_in_library) for one end from its day-0 BED features. The X and
+    spacer libraries are built from exactly these rows (make_x_element_sequences keeps
+    x_core / x_variable, make_chopped_spacer_sequences keeps the spacer), so an end without
+    them has no library entry."""
+    types = {f['feature_type'] for f in features}
+    return bool(types & {'x_core', 'x_variable'}), 'spacer' in types
+
+
+def merge_qc_flags(*parts):
+    """Join ';'-separated qc flag strings, dropping duplicates (reprocessing must not repeat them)."""
+    out = []
+    for part in parts:
+        for flag in str(part or '').split(';'):
+            if flag and flag not in out:
+                out.append(flag)
+    return ';'.join(out)
+
+
 def _empty_x_result(expected_chr_end):
     return {
         'x_element_start': -1,
@@ -1104,6 +1155,13 @@ def analyze_x_element_whole_region(read_seqs, x_element_lib, expected_chr_end,
 
 
 def call_x_element(hits, expected_chr_end, expected_cluster_id):
+    """call_x_element_hits, or the not-in-library state when the end has no cluster of its own
+    (expected_cluster_id empty): without it every hit would look like a switch."""
+    result = call_x_element_hits(hits, expected_chr_end, expected_cluster_id)
+    return result if expected_cluster_id else mark_axis_not_in_library(result, 'x_element')
+
+
+def call_x_element_hits(hits, expected_chr_end, expected_cluster_id):
     """One read's X-element call from its BLAST hits against the clustered library.
     hits: [{'pident', 'length', 'qstart', 'qend', 'bitscore', 'cluster_id', 'members',
     'rep_chr_end', 'subject_len'}]. The best hit by bitscore names the X; a hit to another
@@ -1320,6 +1378,10 @@ def compare_y_prime_arrays(observed_array, ref_y_primes, name_to_info, ref_array
     telomere order) with the reference array of this end, plus (v2) the
     full-array fingerprint match of the gained segment against every end.
 
+    A read with fewer copies than the reference is a Loss only when its copies equal the
+    reference's first copies; a mismatch within them is a change at that position, like
+    in any other array (strict prefix rule).
+
     Returns the y_prime_* status columns (positions/coordinates are added by
     analyze_y_primes, which owns the RepeatMasker hits)."""
     n_obs = len(observed_array)
@@ -1341,11 +1403,6 @@ def compare_y_prime_arrays(observed_array, ref_y_primes, name_to_info, ref_array
         expected_at_div = 'None'
         found_at_div = observed_array[0]
         status = "Y' Gain"
-    elif n_obs < len(ref_y_primes):
-        divergence_idx = n_obs
-        if divergence_idx < len(ref_y_primes):
-            expected_at_div = ref_y_primes[divergence_idx]['id']
-        status = "Y' Loss"
     else:
         for i in range(len(ref_y_primes)):
             if i >= n_obs:
@@ -1368,6 +1425,11 @@ def compare_y_prime_arrays(observed_array, ref_y_primes, name_to_info, ref_array
             expected_at_div = 'None'
             found_at_div = observed_array[divergence_idx] if divergence_idx < n_obs else ''
             status = "Y' Gain"
+        elif status == 'No Change' and n_obs < len(ref_y_primes):
+            # Every copy matches the reference's first copies: the distal ones are lost.
+            divergence_idx = n_obs
+            expected_at_div = ref_y_primes[divergence_idx]['id']
+            status = "Y' Loss"
 
     compatible_ends = find_compatible_ends(observed_array, name_to_info)
 
@@ -1382,6 +1444,7 @@ def compare_y_prime_arrays(observed_array, ref_y_primes, name_to_info, ref_array
     return {
         'y_prime_observed_array': ','.join(observed_array) if observed_array else '',
         'y_prime_recombination_status': status,
+        'y_prime_reference_count': len(ref_y_primes),
         'y_prime_divergence_idx': divergence_idx,
         'y_prime_expected_at_divergence': expected_at_div,
         'y_prime_found_at_divergence': found_at_div,
@@ -1578,6 +1641,11 @@ def reconcile_features_v2(spacer_result, x_element_result, y_prime_result, supp_
     x_has_recomb = x_recomb in ('switch_detected', 'full_switch')
     y_has_recomb = y_status not in ('No Change', '', 'no_data')
     is_loss = (y_status == "Y' Loss")
+    # A changed array that is also shorter than the reference (strict prefix rule in
+    # compare_y_prime_arrays): the change is called, the shortening is flagged.
+    n_ref_yp = int(y_prime_result.get('y_prime_reference_count', 0) or 0)
+    n_obs_yp = len([x for x in str(y_prime_result.get('y_prime_observed_array', '') or '').split(',') if x])
+    y_shorter_change = y_has_recomb and not is_loss and n_obs_yp < n_ref_yp
     telo_confirmed = None if telo_info is None else bool(telo_info.get('confirmed', False))
     y_downstream = str(y_prime_result.get('y_prime_downstream_consistent', True)) != 'False'
 
@@ -1732,17 +1800,23 @@ def reconcile_features_v2(spacer_result, x_element_result, y_prime_result, supp_
             overall_confidence *= LOSS_UNCONFIRMED_FACTOR
             qc.append('loss_unconfirmed_end')
 
+    if y_shorter_change:
+        qc.append('array_shorter_than_reference')
+
     # ---- mechanism ----------------------------------------------------------
-    if is_loss:
+    # A spacer / x-element switch outranks a Loss: the read carries another end's
+    # subtelomere, whatever its Y' count.
+    if spacer_has_recomb or x_has_recomb:
+        mechanism = 'subtelomere_switch'
+    elif is_loss:
         if telo_info is None:
             mechanism = 'array_contraction'
         else:
             mechanism = 'array_contraction' if telo_info.get('confirmed', False) else 'array_contraction_unconfirmed'
-    elif spacer_has_recomb or x_has_recomb:
-        mechanism = 'subtelomere_switch'
     elif y_has_recomb:
         if y_self:
-            mechanism = 'tandem_amplification_same_end'
+            # fewer copies than the reference: rearranged, not amplified
+            mechanism = 'array_rearrangement_same_end' if y_shorter_change else 'tandem_amplification_same_end'
         elif y_fp:
             mechanism = 'donor_transfer'
         elif len(y_non_self) >= 2:
@@ -2072,6 +2146,14 @@ def reprocess_tsv(args):
     ref_arrays = build_reference_arrays(name_to_info)
     ref_tokens = build_reference_tokens(args.day0_bed, name_to_info)
     telo_info = load_telo_probe(args.telo_tsv, args.probe_tsv)
+    # The spacer / X columns are copied from the input, so an end without its own library
+    # entry (no X / spacer rows in the day-0 BED) is re-marked here rather than trusted.
+    x_in_library, spacer_in_library = axes_in_day0_labels(features)
+    end_qc_flags = ([] if x_in_library else ['x_not_in_day0_library']) + \
+                   ([] if spacer_in_library else ['spacer_not_in_day0_library'])
+    if end_qc_flags:
+        print(f'  WARNING: {args.chr_end}: {", ".join(end_qc_flags)}; those axes are reported as '
+              f'{AXIS_NOT_IN_LIBRARY}.', file=sys.stderr)
 
     if not os.path.exists(args.reprocess_tsv) or os.path.getsize(args.reprocess_tsv) == 0:
         write_results_tsv([], args.output_tsv)
@@ -2097,6 +2179,12 @@ def reprocess_tsv(args):
         row = {k: (v if not (isinstance(v, float) and pd.isna(v)) else '') for k, v in r.items()}
         spacer_result = {k: row[k] for k in row if k.startswith('spacer_')}
         x_result = {k: row[k] for k in row if k.startswith('x_element_')}
+        if not spacer_in_library:
+            spacer_result = mark_axis_not_in_library(spacer_result, 'spacer')
+        if not x_in_library:
+            x_result = mark_axis_not_in_library(x_result, 'x_element')
+        row.update(spacer_result)
+        row.update(x_result)
         observed = [x for x in str(row.get('y_prime_observed_array', '') or '').split(',') if x]
         cmp = compare_y_prime_arrays(observed, ref_y_primes, name_to_info, ref_arrays, args.chr_end)
         y_result = {k: row[k] for k in row if k.startswith('y_prime_')}
@@ -2115,8 +2203,7 @@ def reprocess_tsv(args):
         row.update(y_result)
         row.update(rec)
         row.update(c8_columns(rid, telo_info, telo_side, read_len, y_result))
-        old_qc = str(row.get('qc_flags', '') or '')
-        row['qc_flags'] = ';'.join(x for x in (old_qc, extra_qc) if x)
+        row['qc_flags'] = merge_qc_flags(row.get('qc_flags', ''), extra_qc, *end_qc_flags)
         rows.append(row)
     os.makedirs(os.path.dirname(args.output_tsv) or '.', exist_ok=True)
     write_results_tsv(rows, args.output_tsv)
@@ -2196,6 +2283,11 @@ def main():
               f"{expected_x_id or '(chr_end not found in library)'}")
     else:
         print('  No x-element library found -- x-element analysis disabled')
+    end_qc_flags = []
+    if not expected_x_id:
+        end_qc_flags.append('x_not_in_day0_library')
+        print(f'  WARNING: {args.chr_end} has no X element in the day-0 library; its X axis is reported '
+              f'as {AXIS_NOT_IN_LIBRARY} (no X call) for every read.', file=sys.stderr)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         # === Batch preprocessing ===
@@ -2205,14 +2297,21 @@ def main():
 
         # Build combined spacer library from directory (still chunked — spacers are long)
         spacer_lib = build_combined_library(args.spacer_lib_dir, tmp_dir, 'spacer')
+        spacer_in_library = args.chr_end in library_chr_ends(spacer_lib)
+        if not spacer_in_library:
+            end_qc_flags.append('spacer_not_in_day0_library')
+            print(f'  WARNING: {args.chr_end} has no spacer in the day-0 library; its spacer axis is '
+                  f'reported as {AXIS_NOT_IN_LIBRARY} (no spacer call) for every read.', file=sys.stderr)
 
         # 1. Spacer chunk BLAST
         spacer_hits = {}
-        if spacer_lib:
+        if spacer_lib and spacer_in_library:
             print('  BLASTing chunks against spacer library...')
             spacer_blast = batch_blast_chunks(all_chunks, spacer_lib, tmp_dir, 'spacer')
             spacer_hits = parse_chunk_results(spacer_blast, expected_chr_end=args.chr_end)
             print(f'  Spacer: {len(spacer_blast)} hits, {len(spacer_hits)} reads with matches')
+        elif spacer_lib:
+            print(f'  {args.chr_end} not in the spacer library -- skipping spacer analysis')
         else:
             print('  No spacer library found -- skipping spacer analysis')
 
@@ -2224,8 +2323,10 @@ def main():
         x_results_by_read = analyze_x_element_whole_region(
             read_seqs, args.x_element_lib, args.chr_end,
             x_cluster_info, expected_x_id, tmp_dir, threads=args.threads)
-        n_x_hits = sum(1 for r in x_results_by_read.values()
-                       if r.get('x_element_recombination') not in ('no_data', ''))
+        if not expected_x_id:
+            x_results_by_read = {rid: mark_axis_not_in_library(r, 'x_element')
+                                 for rid, r in x_results_by_read.items()}
+        n_x_hits = sum(1 for r in x_results_by_read.values() if r.get('x_element_best_identity', 0))
         print(f'  X element: {n_x_hits} reads with hits')
 
         # 3. Y prime RepeatMasker
@@ -2286,7 +2387,9 @@ def main():
 
         # Spacer quick check: exact substring match
         quick_check_skipped = False
-        if ref_spacer_seq and spacer_quick_check(read_seqs[read_id], ref_spacer_seq):
+        if not spacer_in_library:
+            spacer_result = not_in_library_spacer_result()
+        elif ref_spacer_seq and spacer_quick_check(read_seqs[read_id], ref_spacer_seq):
             quick_check_skipped = True
             n_quick_check_passed += 1
             spacer_result = {
@@ -2305,6 +2408,8 @@ def main():
         else:
             spacer_result = None   # filled below once the spacer interval is known
         x_result = x_results_by_read.get(read_id) or _empty_x_result(args.chr_end)
+        if not expected_x_id:
+            x_result = mark_axis_not_in_library(x_result, 'x_element')
         y_result = y_results[read_id]
 
         # Spacer chunk walk. The "spacer" library is made of 50 kb subtelomere
@@ -2359,7 +2464,7 @@ def main():
         row.update(y_result)
         row.update(reconciliation)
         row.update(c8_columns(read_id, telo_info, telo_side, read_len, y_result))
-        row['qc_flags'] = extra_qc
+        row['qc_flags'] = merge_qc_flags(extra_qc, *end_qc_flags)
         rows.append(row)
 
     # Write output
